@@ -1,4 +1,44 @@
-import { cellToBoundary, latLngToCell, polygonToCells } from 'h3-js';
+import type * as H3 from 'h3-js';
+
+declare const require: (moduleName: string) => unknown;
+
+function loadH3(): typeof H3 {
+  const globalObject = globalThis as typeof globalThis & {
+    TextDecoder?: typeof TextDecoder;
+  };
+  const Decoder = globalObject.TextDecoder;
+
+  if (!Decoder) {
+    return require('h3-js') as typeof H3;
+  }
+
+  try {
+    new Decoder('utf-16le');
+    return require('h3-js') as typeof H3;
+  } catch {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      globalObject,
+      'TextDecoder',
+    );
+
+    try {
+      Object.defineProperty(globalObject, 'TextDecoder', {
+        configurable: true,
+        writable: true,
+        value: undefined,
+      });
+      return require('h3-js') as typeof H3;
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(globalObject, 'TextDecoder', descriptor);
+      } else {
+        Reflect.deleteProperty(globalObject, 'TextDecoder');
+      }
+    }
+  }
+}
+
+const { cellToBoundary, latLngToCell, polygonToCells } = loadH3();
 
 const HEX_RESOLUTION = 9;
 
