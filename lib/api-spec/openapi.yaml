@@ -31,7 +31,7 @@ paths:
       operationId: saveRun
       tags: [runs]
       summary: Save a completed run
-      description: Atomically saves a completed run, ordered GPS points, and claimed H3 cells.
+      description: Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
       requestBody:
         required: true
         content:

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { SaveRunBody, SaveRunResponse } from "@workspace/api-zod";
-import { lte } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { latLngToCell } from "h3-js";
 import {
   db,
@@ -72,8 +72,13 @@ router.post("/runs", async (req, res) => {
             run.distanceKm >= 0.01
               ? run.elapsedSeconds / run.distanceKm
               : null,
+          avgPaceMinPerKm:
+            run.distanceKm >= 0.01
+              ? run.elapsedSeconds / 60 / run.distanceKm
+              : null,
           pointCount: run.points.length,
           hexCount: run.claimedHexes.length,
+          claimedHexes: run.claimedHexes,
         })
         .onConflictDoNothing()
         .returning({ id: hexrunnerRunsTable.id });
@@ -111,7 +116,7 @@ router.post("/runs", async (req, res) => {
               h3Index,
               ownerId: run.userId,
               lastRunId: run.clientRunId,
-              claimedAt: run.endedAt,
+              claimedAt: now,
             })),
           )
           .onConflictDoUpdate({
@@ -119,13 +124,16 @@ router.post("/runs", async (req, res) => {
             set: {
               ownerId: run.userId,
               lastRunId: run.clientRunId,
-              claimedAt: run.endedAt,
+              claimedAt: now,
             },
-            setWhere: lte(
-              hexrunnerHexOwnershipTable.claimedAt,
-              run.endedAt,
-            ),
           });
+
+        await tx
+          .update(hexrunnerUsersTable)
+          .set({
+            totalHexesOwned: sql`${hexrunnerUsersTable.totalHexesOwned} + ${run.claimedHexes.length}`,
+          })
+          .where(eq(hexrunnerUsersTable.id, run.userId));
       }
 
       return { idempotent: false };

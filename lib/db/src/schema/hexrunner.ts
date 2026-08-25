@@ -12,6 +12,7 @@ import { z } from "zod/v4";
 
 export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   id: text("id").primaryKey(),
+  totalHexesOwned: integer("total_hexes_owned").default(0).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -32,8 +33,10 @@ export const hexrunnerRunsTable = pgTable(
     elapsedSeconds: integer("elapsed_seconds").notNull(),
     distanceKm: doublePrecision("distance_km").notNull(),
     paceSecondsPerKm: doublePrecision("pace_seconds_per_km"),
+    avgPaceMinPerKm: doublePrecision("avg_pace_min_per_km"),
     pointCount: integer("point_count").notNull(),
     hexCount: integer("hex_count").notNull(),
+    claimedHexes: text("claimed_hexes").array().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
