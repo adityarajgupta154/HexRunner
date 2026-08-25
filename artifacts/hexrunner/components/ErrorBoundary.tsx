@@ -30,6 +30,11 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    console.error(
+      '[HexRunner] React error boundary caught an error.',
+      error,
+      info.componentStack,
+    );
     if (typeof this.props.onError === 'function') {
       this.props.onError(error, info.componentStack);
     }

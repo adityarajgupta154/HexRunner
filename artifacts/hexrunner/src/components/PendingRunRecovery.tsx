@@ -18,7 +18,9 @@ export default function PendingRunRecovery() {
       router.replace(recoveryRoute);
     }
 
-    void recoverPendingRun();
+    void recoverPendingRun().catch((error: unknown) => {
+      console.error('[HexRunner] Pending-run recovery failed.', error);
+    });
 
     return () => {
       active = false;

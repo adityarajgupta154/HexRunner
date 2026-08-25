@@ -2,7 +2,9 @@ import type * as H3 from 'h3-js';
 
 declare const require: (moduleName: string) => unknown;
 
-function loadH3(): typeof H3 {
+let cachedH3: typeof H3 | null = null;
+
+function requireH3WithDecoderCompatibility(): typeof H3 {
   const globalObject = globalThis as typeof globalThis & {
     TextDecoder?: typeof TextDecoder;
   };
@@ -38,7 +40,17 @@ function loadH3(): typeof H3 {
   }
 }
 
-const { cellToBoundary, latLngToCell, polygonToCells } = loadH3();
+function loadH3(): typeof H3 {
+  if (cachedH3) return cachedH3;
+
+  try {
+    cachedH3 = requireH3WithDecoderCompatibility();
+    return cachedH3;
+  } catch (error) {
+    console.error('[HexRunner] Unable to initialize the H3 engine.', error);
+    throw error;
+  }
+}
 
 const HEX_RESOLUTION = 9;
 
@@ -61,6 +73,7 @@ export type GeographicBounds = {
 
 /** Converts a latitude/longitude point to its resolution-9 H3 cell index. */
 export function pointToHex(lat: number, lng: number): string {
+  const { latLngToCell } = loadH3();
   return latLngToCell(lat, lng, HEX_RESOLUTION);
 }
 
@@ -69,6 +82,7 @@ export function pointToHex(lat: number, lng: number): string {
  * react-native-maps' Polygon component.
  */
 export function hexToPolygon(h3Index: string): PolygonCoordinate[] {
+  const { cellToBoundary } = loadH3();
   return cellToBoundary(h3Index).map(([latitude, longitude]) => ({
     latitude,
     longitude,
@@ -91,6 +105,7 @@ export function hexesFromBoundingBox({
   east,
   west,
 }: GeographicBounds): string[] {
+  const { polygonToCells } = loadH3();
   const boundingPolygon = [
     [south, west],
     [north, west],

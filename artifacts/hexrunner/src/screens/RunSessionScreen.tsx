@@ -171,7 +171,17 @@ export default function RunSessionScreen() {
             nextPath.length === 1 ||
             nextPath.length % CLAIM_RECALCULATION_INTERVAL === 0
           ) {
-            setClaimedHexes(new Set(hexesFromPath(nextPath)));
+            try {
+              setClaimedHexes(new Set(hexesFromPath(nextPath)));
+            } catch (hexError) {
+              console.error(
+                '[HexRunner] Unable to update claimed hexes during the run.',
+                hexError,
+              );
+              setError(
+                'Territory calculation paused. Your GPS path is still being recorded.',
+              );
+            }
           }
 
           return nextPath;
@@ -237,7 +247,19 @@ export default function RunSessionScreen() {
         ? elapsedSeconds
         : Math.floor((endedAt - startTimeRef.current) / 1_000);
     const finalDistanceKm = distanceKmRef.current;
-    const finalClaimedHexes = [...new Set(hexesFromPath(pathPoints))];
+    let finalClaimedHexes: string[];
+    try {
+      finalClaimedHexes = [...new Set(hexesFromPath(pathPoints))];
+    } catch (hexError) {
+      console.error(
+        '[HexRunner] Unable to finalize claimed hexes for this run.',
+        hexError,
+      );
+      setError(
+        'Territory could not be calculated yet. Your run is still open; tap Stop to retry.',
+      );
+      return;
+    }
     const clientRunId = createClientRunId();
 
     const antiSpoofCheck = checkSession(pathPoints);

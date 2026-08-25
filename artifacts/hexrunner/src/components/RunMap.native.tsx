@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type { MapStyleElement, Region } from 'react-native-maps';
-import MapView from 'react-native-maps/lib/MapView';
+import MapView, {
+  type MapStyleElement,
+  type Region,
+} from 'react-native-maps';
 import HexGrid from '@/src/components/HexGrid';
 import { useColors } from '@/hooks/useColors';
 import { hexesFromBoundingBox } from '@/src/services/hexEngine';
@@ -80,13 +82,20 @@ export default function RunMap({
   const mapRef = useRef<MapView | null>(null);
   const lastHexRegionRef = useRef<Region | null>(null);
   const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
+  const [gridError, setGridError] = useState<string | null>(null);
 
   const updateVisibleHexes = useCallback((region: Region, force = false) => {
     const previous = lastHexRegionRef.current;
     if (!force && previous && !changedSignificantly(previous, region)) return;
 
     lastHexRegionRef.current = region;
-    setVisibleHexes(hexesForRegion(region));
+    try {
+      setVisibleHexes(hexesForRegion(region));
+      setGridError(null);
+    } catch (error) {
+      console.error('[HexRunner] Unable to update the run H3 grid.', error);
+      setGridError('Territory grid unavailable. GPS tracking is still active.');
+    }
   }, []);
 
   const handleRegionChangeComplete = useCallback(
@@ -153,6 +162,19 @@ export default function RunMap({
           claimedHexIndexes={claimedHexIndexes}
         />
       </MapView>
+      {gridError ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.gridError,
+            { backgroundColor: colors.card, borderColor: colors.destructive },
+          ]}
+        >
+          <Text style={[styles.gridErrorText, { color: colors.foreground }]}>
+            {gridError}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -174,5 +196,21 @@ const styles = StyleSheet.create({
   loadingText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
+  },
+  gridError: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  gridErrorText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
   },
 });

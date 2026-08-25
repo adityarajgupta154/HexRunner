@@ -100,6 +100,8 @@ function LiveMap() {
   const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOwnership, setHasLoadedOwnership] = useState(false);
+  const [territoryComputationError, setTerritoryComputationError] =
+    useState<string | null>(null);
 
   const [myHexes, setMyHexes] = useState<Set<string>>(new Set());
   const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
@@ -130,6 +132,15 @@ function LiveMap() {
           const newMyHexes = new Set<string>();
           const newOtherHexes = new Set<string>();
 
+          if (!Array.isArray(res.ownership)) {
+            console.error(
+              '[HexRunner] Ownership lookup returned an invalid response.',
+              res,
+            );
+            setHasLoadedOwnership(true);
+            return;
+          }
+
           res.ownership.forEach(hex => {
             if (!hex.ownerId) return;
             if (hex.ownerId === uid) {
@@ -146,11 +157,6 @@ function LiveMap() {
       }
     );
   }, [lookupMutation.mutate, uid]);
-
-  const retryTerritoryData = useCallback(() => {
-    void refetchStats();
-    refreshHexes(visibleHexes);
-  }, [refetchStats, refreshHexes, visibleHexes]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -184,12 +190,34 @@ function LiveMap() {
       }
 
       lastHexRegionRef.current = region;
-      const hexes = hexesForRegion(region);
-      setVisibleHexes(hexes);
-      refreshHexes(hexes);
+      try {
+        const hexes = hexesForRegion(region);
+        setTerritoryComputationError(null);
+        setVisibleHexes(hexes);
+        refreshHexes(hexes);
+      } catch (hexError) {
+        console.error(
+          '[HexRunner] Unable to calculate the visible H3 grid.',
+          hexError,
+        );
+        setTerritoryComputationError(
+          'The territory grid could not be calculated.',
+        );
+        setHasLoadedOwnership(true);
+      }
     },
     [refreshHexes],
   );
+
+  const retryTerritoryData = useCallback(() => {
+    void refetchStats();
+    const currentRegion = lastHexRegionRef.current;
+    if (currentRegion) {
+      calculateVisibleHexes(currentRegion, true);
+    } else {
+      refreshHexes(visibleHexes);
+    }
+  }, [calculateVisibleHexes, refetchStats, refreshHexes, visibleHexes]);
 
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
@@ -250,7 +278,10 @@ function LiveMap() {
   const initialRegion = { ...coordinate, ...MAP_DELTA };
   const territoryIsLoading =
     isStatsLoading || (lookupMutation.isPending && !hasLoadedOwnership);
-  const territoryFailed = isStatsError || lookupMutation.isError;
+  const territoryFailed =
+    isStatsError ||
+    lookupMutation.isError ||
+    territoryComputationError !== null;
   const hasNoTerritory =
     !!uid &&
     hasLoadedOwnership &&
