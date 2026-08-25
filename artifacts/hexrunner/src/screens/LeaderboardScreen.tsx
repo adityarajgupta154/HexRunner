@@ -117,9 +117,9 @@ export default function LeaderboardScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Feather name="award" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No runners yet</Text>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No leaderboard data yet</Text>
             <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
-              The map is wide open. Go claim the first hex.
+              This is a fresh arena. Complete the first run to claim the top spot.
             </Text>
           </View>
         }

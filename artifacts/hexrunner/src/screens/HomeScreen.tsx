@@ -99,13 +99,19 @@ function LiveMap() {
   const [location, setLocation] = useState<LocationObject | null>(null);
   const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoadedOwnership, setHasLoadedOwnership] = useState(false);
 
   const [myHexes, setMyHexes] = useState<Set<string>>(new Set());
   const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
 
   const lookupMutation = useLookupHexOwnership();
 
-  const { data: userStats } = useGetUserStats(uid ?? '', {
+  const {
+    data: userStats,
+    isLoading: isStatsLoading,
+    isError: isStatsError,
+    refetch: refetchStats,
+  } = useGetUserStats(uid ?? '', {
     query: { enabled: !!uid, queryKey: getGetUserStatsQueryKey(uid ?? '') },
   });
 
@@ -135,10 +141,16 @@ function LiveMap() {
 
           setMyHexes(newMyHexes);
           setOtherHexes(newOtherHexes);
+          setHasLoadedOwnership(true);
         },
       }
     );
   }, [lookupMutation.mutate, uid]);
+
+  const retryTerritoryData = useCallback(() => {
+    void refetchStats();
+    refreshHexes(visibleHexes);
+  }, [refetchStats, refreshHexes, visibleHexes]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -236,6 +248,15 @@ function LiveMap() {
     longitude: location.coords.longitude,
   };
   const initialRegion = { ...coordinate, ...MAP_DELTA };
+  const territoryIsLoading =
+    isStatsLoading || (lookupMutation.isPending && !hasLoadedOwnership);
+  const territoryFailed = isStatsError || lookupMutation.isError;
+  const hasNoTerritory =
+    !!uid &&
+    hasLoadedOwnership &&
+    !territoryIsLoading &&
+    !territoryFailed &&
+    (userStats?.totals.totalHexesOwned ?? 0) === 0;
 
   return (
     <View style={styles.container}>
@@ -271,6 +292,78 @@ function LiveMap() {
           </Text>
         </View>
       </View>
+
+      {territoryIsLoading ? (
+        <View
+          accessibilityLabel="Loading territory data"
+          style={[
+            styles.territoryNotice,
+            {
+              top: insets.top + 64,
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={[styles.territoryNoticeText, { color: colors.foreground }]}>
+            Loading territory…
+          </Text>
+        </View>
+      ) : territoryFailed ? (
+        <View
+          style={[
+            styles.territoryNotice,
+            {
+              top: insets.top + 64,
+              backgroundColor: colors.card,
+              borderColor: colors.destructive,
+            },
+          ]}
+        >
+          <Feather name="wifi-off" size={17} color={colors.destructive} />
+          <View style={styles.territoryNoticeCopy}>
+            <Text style={[styles.territoryNoticeText, { color: colors.foreground }]}>
+              Territory data unavailable
+            </Text>
+            <Text style={[styles.territoryNoticeSub, { color: colors.mutedForeground }]}>
+              Your map is still usable.
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading territory data"
+            onPress={retryTerritoryData}
+            style={({ pressed }) => [
+              styles.territoryRetry,
+              { backgroundColor: colors.muted, opacity: pressed ? 0.75 : 1 },
+            ]}
+          >
+            <Feather name="refresh-cw" size={16} color={colors.primary} />
+          </Pressable>
+        </View>
+      ) : hasNoTerritory ? (
+        <View
+          style={[
+            styles.territoryNotice,
+            {
+              top: insets.top + 64,
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Feather name="hexagon" size={18} color={colors.primary} />
+          <View style={styles.territoryNoticeCopy}>
+            <Text style={[styles.territoryNoticeText, { color: colors.foreground }]}>
+              No hexes owned yet
+            </Text>
+            <Text style={[styles.territoryNoticeSub, { color: colors.mutedForeground }]}>
+              Start a run to claim your first territory.
+            </Text>
+          </View>
+        </View>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
@@ -381,6 +474,38 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 11,
     letterSpacing: 0.1,
+  },
+  territoryNotice: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  territoryNoticeCopy: {
+    flex: 1,
+  },
+  territoryNoticeText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+  },
+  territoryNoticeSub: {
+    marginTop: 2,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 11,
+  },
+  territoryRetry: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
   },
   recenterButton: {
     position: 'absolute',

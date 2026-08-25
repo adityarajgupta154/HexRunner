@@ -4,6 +4,7 @@ import { ErrorFallback, ErrorFallbackProps } from '@/components/ErrorFallback';
 export type ErrorBoundaryProps = PropsWithChildren<{
   FallbackComponent?: ComponentType<ErrorFallbackProps>;
   onError?: (error: Error, stackTrace: string) => void;
+  onReset?: () => void;
 }>;
 
 type ErrorBoundaryState = { error: Error | null };
@@ -35,6 +36,7 @@ export class ErrorBoundary extends Component<
   }
 
   resetError = (): void => {
+    this.props.onReset?.();
     this.setState({ error: null });
   };
 
