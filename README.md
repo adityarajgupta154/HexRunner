@@ -50,7 +50,13 @@ pnpm run typecheck:libs
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/hexrunner run typecheck
 pnpm --filter @workspace/hexrunner run validate:models
+pnpm run validate:run-saving
 ```
+
+`validate:run-saving` exercises real anonymous credential enrollment and the
+development PostgreSQL transaction, removes its own rows, and also checks the
+mobile pending-run success, failure/retry, disabled-Done, and startup-recovery
+paths.
 
 The model trainer is Colab-ready:
 

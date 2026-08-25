@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'expo-router';
 import { getPendingRun } from '@/src/services/runStorage';
+import { getPendingRunRecoveryRoute } from '@/src/services/pendingRunRecovery';
 
 export default function PendingRunRecovery() {
   const pathname = usePathname();
@@ -11,18 +12,10 @@ export default function PendingRunRecovery() {
 
     async function recoverPendingRun() {
       const run = await getPendingRun();
-      if (!active || !run || pathname === '/run-summary') return;
+      const recoveryRoute = getPendingRunRecoveryRoute(run, pathname);
+      if (!active || !recoveryRoute) return;
 
-      router.replace({
-        pathname: '/run-summary',
-        params: {
-          clientRunId: run.clientRunId,
-          elapsedSeconds: run.elapsedSeconds.toString(),
-          distanceKm: run.distanceKm.toString(),
-          pointCount: run.points.length.toString(),
-          hexCount: run.claimedHexes.length.toString(),
-        },
-      });
+      router.replace(recoveryRoute);
     }
 
     void recoverPendingRun();

@@ -18,6 +18,19 @@ const MAX_CLOCK_SKEW_MS = 5 * 60 * 1_000;
 
 router.post("/runs", async (req, res): Promise<void> => {
   const authorization = req.get("authorization");
+  const credential =
+    authorization?.startsWith("Bearer ")
+      ? authorization.slice("Bearer ".length).trim()
+      : "";
+  const userId = credential
+    ? verifyAnonymousCredential(credential)
+    : null;
+
+  if (!userId) {
+    res.status(401).json({ error: "A valid device credential is required." });
+    return;
+  }
+
   const parsed = SaveRunBody.safeParse(req.body);
 
   if (!parsed.success) {
@@ -50,6 +63,25 @@ router.post("/runs", async (req, res): Promise<void> => {
     const result = await db.transaction(async (tx) => {
       const now = new Date();
 
+      if (run.claimedHexes.length > 0) {
+        const requestApplicationName = `hexrunner-run:${run.clientRunId}`;
+        const lockRows = sql.join(
+          run.claimedHexes.map((h3Index) => sql`(${h3Index})`),
+          sql`, `,
+        );
+        await tx.execute(
+          sql`SELECT set_config('application_name', ${requestApplicationName}, true)`,
+        );
+        await tx.execute(sql`
+          SELECT pg_advisory_xact_lock(hashtextextended(ordered_hex.h3_index, 0))
+          FROM (
+            SELECT lock_input.h3_index
+            FROM (VALUES ${lockRows}) AS lock_input(h3_index)
+            ORDER BY lock_input.h3_index
+          ) AS ordered_hex
+        `);
+      }
+
       await tx
         .insert(hexrunnerUsersTable)
         .values({
@@ -68,6 +100,7 @@ router.post("/runs", async (req, res): Promise<void> => {
               .select({
                 h3Index: hexrunnerHexOwnershipTable.h3Index,
                 ownerId: hexrunnerHexOwnershipTable.ownerId,
+                lastRunId: hexrunnerHexOwnershipTable.lastRunId,
               })
               .from(hexrunnerHexOwnershipTable)
               .where(
@@ -76,21 +109,52 @@ router.post("/runs", async (req, res): Promise<void> => {
                   run.claimedHexes,
                 ),
               );
-      const existingOwnerByHex = new Map(
+      const existingOwnershipByHex = new Map(
         existingOwnership.map((ownership) => [
           ownership.h3Index,
-          ownership.ownerId,
+          ownership,
         ]),
       );
-      const newHexCount = run.claimedHexes.reduce(
+      const previousRunIds = [
+        ...new Set(existingOwnership.map((ownership) => ownership.lastRunId)),
+      ];
+      const previousRuns =
+        previousRunIds.length === 0
+          ? []
+          : await tx
+              .select({
+                id: hexrunnerRunsTable.id,
+                endedAt: hexrunnerRunsTable.endedAt,
+              })
+              .from(hexrunnerRunsTable)
+              .where(inArray(hexrunnerRunsTable.id, previousRunIds));
+      const previousRunEndedAt = new Map(
+        previousRuns.map((previousRun) => [
+          previousRun.id,
+          previousRun.endedAt,
+        ]),
+      );
+      const claimableHexes = run.claimedHexes.filter((h3Index) => {
+        const ownership = existingOwnershipByHex.get(h3Index);
+        if (!ownership) return true;
+
+        const currentClaimEndedAt = previousRunEndedAt.get(
+          ownership.lastRunId,
+        );
+        return (
+          currentClaimEndedAt !== undefined &&
+          run.endedAt.getTime() > currentClaimEndedAt.getTime()
+        );
+      });
+      const newHexCount = claimableHexes.reduce(
         (count, h3Index) =>
-          count + (existingOwnerByHex.has(h3Index) ? 0 : 1),
+          count + (existingOwnershipByHex.has(h3Index) ? 0 : 1),
         0,
       );
-      const stolenHexCount = run.claimedHexes.reduce(
+      const stolenHexCount = claimableHexes.reduce(
         (count, h3Index) => {
-          const ownerId = existingOwnerByHex.get(h3Index);
-          return count + (ownerId && ownerId !== run.userId ? 1 : 0);
+          const ownerId = existingOwnershipByHex.get(h3Index)?.ownerId;
+          return count + (ownerId && ownerId !== userId ? 1 : 0);
         },
         0,
       );
@@ -191,11 +255,11 @@ router.post("/runs", async (req, res): Promise<void> => {
         );
       }
 
-      if (run.claimedHexes.length > 0) {
+      if (claimableHexes.length > 0) {
         await tx
           .insert(hexrunnerHexOwnershipTable)
           .values(
-            run.claimedHexes.map((h3Index) => ({
+            claimableHexes.map((h3Index) => ({
               h3Index,
               ownerId: userId,
               lastRunId: run.clientRunId,
@@ -210,10 +274,14 @@ router.post("/runs", async (req, res): Promise<void> => {
               claimedAt: now,
             },
           });
+      }
 
+      if (run.claimedHexes.length > 0) {
         await tx
           .update(hexrunnerUsersTable)
           .set({
+            // Product contract: this is a cumulative submitted-claims metric,
+            // incremented once per unique run, not a live ownership count.
             totalHexesOwned: sql`${hexrunnerUsersTable.totalHexesOwned} + ${run.claimedHexes.length}`,
           })
           .where(eq(hexrunnerUsersTable.id, userId));
@@ -265,10 +333,3 @@ router.post("/runs", async (req, res): Promise<void> => {
 });
 
 export default router;
-  const credential =
-    authorization?.startsWith("Bearer ")
-      ? authorization.slice("Bearer ".length).trim()
-      : "";
-  const userId = credential
-    ? verifyAnonymousCredential(credential)
-    : null;

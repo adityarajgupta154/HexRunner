@@ -19,8 +19,12 @@ import { useAuth } from '@/src/context/AuthContext';
 import { useGetUserStats, getGetUserStatsQueryKey } from '@workspace/api-client-react';
 import { predictFitnessProfile } from '@/src/services/fitnessModel';
 import type { SaveRunResult } from '@workspace/api-client-react';
-
-type SaveStatus = 'saving' | 'saved' | 'failed';
+import {
+  isRunSummaryDoneDisabled,
+  isRunSummaryRetryVisible,
+  runSummarySaveAttempt,
+  type RunSummarySaveStatus,
+} from '@/src/services/runSummaryState';
 
 function numberParam(value: string | string[] | undefined): number {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -55,7 +59,8 @@ export default function RunSummaryScreen() {
   const router = useRouter();
   const { uid } = useAuth();
   const saveStartedRef = useRef(false);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saving');
+  const [saveStatus, setSaveStatus] =
+    useState<RunSummarySaveStatus>('saving');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<SaveRunResult | null>(null);
 
@@ -83,20 +88,25 @@ export default function RunSummaryScreen() {
   const hexCount = numberParam(params.hexCount);
 
   const persistRun = useCallback(async () => {
-    setSaveStatus('saving');
-    setSaveError(null);
-
-    try {
-      const result = await savePendingRun(clientRunId);
-      setSaveResult(result);
-      setSaveStatus('saved');
-      void refetchStats();
-    } catch (error: unknown) {
-      setSaveError(
-        error instanceof Error ? error.message : 'Unable to save this run.',
-      );
-      setSaveStatus('failed');
-    }
+    await runSummarySaveAttempt({
+      clientRunId,
+      savePendingRun,
+      observer: {
+        onSaving() {
+          setSaveStatus('saving');
+          setSaveError(null);
+        },
+        onSaved(result) {
+          setSaveResult(result);
+          setSaveStatus('saved');
+          void refetchStats();
+        },
+        onFailed(message) {
+          setSaveError(message);
+          setSaveStatus('failed');
+        },
+      },
+    });
   }, [clientRunId, refetchStats]);
 
   useEffect(() => {
@@ -213,13 +223,13 @@ export default function RunSummaryScreen() {
             <Text style={[styles.saveTitle, { color: colors.foreground }]}>
               {saveStatus === 'saving' ? 'Saving run' : saveStatus === 'saved' ? 'Saved to Replit' : 'Save failed'}
             </Text>
-            {saveStatus === 'failed' ? (
+            {isRunSummaryRetryVisible(saveStatus) ? (
               <Text numberOfLines={2} style={[styles.saveError, { color: colors.mutedForeground }]}>
                 {saveError}
               </Text>
             ) : null}
           </View>
-          {saveStatus === 'failed' ? (
+          {isRunSummaryRetryVisible(saveStatus) ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Retry saving run"
@@ -236,7 +246,7 @@ export default function RunSummaryScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Done"
-          disabled={saveStatus !== 'saved'}
+          disabled={isRunSummaryDoneDisabled(saveStatus)}
           onPress={() => void finish()}
           style={({ pressed }) => [
             styles.doneButton,
