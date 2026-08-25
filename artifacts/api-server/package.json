@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate:air-quality": "node ./scripts/validateAirQuality.mjs",
     "validate:run-saving": "node ./scripts/validateRunSaving.mjs"
   },
   "dependencies": {
