@@ -1,0 +1,772 @@
+HEXRunner — FIRST RUN SETUP / ONBOARDING FORM
+FINAL GRAFFITI UI IMPLEMENTATION
+
+You are a senior Expo React Native + TypeScript engineer and mobile UI/UX designer.
+
+I have an existing Expo React Native application called "HexRunner".
+
+I am attaching a reference image of the redesigned FIRST RUN SETUP screen.
+
+IMPORTANT:
+Use the attached image as the PRIMARY visual reference.
+
+Implement the screen as closely as possible to the reference in:
+- layout
+- typography
+- spacing
+- colors
+- graffiti aesthetic
+- borders
+- paint effects
+- form hierarchy
+- button design
+- bottom navigation
+
+==================================================
+CRITICAL REQUIREMENT
+==================================================
+
+REMOVE THE LARGE HERO IMAGE / RUNNER IMAGE COMPLETELY.
+
+There must be:
+
+NO:
+- runner photo
+- city photo
+- background character
+- large hero illustration
+- full-screen photography
+
+The upper area should instead use:
+- graffiti typography
+- grunge texture
+- paint splashes
+- target/hex graphic
+- black background
+
+The FORM must remain fully functional.
+
+==================================================
+EXISTING PROJECT
+==================================================
+
+This is an existing working application.
+
+Before making changes:
+
+1. Inspect the project structure.
+2. Locate the current first-run setup/onboarding screen.
+3. Find existing onboarding state management.
+4. Find existing navigation.
+5. Find existing form state.
+6. Reuse existing functionality.
+
+DO NOT modify:
+
+- backend
+- API
+- database
+- GPS
+- H3 logic
+- fitness model
+- leaderboard
+- profile
+- run tracking
+- authentication
+
+Only redesign this screen.
+
+Do not create a second navigation system.
+
+==================================================
+VISUAL DIRECTION
+==================================================
+
+The final screen should look like:
+
+URBAN GRAFFITI × STREET RUNNING × TERRITORY GAME
+
+Not:
+
+- generic mobile form
+- Material UI
+- SaaS dashboard
+- clean corporate form
+- modern glassmorphism UI
+
+Use:
+
+black
+charcoal
+orange
+warm white
+gray
+
+==================================================
+COLOR PALETTE
+==================================================
+
+Background:
+
+#080808
+
+Surface:
+
+#111111
+
+Dark surface:
+
+#181414
+
+Primary orange:
+
+#FF4318
+
+Dark orange:
+
+#6B2519
+
+Warm white:
+
+#F4EBDD
+
+Muted gray:
+
+#A49D96
+
+Border gray:
+
+#514943
+
+==================================================
+SCREEN STRUCTURE
+==================================================
+
+The final layout should be:
+
+TOP HEADER
+↓
+GRAFFITI BADGE
+↓
+SECTION LABEL
+↓
+MAIN HEADLINE
+↓
+PAINT STROKE
+↓
+DESCRIPTION
+↓
+FORM
+↓
+MOVEMENT OPTIONS
+↓
+CTA
+↓
+BOTTOM NAVIGATION
+
+==================================================
+TOP HEADER
+==================================================
+
+At the top:
+
+LEFT:
+
+HEXRUNNER
+
+RIGHT:
+
+SKIP
+
+HEXRUNNER:
+
+- graffiti brush font
+- warm white
+- uppercase
+- orange underline
+- slightly rough texture
+
+SKIP:
+
+- uppercase
+- small
+- warm white
+- orange underline
+
+Use SafeAreaView.
+
+==================================================
+GRAFFITI BADGE
+==================================================
+
+At the upper-left portion below the header:
+
+Create a graffiti target/hex badge.
+
+DO NOT use the old plain icon.
+
+Design:
+
+- irregular orange paint square/hex frame
+- black/dark interior
+- target/crosshair symbol
+- small "01"
+- rough paint edges
+- paint splatters
+
+The badge represents:
+
+FIRST RUN
+TARGET
+ARENA
+
+It should look like a sticker painted on a wall.
+
+==================================================
+SECTION LABEL
+==================================================
+
+Exact text:
+
+FIRST RUN SETUP / 01
+
+Style:
+
+- orange
+- uppercase
+- bold
+- graffiti/brush font
+- letter spacing
+
+==================================================
+MAIN HEADLINE
+==================================================
+
+Exact text:
+
+SET YOUR
+ARENA.
+
+Layout:
+
+SET YOUR
+ARENA.
+
+"SET YOUR":
+
+warm white
+
+"ARENA.":
+
+orange
+
+Use large graffiti brush typography.
+
+The headline must be visually dominant.
+
+Add:
+
+- rough brush edges
+- slight irregular positioning
+- paint texture
+
+==================================================
+PAINT DIVIDER
+==================================================
+
+Under the headline add an orange hand-painted stroke.
+
+It should NOT be a clean straight View border.
+
+Use a paint-stroke asset or SVG-like rough shape.
+
+==================================================
+DESCRIPTION
+==================================================
+
+Exact text:
+
+Three quick answers personalize your on-device target and city standings.
+
+Style:
+
+- muted warm gray
+- approximately 17px
+- line height around 24px
+- readable
+- slightly typewriter/editorial feel
+
+==================================================
+FORM — KEEP FUNCTIONAL
+==================================================
+
+This is extremely important.
+
+The form must remain real React Native inputs.
+
+FIRST INPUT:
+
+Placeholder:
+
+Tag name (optional)
+
+Second input:
+
+Placeholder:
+
+Your city / arena
+
+Both inputs must remain editable.
+
+Do not convert them into images.
+
+==================================================
+INPUT DESIGN
+==================================================
+
+Inputs should look like graffiti street labels.
+
+Background:
+
+#111111
+
+Border:
+
+#514943
+
+Border width:
+
+1px
+
+Corners:
+
+very subtle radius, around 4–6px
+
+NOT pill-shaped.
+
+Height:
+
+approximately 58–64px.
+
+Text:
+
+warm white
+
+Placeholder:
+
+muted gray
+
+Add a small orange icon on the left:
+
+Tag input:
+tag icon
+
+City input:
+location pin icon
+
+Icons should be simple and consistent.
+
+Focus state:
+
+Orange border
+
+Subtle orange glow
+
+==================================================
+MOVEMENT SECTION
+==================================================
+
+Label:
+
+HOW DO YOU MOVE?
+
+Use:
+
+- warm white
+- graffiti font
+- uppercase
+
+Add a small orange paint underline.
+
+==================================================
+MOVEMENT OPTIONS
+==================================================
+
+Four selectable options:
+
+1. Starting out
+   New to regular activity
+
+2. Casual
+   I move a few times a week
+
+3. Regular
+   I train most weeks
+
+4. Trained
+   Structured training is normal
+
+These must remain fully functional selection controls.
+
+==================================================
+OPTION CARD DESIGN
+==================================================
+
+Default:
+
+Dark black surface
+Subtle gray border
+
+Selected:
+
+Dark orange background
+Orange border
+Orange graffiti accents
+
+Add a running shoe icon on the left.
+
+Selected option:
+
+Show an orange check mark on the right.
+
+The selected state should have a rough paint-stroke border rather than a clean modern card.
+
+==================================================
+DEFAULT SELECTION
+==================================================
+
+Preserve the application's existing default value.
+
+If the current implementation defaults to:
+
+Regular
+
+keep:
+
+Regular
+
+selected.
+
+Do not change existing business logic.
+
+==================================================
+CTA
+==================================================
+
+Text:
+
+ENTER THE ARENA →
+
+The button must remain functional.
+
+Design it as a graffiti paint stroke.
+
+Background:
+
+#FF4318
+
+Text:
+
+black
+
+Typography:
+
+bold graffiti/brush style
+
+Height:
+
+approximately 62–64px
+
+Width:
+
+full available content width
+
+Edges:
+
+rough paint texture
+
+NOT:
+- pill
+- standard rounded button
+
+==================================================
+CTA ENABLE/DISABLE
+==================================================
+
+Preserve existing form validation.
+
+If the current application requires city/activity/etc. before entering:
+
+keep that behavior.
+
+Do not bypass validation.
+
+If disabled:
+
+Use dark orange / muted appearance.
+
+If enabled:
+
+Bright orange.
+
+==================================================
+BOTTOM NAVIGATION
+==================================================
+
+If the current screen is displayed with the existing bottom navigation, preserve it.
+
+Tabs:
+
+Home
+Run
+Leaderboard
+Profile
+
+Keep the existing navigation functionality.
+
+Redesign only its visual appearance to match the graffiti theme.
+
+Active:
+
+orange
+
+Inactive:
+
+warm gray
+
+Use:
+
+- Hex icon for Home
+- pulse/run icon for Run
+- trophy/medal icon for Leaderboard
+- user icon for Profile
+
+Do not create fake navigation.
+
+==================================================
+GRAFFITI BACKGROUND
+==================================================
+
+Since the hero image has been removed, add subtle texture so the screen does not feel empty.
+
+Use:
+
+- black concrete texture
+- very subtle noise
+- orange paint splatters
+- tiny hexagonal outlines
+- rough brush marks
+- faint city-map lines
+
+IMPORTANT:
+
+These must remain SUBTLE.
+
+The form must remain the primary focus.
+
+Do not add a large image.
+
+==================================================
+RESPONSIVE LAYOUT
+==================================================
+
+This screen contains a lot of content.
+
+It MUST be scrollable on smaller devices.
+
+Use:
+
+ScrollView
+
+with:
+
+contentContainerStyle
+
+and proper bottom padding.
+
+Do not allow the CTA or form options to be clipped.
+
+The bottom navigation should remain fixed if that is how the existing app works.
+
+Respect:
+
+- Android status bar
+- iPhone notch
+- bottom gesture area
+
+==================================================
+TYPOGRAPHY
+==================================================
+
+Use a graffiti/display font if the project already has one.
+
+If not available:
+
+use the closest bold/condensed display font.
+
+Recommended hierarchy:
+
+HEXRUNNER:
+20–24px
+
+Section label:
+14–16px
+
+Main headline:
+50–64px
+
+Description:
+16–18px
+
+Input:
+16–18px
+
+Option title:
+17–19px
+
+Option description:
+14–16px
+
+CTA:
+18–20px
+
+Do not make the headline too small.
+
+==================================================
+ANIMATIONS
+==================================================
+
+Use React Native Reanimated only if already available.
+
+On screen load:
+
+1. Badge fades/scales in.
+2. Headline slides upward.
+3. Form fields appear sequentially.
+4. Movement cards fade in.
+5. CTA appears last.
+
+Keep animations subtle and fast.
+
+No heavy looping animation.
+
+==================================================
+ACCESSIBILITY
+==================================================
+
+Inputs:
+
+Proper accessibility labels.
+
+Movement cards:
+
+accessibilityRole="radio"
+
+Correct selected state.
+
+Buttons:
+
+minimum 44px touch target.
+
+Skip:
+
+"Skip onboarding"
+
+CTA:
+
+"Enter the arena"
+
+==================================================
+COMPONENT STRUCTURE
+==================================================
+
+Reuse existing components if possible.
+
+Suggested:
+
+components/onboarding/
+
+GraffitiHeader.tsx
+
+GraffitiBadge.tsx
+
+GraffitiHeadline.tsx
+
+GraffitiInput.tsx
+
+MovementOption.tsx
+
+GraffitiCTA.tsx
+
+GraffitiBottomNav.tsx
+
+Do not create duplicate components if equivalent components already exist.
+
+==================================================
+IMPORTANT — NO HERO IMAGE
+==================================================
+
+Again:
+
+REMOVE THE LARGE IMAGE.
+
+The final screen must contain:
+
+✓ graffiti badge
+✓ graffiti typography
+✓ paint splatters
+✓ form
+✓ movement options
+✓ CTA
+✓ bottom navigation
+
+It must NOT contain:
+
+✗ runner image
+✗ city photograph
+✗ hero character
+✗ large background photo
+
+==================================================
+FINAL VISUAL TARGET
+==================================================
+
+The final screen should feel like:
+
+A STREET-GRAFFITI POSTER
+turned into
+A REAL INTERACTIVE RUNNER SETUP FORM.
+
+The form remains highly usable while the visual identity feels bold and premium.
+
+==================================================
+IMPLEMENTATION
+==================================================
+
+Do not just explain.
+
+Actually modify the existing project.
+
+Steps:
+
+1. Inspect current implementation.
+2. Reuse current form state.
+3. Remove the hero image from this screen.
+4. Implement the graffiti redesign.
+5. Keep all inputs functional.
+6. Keep activity selection functional.
+7. Keep validation unchanged.
+8. Keep Enter the Arena navigation unchanged.
+9. Keep bottom navigation functional.
+10. Run TypeScript checks.
+11. Fix errors.
+12. Verify the screen on a mobile viewport.
+13. Ensure existing onboarding flow still works.
+
+After implementation, briefly report:
+
+- files changed
+- components added/updated
+- assets used
+- validation performed
+- any remaining limitation
