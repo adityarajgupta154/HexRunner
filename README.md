@@ -65,7 +65,13 @@ python artifacts/hexrunner/scripts/train_fitness_model.py
 ```
 
 Training uses a deterministic, disclosed 500-row synthetic dataset and exports the on-device weights. See `artifacts/hexrunner/src/models/README.md` for provenance and limitations.
+For judge-ready Colab output and artifact comparison, use
+`artifacts/hexrunner/scripts/hexrunner_fitness_colab.ipynb`.
 
 ## Demo safety
 
-Before judging, record one full outdoor run on the iQOO phone as a backup: Start → claim/steal hexes → Stop → Summary → Leaderboard. This protects the demo if venue GPS or networking is unreliable.
+Before judging, record one full outdoor run on the iQOO phone as a backup:
+Start → live claims → one takeover → Stop → Summary → Leaderboard → Profile.
+This protects the demo if venue GPS or networking is unreliable. Follow
+`artifacts/hexrunner/docs/JUDGE_EVIDENCE.md` so the recording and authenticated
+event-rule check are retained together.

@@ -7,6 +7,7 @@ professional fitness assessment.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -16,6 +17,7 @@ SEED = 0x484558
 ROWS_PER_CLASS = 125
 EPOCHS = 2_000
 LEARNING_RATE = 0.15
+EXPORT_DECIMALS = 12
 
 TIERS = ["beginner", "casual", "regular", "trained"]
 ARCHITECTURE = [4, 8, 4]
@@ -112,11 +114,15 @@ def train(
 
     weights = {
         "W1": rng.normal(
-            0.0, np.sqrt(2.0 / ARCHITECTURE[0]), (ARCHITECTURE[0], ARCHITECTURE[1])
+            0.0,
+            np.sqrt(2.0 / ARCHITECTURE[0]),
+            (ARCHITECTURE[0], ARCHITECTURE[1]),
         ),
         "b1": np.zeros(ARCHITECTURE[1], dtype=np.float64),
         "W2": rng.normal(
-            0.0, np.sqrt(2.0 / ARCHITECTURE[1]), (ARCHITECTURE[1], ARCHITECTURE[2])
+            0.0,
+            np.sqrt(2.0 / ARCHITECTURE[1]),
+            (ARCHITECTURE[1], ARCHITECTURE[2]),
         ),
         "b2": np.zeros(ARCHITECTURE[2], dtype=np.float64),
     }
@@ -129,7 +135,9 @@ def train(
         output_gradient = (probabilities - targets) / row_count
         d_w2 = hidden.T @ output_gradient
         d_b2 = output_gradient.sum(axis=0)
-        hidden_gradient = (output_gradient @ weights["W2"].T) * (hidden_raw > 0.0)
+        hidden_gradient = (output_gradient @ weights["W2"].T) * (
+            hidden_raw > 0.0
+        )
         d_w1 = features.T @ hidden_gradient
         d_b1 = hidden_gradient.sum(axis=0)
 
@@ -139,7 +147,9 @@ def train(
         weights["b2"] -= learning_rate * d_b2
 
         if epoch == 0 or (epoch + 1) % 250 == 0:
-            loss = -np.mean(np.log(probabilities[np.arange(row_count), labels] + 1e-12))
+            loss = -np.mean(
+                np.log(probabilities[np.arange(row_count), labels] + 1e-12)
+            )
             accuracy = np.mean(probabilities.argmax(axis=1) == labels)
             print(
                 f"epoch {epoch + 1:4d}/{epochs}: "
@@ -149,12 +159,27 @@ def train(
     hidden = np.maximum(features @ weights["W1"] + weights["b1"], 0.0)
     probabilities = softmax(hidden @ weights["W2"] + weights["b2"])
     metrics = {
-        "trainingAccuracy": float(np.mean(probabilities.argmax(axis=1) == labels)),
+        "trainingAccuracy": float(
+            np.mean(probabilities.argmax(axis=1) == labels)
+        ),
         "crossEntropy": float(
-            -np.mean(np.log(probabilities[np.arange(row_count), labels] + 1e-12))
+            -np.mean(
+                np.log(probabilities[np.arange(row_count), labels] + 1e-12)
+            )
         ),
     }
     return weights, metrics
+
+
+def round_values(value):
+    """Stabilize equivalent floating-point output across Python/NumPy builds."""
+    if isinstance(value, float):
+        return round(value, EXPORT_DECIMALS)
+    if isinstance(value, list):
+        return [round_values(entry) for entry in value]
+    if isinstance(value, dict):
+        return {key: round_values(entry) for key, entry in value.items()}
+    return value
 
 
 def export_weights(
@@ -198,24 +223,45 @@ def export_weights(
             "epochs": epochs,
             "learningRate": learning_rate,
             "optimizer": "full-batch-gradient-descent",
+            "exportDecimals": EXPORT_DECIMALS,
             "trainer": "scripts/train_fitness_model.py",
         },
         "metrics": metrics,
         **{name: value.tolist() for name, value in weights.items()},
     }
+
+    stable_payload = round_values(payload)
+    serialized = json.dumps(stable_payload, indent=2) + "\n"
+    destination = destination.resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote {destination}")
+    destination.write_text(serialized, encoding="utf-8")
+
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    print("HexRunner local fitness trainer")
+    print(
+        f"Dataset: {row_count} synthetic samples "
+        f"({ROWS_PER_CLASS} per tier)"
+    )
+    print(f"Training: {epochs:,} epochs")
+    print(f"Exported weights: {destination}")
+    print(f"SHA-256: {digest}")
+
+
+def default_destination() -> Path:
+    """Use the repository path locally and a writable Colab path when uploaded."""
+    repository_destination = (
+        Path(__file__).resolve().parents[1] / "src/models/fitnessWeights.json"
+    )
+    if repository_destination.parent.is_dir():
+        return repository_destination
+    return Path.cwd() / "fitnessWeights.json"
 
 
 def parse_args() -> argparse.Namespace:
-    default_output = (
-        Path(__file__).resolve().parents[1] / "src/models/fitnessWeights.json"
-    )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--epochs", type=int, default=EPOCHS)
     parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
-    parser.add_argument("--output", type=Path, default=default_output)
+    parser.add_argument("--output", type=Path, default=default_destination())
     return parser.parse_args()
 
 
