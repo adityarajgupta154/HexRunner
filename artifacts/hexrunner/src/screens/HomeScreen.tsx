@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -17,10 +17,10 @@ import HexGrid from '@/src/components/HexGrid';
 import PlaceholderScreen from '@/src/components/PlaceholderScreen';
 import { useColors } from '@/hooks/useColors';
 import { hexesFromBoundingBox } from '@/src/services/hexEngine';
-import {
-  startWatching,
-  stopWatching,
-} from '@/src/services/locationTracker';
+import { startWatching, stopWatching } from '@/src/services/locationTracker';
+import { useAuth } from '@/src/context/AuthContext';
+import { useLookupHexOwnership, useGetUserStats, getGetUserStatsQueryKey } from '@workspace/api-client-react';
+import { predictFitnessProfile } from '@/src/services/fitnessModel';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -29,6 +29,7 @@ const MAP_DELTA = {
 
 const SIGNIFICANT_CENTER_MOVEMENT = 0.18;
 const SIGNIFICANT_ZOOM_CHANGE = 0.15;
+const HEX_REFRESH_INTERVAL = 15000;
 
 function regionChangedSignificantly(previous: Region, next: Region): boolean {
   const latitudeThreshold =
@@ -63,56 +64,18 @@ const DARK_MAP_STYLE: MapStyleElement[] = [
   { elementType: 'geometry', stylers: [{ color: '#14212B' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#9FB4C0' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#0A0F14' }] },
-  {
-    featureType: 'administrative',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#31424F' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'geometry',
-    stylers: [{ color: '#182832' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#12332C' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#283A47' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#101A22' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#39505E' }],
-  },
-  {
-    featureType: 'transit',
-    elementType: 'geometry',
-    stylers: [{ color: '#20323E' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#071D2B' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#6B92A8' }],
-  },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#31424F' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#182832' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#12332C' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#283A47' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#101A22' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#39505E' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#20323E' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071D2B' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#6B92A8' }] },
 ];
 
 export default function HomeScreen() {
-  // react-native-maps is native-only. Keep Replit's browser preview useful
-  // while Expo Go renders the real map on the phone.
   if (Platform.OS === 'web') {
     return (
       <PlaceholderScreen
@@ -129,27 +92,67 @@ export default function HomeScreen() {
 function LiveMap() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { uid } = useAuth();
+
   const mapRef = useRef<MapView | null>(null);
   const lastHexRegionRef = useRef<Region | null>(null);
   const [location, setLocation] = useState<LocationObject | null>(null);
   const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const [myHexes, setMyHexes] = useState<Set<string>>(new Set());
+  const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
+
+  const lookupMutation = useLookupHexOwnership();
+
+  const { data: userStats } = useGetUserStats(uid ?? '', {
+    query: { enabled: !!uid, queryKey: getGetUserStatsQueryKey(uid ?? '') },
+  });
+
+  const fitnessProfile = useMemo(() => {
+    if (!userStats?.recentRuns) return predictFitnessProfile([]);
+    return predictFitnessProfile(userStats.recentRuns, 'casual');
+  }, [userStats]);
+
+  const refreshHexes = useCallback((hexes: string[]) => {
+    if (!hexes.length) return;
+    const h3Indexes = hexes.slice(0, 1000);
+    lookupMutation.mutate(
+      { data: { h3Indexes } },
+      {
+        onSuccess: (res) => {
+          const newMyHexes = new Set<string>();
+          const newOtherHexes = new Set<string>();
+
+          res.ownership.forEach(hex => {
+            if (!hex.ownerId) return;
+            if (hex.ownerId === uid) {
+              newMyHexes.add(hex.h3Index);
+            } else {
+              newOtherHexes.add(hex.h3Index);
+            }
+          });
+
+          setMyHexes(newMyHexes);
+          setOtherHexes(newOtherHexes);
+        },
+      }
+    );
+  }, [lookupMutation.mutate, uid]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshHexes(visibleHexes);
+    }, HEX_REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [refreshHexes, visibleHexes]);
+
   const beginWatching = useCallback(() => {
     setError(null);
-
     startWatching((nextLocation) => {
-      console.log('[HexRunner] Location update', {
-        latitude: nextLocation.coords.latitude,
-        longitude: nextLocation.coords.longitude,
-      });
       setLocation(nextLocation);
     }).catch((watchError: unknown) => {
-      const message =
-        watchError instanceof Error
-          ? watchError.message
-          : 'Unable to start location tracking.';
-      console.warn('[HexRunner] Location watcher unavailable:', message);
+      const message = watchError instanceof Error ? watchError.message : 'Unable to start location tracking.';
       setError(message);
     });
   }, []);
@@ -164,19 +167,16 @@ function LiveMap() {
   const calculateVisibleHexes = useCallback(
     (region: Region, force = false) => {
       const previous = lastHexRegionRef.current;
-
-      if (
-        !force &&
-        previous &&
-        !regionChangedSignificantly(previous, region)
-      ) {
+      if (!force && previous && !regionChangedSignificantly(previous, region)) {
         return;
       }
 
       lastHexRegionRef.current = region;
-      setVisibleHexes(hexesForRegion(region));
+      const hexes = hexesForRegion(region);
+      setVisibleHexes(hexes);
+      refreshHexes(hexes);
     },
-    [],
+    [refreshHexes],
   );
 
   const handleRegionChangeComplete = useCallback(
@@ -188,7 +188,6 @@ function LiveMap() {
 
   const recenterMap = useCallback(() => {
     if (!location) return;
-
     mapRef.current?.animateToRegion(
       {
         latitude: location.coords.latitude,
@@ -204,59 +203,26 @@ function LiveMap() {
       <View style={[styles.statusScreen, { backgroundColor: colors.background }]}>
         {error ? (
           <>
-            <View
-              style={[
-                styles.statusIcon,
-                {
-                  backgroundColor: colors.muted,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <Feather
-                name="map-pin"
-                size={28}
-                color={colors.destructive}
-              />
+            <View style={[styles.statusIcon, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="map-pin" size={28} color={colors.destructive} />
             </View>
-            <Text style={[styles.statusTitle, { color: colors.foreground }]}>
-              Location unavailable
-            </Text>
-            <Text
-              style={[styles.statusMessage, { color: colors.mutedForeground }]}
-            >
+            <Text style={[styles.statusTitle, { color: colors.foreground }]}>Location unavailable</Text>
+            <Text style={[styles.statusMessage, { color: colors.mutedForeground }]}>
               Allow foreground location access to show your live position.
             </Text>
             <Pressable
               accessibilityRole="button"
               onPress={beginWatching}
-              style={({ pressed }) => [
-                styles.retryButton,
-                {
-                  backgroundColor: colors.primary,
-                  opacity: pressed ? 0.82 : 1,
-                },
-              ]}
+              style={({ pressed }) => [styles.retryButton, { backgroundColor: colors.primary, opacity: pressed ? 0.82 : 1 }]}
             >
-              <Text
-                style={[
-                  styles.retryButtonText,
-                  { color: colors.primaryForeground },
-                ]}
-              >
-                Try again
-              </Text>
+              <Text style={[styles.retryButtonText, { color: colors.primaryForeground }]}>Try again</Text>
             </Pressable>
           </>
         ) : (
           <>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.statusTitle, { color: colors.foreground }]}>
-              Finding your location
-            </Text>
-            <Text
-              style={[styles.statusMessage, { color: colors.mutedForeground }]}
-            >
+            <Text style={[styles.statusTitle, { color: colors.foreground }]}>Finding your location</Text>
+            <Text style={[styles.statusMessage, { color: colors.mutedForeground }]}>
               Keep GPS enabled while HexRunner locks onto your position.
             </Text>
           </>
@@ -286,24 +252,21 @@ function LiveMap() {
         showsUserLocation
         toolbarEnabled={false}
       >
-        <HexGrid hexIndexes={visibleHexes} />
+        <HexGrid hexIndexes={visibleHexes} claimedHexIndexes={myHexes} otherHexIndexes={otherHexes} />
       </MapView>
 
-      <View
-        pointerEvents="none"
-        style={[
-          styles.liveBadge,
-          {
-            top: insets.top + 14,
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
-        <Text style={[styles.liveText, { color: colors.foreground }]}>
-          LIVE GPS
-        </Text>
+      <View pointerEvents="none" style={[styles.topBar, { top: insets.top + 14 }]}>
+        <View style={[styles.liveBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
+          <Text style={[styles.liveText, { color: colors.foreground }]}>LIVE GPS</Text>
+        </View>
+
+        <View style={[styles.tierBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="target" size={14} color={colors.primary} />
+          <Text style={[styles.tierText, { color: colors.foreground }]}>
+            {fitnessProfile.budget} Hexes
+          </Text>
+        </View>
       </View>
 
       <Pressable
@@ -321,9 +284,7 @@ function LiveMap() {
         ]}
       >
         <Feather name="crosshair" size={22} color={colors.primary} />
-        <Text style={[styles.recenterText, { color: colors.foreground }]}>
-          Recenter
-        </Text>
+        <Text style={[styles.recenterText, { color: colors.foreground }]}>Recenter</Text>
       </Pressable>
     </View>
   );
@@ -375,9 +336,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 15,
   },
-  liveBadge: {
+  topBar: {
     position: 'absolute',
     left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  liveBadge: {
     minHeight: 38,
     flexDirection: 'row',
     alignItems: 'center',
@@ -395,6 +362,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 12,
     letterSpacing: 0.7,
+  },
+  tierBadge: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 19,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+  },
+  tierText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   recenterButton: {
     position: 'absolute',

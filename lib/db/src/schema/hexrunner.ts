@@ -1,4 +1,5 @@
 import {
+  boolean,
   doublePrecision,
   index,
   integer,
@@ -12,6 +13,7 @@ import { z } from "zod/v4";
 
 export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   id: text("id").primaryKey(),
+  displayName: text("display_name"),
   totalHexesOwned: integer("total_hexes_owned").default(0).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -37,6 +39,13 @@ export const hexrunnerRunsTable = pgTable(
     pointCount: integer("point_count").notNull(),
     hexCount: integer("hex_count").notNull(),
     claimedHexes: text("claimed_hexes").array().notNull(),
+    newHexCount: integer("new_hex_count").default(0).notNull(),
+    stolenHexCount: integer("stolen_hex_count").default(0).notNull(),
+    flaggedSuspicious: boolean("flagged_suspicious").default(false).notNull(),
+    suspiciousReason: text("suspicious_reason"),
+    mockLocationDetected: boolean("mock_location_detected"),
+    averageAccuracyMeters: doublePrecision("average_accuracy_meters"),
+    maxSpeedMetersPerSecond: doublePrecision("max_speed_meters_per_second"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

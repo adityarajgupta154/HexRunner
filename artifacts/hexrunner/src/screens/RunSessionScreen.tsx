@@ -22,11 +22,15 @@ import {
   type PendingRun,
   queueRunForSave,
 } from '@/src/services/runStorage';
+import { checkForSpoofing } from '@/src/services/antiSpoof';
 
 type RunPoint = {
   lat: number;
   lng: number;
   timestamp: number;
+  accuracyMeters?: number;
+  speedMetersPerSecond?: number;
+  mocked?: boolean;
 };
 
 const EARTH_RADIUS_KM = 6_371;
@@ -139,6 +143,9 @@ export default function RunSessionScreen() {
           lat: location.coords.latitude,
           lng: location.coords.longitude,
           timestamp: location.timestamp,
+          accuracyMeters: location.coords.accuracy ?? undefined,
+          speedMetersPerSecond: location.coords.speed ?? undefined,
+          mocked: location.mocked ?? undefined,
         };
         const previousPoint = lastPointRef.current;
 
@@ -227,11 +234,13 @@ export default function RunSessionScreen() {
     const finalClaimedHexes = [...new Set(hexesFromPath(pathPoints))];
     const clientRunId = createClientRunId();
 
+    const antiSpoofCheck = checkForSpoofing(pathPoints);
+
     stopWatching();
     setIsRunning(false);
     startTimeRef.current = null;
 
-    const pendingRun = {
+    const pendingRun: PendingRun = {
       clientRunId,
       userId: uid,
       startedAt: new Date(startedAt).toISOString(),
@@ -240,6 +249,11 @@ export default function RunSessionScreen() {
       distanceKm: finalDistanceKm,
       points: pathPoints,
       claimedHexes: finalClaimedHexes,
+      antiSpoof: {
+        flaggedSuspicious: antiSpoofCheck.suspicious,
+        reason: antiSpoofCheck.reason ?? undefined,
+        mockLocationDetected: pathPoints.some((point) => point.mocked),
+      },
     };
 
     await cacheRunAndOpenSummary(pendingRun);

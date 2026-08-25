@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { SaveRunBody, SaveRunResponse } from "@workspace/api-zod";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { latLngToCell } from "h3-js";
 import {
   db,
@@ -59,6 +59,48 @@ router.post("/runs", async (req, res) => {
           set: { lastSeenAt: now },
         });
 
+      const existingOwnership =
+        run.claimedHexes.length === 0
+          ? []
+          : await tx
+              .select({
+                h3Index: hexrunnerHexOwnershipTable.h3Index,
+                ownerId: hexrunnerHexOwnershipTable.ownerId,
+              })
+              .from(hexrunnerHexOwnershipTable)
+              .where(
+                inArray(
+                  hexrunnerHexOwnershipTable.h3Index,
+                  run.claimedHexes,
+                ),
+              );
+      const existingOwnerByHex = new Map(
+        existingOwnership.map((ownership) => [
+          ownership.h3Index,
+          ownership.ownerId,
+        ]),
+      );
+      const newHexCount = run.claimedHexes.reduce(
+        (count, h3Index) =>
+          count + (existingOwnerByHex.has(h3Index) ? 0 : 1),
+        0,
+      );
+      const stolenHexCount = run.claimedHexes.reduce(
+        (count, h3Index) => {
+          const ownerId = existingOwnerByHex.get(h3Index);
+          return count + (ownerId && ownerId !== run.userId ? 1 : 0);
+        },
+        0,
+      );
+      const pointAccuracies = run.points.flatMap((point) =>
+        point.accuracyMeters === undefined ? [] : [point.accuracyMeters],
+      );
+      const pointSpeeds = run.points.flatMap((point) =>
+        point.speedMetersPerSecond === undefined
+          ? []
+          : [point.speedMetersPerSecond],
+      );
+
       const insertedRuns = await tx
         .insert(hexrunnerRunsTable)
         .values({
@@ -79,12 +121,51 @@ router.post("/runs", async (req, res) => {
           pointCount: run.points.length,
           hexCount: run.claimedHexes.length,
           claimedHexes: run.claimedHexes,
+          newHexCount,
+          stolenHexCount,
+          flaggedSuspicious:
+            run.antiSpoof?.flaggedSuspicious ?? false,
+          suspiciousReason: run.antiSpoof?.reason ?? null,
+          mockLocationDetected:
+            run.antiSpoof?.mockLocationDetected ??
+            (run.points.some((point) => point.mocked) || null),
+          averageAccuracyMeters:
+            run.antiSpoof?.averageAccuracyMeters ??
+            (pointAccuracies.length > 0
+              ? pointAccuracies.reduce((sum, accuracy) => sum + accuracy, 0) /
+                pointAccuracies.length
+              : null),
+          maxSpeedMetersPerSecond:
+            run.antiSpoof?.maxSpeedMetersPerSecond ??
+            (pointSpeeds.length > 0 ? Math.max(...pointSpeeds) : null),
         })
         .onConflictDoNothing()
         .returning({ id: hexrunnerRunsTable.id });
 
       if (insertedRuns.length === 0) {
-        return { idempotent: true };
+        const [existingRun] = await tx
+          .select({
+            newHexCount: hexrunnerRunsTable.newHexCount,
+            stolenHexCount: hexrunnerRunsTable.stolenHexCount,
+            hexCount: hexrunnerRunsTable.hexCount,
+            flaggedSuspicious: hexrunnerRunsTable.flaggedSuspicious,
+            suspiciousReason: hexrunnerRunsTable.suspiciousReason,
+            mockLocationDetected:
+              hexrunnerRunsTable.mockLocationDetected,
+            averageAccuracyMeters:
+              hexrunnerRunsTable.averageAccuracyMeters,
+            maxSpeedMetersPerSecond:
+              hexrunnerRunsTable.maxSpeedMetersPerSecond,
+          })
+          .from(hexrunnerRunsTable)
+          .where(eq(hexrunnerRunsTable.id, run.clientRunId))
+          .limit(1);
+
+        if (!existingRun) {
+          throw new Error("Conflicting run could not be loaded.");
+        }
+
+        return { idempotent: true, ...existingRun };
       }
 
       for (
@@ -136,13 +217,42 @@ router.post("/runs", async (req, res) => {
           .where(eq(hexrunnerUsersTable.id, run.userId));
       }
 
-      return { idempotent: false };
+      return {
+        idempotent: false,
+        newHexCount,
+        stolenHexCount,
+        hexCount: run.claimedHexes.length,
+        flaggedSuspicious: run.antiSpoof?.flaggedSuspicious ?? false,
+        suspiciousReason: run.antiSpoof?.reason ?? null,
+        mockLocationDetected:
+          run.antiSpoof?.mockLocationDetected ??
+          (run.points.some((point) => point.mocked) || null),
+        averageAccuracyMeters:
+          run.antiSpoof?.averageAccuracyMeters ??
+          (pointAccuracies.length > 0
+            ? pointAccuracies.reduce((sum, accuracy) => sum + accuracy, 0) /
+              pointAccuracies.length
+            : null),
+        maxSpeedMetersPerSecond:
+          run.antiSpoof?.maxSpeedMetersPerSecond ??
+          (pointSpeeds.length > 0 ? Math.max(...pointSpeeds) : null),
+      };
     });
 
     const response = SaveRunResponse.parse({
       runId: run.clientRunId,
       saved: true,
       idempotent: result.idempotent,
+      newHexes: result.newHexCount,
+      stolenHexes: result.stolenHexCount,
+      claimedHexes: result.hexCount,
+      antiSpoof: {
+        flaggedSuspicious: result.flaggedSuspicious,
+        reason: result.suspiciousReason,
+        mockLocationDetected: result.mockLocationDetected,
+        averageAccuracyMeters: result.averageAccuracyMeters,
+        maxSpeedMetersPerSecond: result.maxSpeedMetersPerSecond,
+      },
     });
 
     res.status(result.idempotent ? 200 : 201).json(response);

@@ -5,17 +5,18 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { RunAntiSpoofResult } from './runAntiSpoofResult';
 
-export interface SaveRunResult {
+export interface RecentRun {
   runId: string;
-  saved: boolean;
-  idempotent: boolean;
+  distanceKm: number;
+  /** @nullable */
+  averagePaceMinPerKm: number | null;
+  startedAt: Date;
+  endedAt: Date;
+  /** @minimum 0 */
+  claimedHexes: number;
   /** @minimum 0 */
   newHexes: number;
   /** @minimum 0 */
   stolenHexes: number;
-  /** @minimum 0 */
-  claimedHexes: number;
-  antiSpoof: RunAntiSpoofResult;
 }

@@ -19,4 +19,9 @@ export interface RunPoint {
   lng: number;
   /** @minimum 0 */
   timestamp: number;
+  /** @minimum 0 */
+  accuracyMeters?: number;
+  /** @minimum 0 */
+  speedMetersPerSecond?: number;
+  mocked?: boolean;
 }

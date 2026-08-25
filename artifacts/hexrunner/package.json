@@ -7,7 +7,8 @@
     "dev": "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
     "build": "node scripts/build.js",
     "serve": "node server/serve.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate:models": "rm -rf .model-validation && tsc scripts/validateModels.ts src/services/fitnessModel.ts src/services/antiSpoof.ts --outDir .model-validation --module commonjs --moduleResolution node --target es2020 --resolveJsonModule --esModuleInterop --skipLibCheck && node .model-validation/scripts/validateModels.js && rm -rf .model-validation"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -22,6 +22,44 @@ export interface RunPoint {
   lng: number;
   /** @minimum 0 */
   timestamp: number;
+  /** @minimum 0 */
+  accuracyMeters?: number;
+  /** @minimum 0 */
+  speedMetersPerSecond?: number;
+  mocked?: boolean;
+}
+
+/**
+ * @minLength 8
+ * @maxLength 120
+ * @pattern ^[A-Za-z0-9_-]+$
+ */
+export type UserId = string;
+
+/**
+ * Client-observed telemetry retained for future anti-spoof analysis. These fields are advisory and do not reject a run.
+ */
+export interface RunAntiSpoofAdvisory {
+  flaggedSuspicious?: boolean;
+  /** @maxLength 200 */
+  reason?: string;
+  mockLocationDetected?: boolean;
+  /** @minimum 0 */
+  averageAccuracyMeters?: number;
+  /** @minimum 0 */
+  maxSpeedMetersPerSecond?: number;
+}
+
+export interface RunAntiSpoofResult {
+  flaggedSuspicious: boolean;
+  /** @nullable */
+  reason: string | null;
+  /** @nullable */
+  mockLocationDetected: boolean | null;
+  /** @nullable */
+  averageAccuracyMeters: number | null;
+  /** @nullable */
+  maxSpeedMetersPerSecond: number | null;
 }
 
 export interface SaveRunRequest {
@@ -31,12 +69,7 @@ export interface SaveRunRequest {
      * @pattern ^[A-Za-z0-9_-]+$
      */
   clientRunId: string;
-  /**
-     * @minLength 8
-     * @maxLength 120
-     * @pattern ^[A-Za-z0-9_-]+$
-     */
-  userId: string;
+  userId: UserId;
   startedAt: string;
   endedAt: string;
   /** @minimum 0 */
@@ -52,14 +85,106 @@ export interface SaveRunRequest {
      * @items.pattern ^89[0-9a-f]{13}$
      */
   claimedHexes: string[];
+  antiSpoof?: RunAntiSpoofAdvisory;
 }
 
 export interface SaveRunResult {
   runId: string;
   saved: boolean;
   idempotent: boolean;
+  /** @minimum 0 */
+  newHexes: number;
+  /** @minimum 0 */
+  stolenHexes: number;
+  /** @minimum 0 */
+  claimedHexes: number;
+  antiSpoof: RunAntiSpoofResult;
+}
+
+export interface HexOwnershipLookupRequest {
+  /**
+     * @minItems 1
+     * @maxItems 1000
+     * @items.minLength 15
+     * @items.maxLength 16
+     * @items.pattern ^89[0-9a-f]{13}$
+     */
+  h3Indexes: string[];
+}
+
+export interface HexOwnership {
+  h3Index: string;
+  /** @nullable */
+  ownerId: string | null;
+  /** @nullable */
+  claimedAt: string | null;
+}
+
+export interface HexOwnershipLookupResult {
+  /** @maxItems 1000 */
+  ownership: HexOwnership[];
+}
+
+export interface LeaderboardEntry {
+  /** @minimum 1 */
+  rank: number;
+  displayName: string;
+  /** @minimum 0 */
+  totalHexesOwned: number;
+  isCurrentUser: boolean;
+}
+
+export interface LeaderboardResult {
+  /** @maxItems 20 */
+  users: LeaderboardEntry[];
+}
+
+export interface RecentRun {
+  runId: string;
+  distanceKm: number;
+  /** @nullable */
+  averagePaceMinPerKm: number | null;
+  startedAt: string;
+  endedAt: string;
+  /** @minimum 0 */
+  claimedHexes: number;
+  /** @minimum 0 */
+  newHexes: number;
+  /** @minimum 0 */
+  stolenHexes: number;
+}
+
+export interface UserStatsTotals {
+  /** @minimum 0 */
+  totalRuns: number;
+  /** @minimum 0 */
+  totalDistanceKm: number;
+  /** @minimum 0 */
+  totalElapsedSeconds: number;
+  /** @nullable */
+  averagePaceMinPerKm: number | null;
+  /** @minimum 0 */
+  totalHexesOwned: number;
+  /** @minimum 0 */
+  totalClaimedHexes: number;
+  /** @minimum 0 */
+  totalNewHexes: number;
+  /** @minimum 0 */
+  totalStolenHexes: number;
+}
+
+export interface UserStatsResult {
+  userId: string;
+  displayName: string;
+  totals: UserStatsTotals;
+  /** @maxItems 5 */
+  recentRuns: RecentRun[];
 }
 
 export interface ApiError {
   error: string;
 }
+
+export type GetLeaderboardParams = {
+currentUserId?: UserId;
+};

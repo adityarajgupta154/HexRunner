@@ -23,7 +23,8 @@ A GPS territory-control fitness game (Expo React Native): runners claim hexagona
 - Routes: `artifacts/hexrunner/app/(tabs)/` — thin re-exports of screen components (expo-router file-based routing)
 - Screens: `artifacts/hexrunner/src/screens/` (HomeScreen, RunScreen, LeaderboardScreen, ProfileScreen)
 - Shared UI: `artifacts/hexrunner/src/components/`
-- Reserved for upcoming checklist phases: `artifacts/hexrunner/src/services/`, `src/context/`, `src/models/`
+- Runtime logic: `artifacts/hexrunner/src/services/` (location, H3, run persistence, fitness inference, anti-spoof checks)
+- Local model: `artifacts/hexrunner/src/models/fitnessWeights.json` with training provenance in the adjacent README
 - Theme tokens: `artifacts/hexrunner/constants/colors.ts` (dark-only palette, teal primary = claimed-hex color)
 
 ## Architecture decisions
@@ -35,7 +36,8 @@ A GPS territory-control fitness game (Expo React Native): runners claim hexagona
 
 ## Product
 
-- Phase 1 complete: 4-tab shell (Home, Run, Leaderboard, Profile) with branded placeholder screens and custom app icon
+- Code-complete flows: four-tab shell, live GPS/H3 maps, Start/Stop run tracking, crash-safe Replit persistence, territory lookup/takeover, leaderboard, profile/history, local fitness-tier target, advisory anti-spoofing, and polished summary states
+- Team verification still required: native iQOO outdoor walk/map test, running the trainer in Colab for event evidence, and recording the backup demo video
 
 ## User preferences
 

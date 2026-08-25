@@ -21,9 +21,15 @@ import type {
 
 import type {
   ApiError,
+  GetLeaderboardParams,
   HealthStatus,
+  HexOwnershipLookupRequest,
+  HexOwnershipLookupResult,
+  LeaderboardResult,
   SaveRunRequest,
-  SaveRunResult
+  SaveRunResult,
+  UserId,
+  UserStatsResult
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -128,9 +134,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-
-
-
 export const getSaveRunUrl = () => {
 
 
@@ -140,7 +143,7 @@ export const getSaveRunUrl = () => {
 }
 
 /**
- * Atomically saves a completed run, ordered GPS points, and claimed H3 cells.
+ * Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
  * @summary Save a completed run
  */
 export const saveRun = async (saveRunRequest: SaveRunRequest, options?: Parameters<typeof customFetch>[1]): Promise<SaveRunResult> => {
@@ -202,3 +205,231 @@ export const useSaveRun = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getSaveRunMutationOptions(options));
     }
+
+export const getLookupHexOwnershipUrl = () => {
+
+
+
+
+  return `/api/hex-ownership/lookup`
+}
+
+/**
+ * Returns ownership for at most 1000 supplied resolution-9 H3 indexes. Unclaimed cells are returned with null ownership.
+ * @summary Look up ownership for H3 cells
+ */
+export const lookupHexOwnership = async (hexOwnershipLookupRequest: HexOwnershipLookupRequest, options?: Parameters<typeof customFetch>[1]): Promise<HexOwnershipLookupResult> => {
+
+  return customFetch<HexOwnershipLookupResult>(getLookupHexOwnershipUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(hexOwnershipLookupRequest)
+  }
+);}
+
+
+
+
+
+export const getLookupHexOwnershipMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupHexOwnership>>, TError,{data: BodyType<HexOwnershipLookupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupHexOwnership>>, TError,{data: BodyType<HexOwnershipLookupRequest>}, TContext> => {
+
+const mutationKey = ['lookupHexOwnership'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupHexOwnership>>, {data: BodyType<HexOwnershipLookupRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  lookupHexOwnership(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LookupHexOwnershipMutationResult = NonNullable<Awaited<ReturnType<typeof lookupHexOwnership>>>
+    export type LookupHexOwnershipMutationBody = BodyType<HexOwnershipLookupRequest>
+    export type LookupHexOwnershipMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Look up ownership for H3 cells
+ */
+export const useLookupHexOwnership = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupHexOwnership>>, TError,{data: BodyType<HexOwnershipLookupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lookupHexOwnership>>,
+        TError,
+        {data: BodyType<HexOwnershipLookupRequest>},
+        TContext
+      > => {
+      return useMutation(getLookupHexOwnershipMutationOptions(options));
+    }
+
+export const getGetLeaderboardUrl = (params?: GetLeaderboardParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/leaderboard?${stringifiedParams}` : `/api/leaderboard`
+}
+
+/**
+ * Returns at most 20 users ordered by total hexes descending and user ID ascending.
+ * @summary Get the territory leaderboard
+ */
+export const getLeaderboard = async (params?: GetLeaderboardParams, options?: Parameters<typeof customFetch>[1]): Promise<LeaderboardResult> => {
+
+  return customFetch<LeaderboardResult>(getGetLeaderboardUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLeaderboardQueryKey = (params?: GetLeaderboardParams,) => {
+    return [
+    `/api/leaderboard`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetLeaderboardQueryOptions = <TData = Awaited<ReturnType<typeof getLeaderboard>>, TError = ErrorType<ApiError>>(params?: GetLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLeaderboardQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLeaderboard>>> = ({ signal }) => getLeaderboard(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLeaderboardQueryResult = NonNullable<Awaited<ReturnType<typeof getLeaderboard>>>
+export type GetLeaderboardQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the territory leaderboard
+ */
+
+export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboard>>, TError = ErrorType<ApiError>>(
+ params?: GetLeaderboardParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLeaderboard>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLeaderboardQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUserStatsUrl = (userId: UserId,) => {
+
+
+
+
+  return `/api/users/${userId}/stats`
+}
+
+/**
+ * @summary Get user totals and recent runs
+ */
+export const getUserStats = async (userId: UserId, options?: Parameters<typeof customFetch>[1]): Promise<UserStatsResult> => {
+
+  return customFetch<UserStatsResult>(getGetUserStatsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUserStatsQueryKey = (userId: UserId,) => {
+    return [
+    `/api/users/${userId}/stats`
+    ] as const;
+    }
+
+
+export const getGetUserStatsQueryOptions = <TData = Awaited<ReturnType<typeof getUserStats>>, TError = ErrorType<ApiError>>(userId: UserId, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUserStatsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserStats>>> = ({ signal }) => getUserStats(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUserStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getUserStats>>>
+export type GetUserStatsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get user totals and recent runs
+ */
+
+export function useGetUserStats<TData = Awaited<ReturnType<typeof getUserStats>>, TError = ErrorType<ApiError>>(
+ userId: UserId, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUserStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUserStatsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

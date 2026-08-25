@@ -18,7 +18,7 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Atomically saves a completed run, ordered GPS points, and claimed H3 cells.
+ * Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
  * @summary Save a completed run
  */
 export const saveRunBodyClientRunIdMin = 8;
@@ -45,6 +45,10 @@ export const saveRunBodyPointsItemLngMax = 180;
 export const saveRunBodyPointsItemTimestampMin = 0;
 export const saveRunBodyPointsItemTimestampMultipleOf = 1;
 
+export const saveRunBodyPointsItemAccuracyMetersMin = 0;
+
+export const saveRunBodyPointsItemSpeedMetersPerSecondMin = 0;
+
 export const saveRunBodyPointsMax = 20000;
 
 export const saveRunBodyClaimedHexesItemMin = 15;
@@ -53,6 +57,12 @@ export const saveRunBodyClaimedHexesItemMax = 16;
 
 export const saveRunBodyClaimedHexesItemRegExp = new RegExp('^89[0-9a-f]{13}$');
 export const saveRunBodyClaimedHexesMax = 10000;
+
+export const saveRunBodyAntiSpoofReasonMax = 200;
+
+export const saveRunBodyAntiSpoofAverageAccuracyMetersMin = 0;
+
+export const saveRunBodyAntiSpoofMaxSpeedMetersPerSecondMin = 0;
 
 
 
@@ -66,13 +76,181 @@ export const SaveRunBody = zod.object({
   "points": zod.array(zod.object({
   "lat": zod.number().min(saveRunBodyPointsItemLatMin).max(saveRunBodyPointsItemLatMax),
   "lng": zod.number().min(saveRunBodyPointsItemLngMin).max(saveRunBodyPointsItemLngMax),
-  "timestamp": zod.number().min(saveRunBodyPointsItemTimestampMin).multipleOf(saveRunBodyPointsItemTimestampMultipleOf)
+  "timestamp": zod.number().min(saveRunBodyPointsItemTimestampMin).multipleOf(saveRunBodyPointsItemTimestampMultipleOf),
+  "accuracyMeters": zod.number().min(saveRunBodyPointsItemAccuracyMetersMin).optional(),
+  "speedMetersPerSecond": zod.number().min(saveRunBodyPointsItemSpeedMetersPerSecondMin).optional(),
+  "mocked": zod.boolean().optional()
 })).max(saveRunBodyPointsMax),
-  "claimedHexes": zod.array(zod.string().min(saveRunBodyClaimedHexesItemMin).max(saveRunBodyClaimedHexesItemMax).regex(saveRunBodyClaimedHexesItemRegExp)).max(saveRunBodyClaimedHexesMax)
+  "claimedHexes": zod.array(zod.string().min(saveRunBodyClaimedHexesItemMin).max(saveRunBodyClaimedHexesItemMax).regex(saveRunBodyClaimedHexesItemRegExp)).max(saveRunBodyClaimedHexesMax),
+  "antiSpoof": zod.object({
+  "flaggedSuspicious": zod.boolean().optional(),
+  "reason": zod.string().max(saveRunBodyAntiSpoofReasonMax).optional(),
+  "mockLocationDetected": zod.boolean().optional(),
+  "averageAccuracyMeters": zod.number().min(saveRunBodyAntiSpoofAverageAccuracyMetersMin).optional(),
+  "maxSpeedMetersPerSecond": zod.number().min(saveRunBodyAntiSpoofMaxSpeedMetersPerSecondMin).optional()
+}).optional().describe('Client-observed telemetry retained for future anti-spoof analysis. These fields are advisory and do not reject a run.')
 })
+
+export const saveRunResponseNewHexesMin = 0;
+export const saveRunResponseNewHexesMultipleOf = 1;
+
+export const saveRunResponseStolenHexesMin = 0;
+export const saveRunResponseStolenHexesMultipleOf = 1;
+
+export const saveRunResponseClaimedHexesMin = 0;
+export const saveRunResponseClaimedHexesMultipleOf = 1;
+
+
 
 export const SaveRunResponse = zod.object({
   "runId": zod.string(),
   "saved": zod.boolean(),
-  "idempotent": zod.boolean()
+  "idempotent": zod.boolean(),
+  "newHexes": zod.number().min(saveRunResponseNewHexesMin).multipleOf(saveRunResponseNewHexesMultipleOf),
+  "stolenHexes": zod.number().min(saveRunResponseStolenHexesMin).multipleOf(saveRunResponseStolenHexesMultipleOf),
+  "claimedHexes": zod.number().min(saveRunResponseClaimedHexesMin).multipleOf(saveRunResponseClaimedHexesMultipleOf),
+  "antiSpoof": zod.object({
+  "flaggedSuspicious": zod.boolean(),
+  "reason": zod.string().nullable(),
+  "mockLocationDetected": zod.boolean().nullable(),
+  "averageAccuracyMeters": zod.number().nullable(),
+  "maxSpeedMetersPerSecond": zod.number().nullable()
+})
+})
+
+
+/**
+ * Returns ownership for at most 1000 supplied resolution-9 H3 indexes. Unclaimed cells are returned with null ownership.
+ * @summary Look up ownership for H3 cells
+ */
+export const lookupHexOwnershipBodyH3IndexesItemMin = 15;
+export const lookupHexOwnershipBodyH3IndexesItemMax = 16;
+
+
+export const lookupHexOwnershipBodyH3IndexesItemRegExp = new RegExp('^89[0-9a-f]{13}$');
+export const lookupHexOwnershipBodyH3IndexesMax = 1000;
+
+
+
+export const LookupHexOwnershipBody = zod.object({
+  "h3Indexes": zod.array(zod.string().min(lookupHexOwnershipBodyH3IndexesItemMin).max(lookupHexOwnershipBodyH3IndexesItemMax).regex(lookupHexOwnershipBodyH3IndexesItemRegExp)).min(1).max(lookupHexOwnershipBodyH3IndexesMax)
+})
+
+export const lookupHexOwnershipResponseOwnershipMax = 1000;
+
+
+
+export const LookupHexOwnershipResponse = zod.object({
+  "ownership": zod.array(zod.object({
+  "h3Index": zod.string(),
+  "ownerId": zod.string().nullable(),
+  "claimedAt": zod.coerce.date().nullable()
+})).max(lookupHexOwnershipResponseOwnershipMax)
+})
+
+
+/**
+ * Returns at most 20 users ordered by total hexes descending and user ID ascending.
+ * @summary Get the territory leaderboard
+ */
+export const getLeaderboardQueryCurrentUserIdMin = 8;
+export const getLeaderboardQueryCurrentUserIdMax = 120;
+
+
+export const getLeaderboardQueryCurrentUserIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const GetLeaderboardQueryParams = zod.object({
+  "currentUserId": zod.coerce.string().min(getLeaderboardQueryCurrentUserIdMin).max(getLeaderboardQueryCurrentUserIdMax).regex(getLeaderboardQueryCurrentUserIdRegExp).optional()
+})
+
+export const getLeaderboardResponseUsersItemRankMultipleOf = 1;
+
+export const getLeaderboardResponseUsersItemTotalHexesOwnedMin = 0;
+export const getLeaderboardResponseUsersItemTotalHexesOwnedMultipleOf = 1;
+
+export const getLeaderboardResponseUsersMax = 20;
+
+
+
+export const GetLeaderboardResponse = zod.object({
+  "users": zod.array(zod.object({
+  "rank": zod.number().min(1).multipleOf(getLeaderboardResponseUsersItemRankMultipleOf),
+  "displayName": zod.string(),
+  "totalHexesOwned": zod.number().min(getLeaderboardResponseUsersItemTotalHexesOwnedMin).multipleOf(getLeaderboardResponseUsersItemTotalHexesOwnedMultipleOf),
+  "isCurrentUser": zod.boolean()
+})).max(getLeaderboardResponseUsersMax)
+})
+
+
+/**
+ * @summary Get user totals and recent runs
+ */
+export const getUserStatsPathUserIdMin = 8;
+export const getUserStatsPathUserIdMax = 120;
+
+
+export const getUserStatsPathUserIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const GetUserStatsParams = zod.object({
+  "userId": zod.coerce.string().min(getUserStatsPathUserIdMin).max(getUserStatsPathUserIdMax).regex(getUserStatsPathUserIdRegExp)
+})
+
+export const getUserStatsResponseTotalsTotalRunsMin = 0;
+export const getUserStatsResponseTotalsTotalRunsMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTotalDistanceKmMin = 0;
+
+export const getUserStatsResponseTotalsTotalElapsedSecondsMin = 0;
+export const getUserStatsResponseTotalsTotalElapsedSecondsMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTotalHexesOwnedMin = 0;
+export const getUserStatsResponseTotalsTotalHexesOwnedMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTotalClaimedHexesMin = 0;
+export const getUserStatsResponseTotalsTotalClaimedHexesMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTotalNewHexesMin = 0;
+export const getUserStatsResponseTotalsTotalNewHexesMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTotalStolenHexesMin = 0;
+export const getUserStatsResponseTotalsTotalStolenHexesMultipleOf = 1;
+
+export const getUserStatsResponseRecentRunsItemClaimedHexesMin = 0;
+export const getUserStatsResponseRecentRunsItemClaimedHexesMultipleOf = 1;
+
+export const getUserStatsResponseRecentRunsItemNewHexesMin = 0;
+export const getUserStatsResponseRecentRunsItemNewHexesMultipleOf = 1;
+
+export const getUserStatsResponseRecentRunsItemStolenHexesMin = 0;
+export const getUserStatsResponseRecentRunsItemStolenHexesMultipleOf = 1;
+
+export const getUserStatsResponseRecentRunsMax = 5;
+
+
+
+export const GetUserStatsResponse = zod.object({
+  "userId": zod.string(),
+  "displayName": zod.string(),
+  "totals": zod.object({
+  "totalRuns": zod.number().min(getUserStatsResponseTotalsTotalRunsMin).multipleOf(getUserStatsResponseTotalsTotalRunsMultipleOf),
+  "totalDistanceKm": zod.number().min(getUserStatsResponseTotalsTotalDistanceKmMin),
+  "totalElapsedSeconds": zod.number().min(getUserStatsResponseTotalsTotalElapsedSecondsMin).multipleOf(getUserStatsResponseTotalsTotalElapsedSecondsMultipleOf),
+  "averagePaceMinPerKm": zod.number().nullable(),
+  "totalHexesOwned": zod.number().min(getUserStatsResponseTotalsTotalHexesOwnedMin).multipleOf(getUserStatsResponseTotalsTotalHexesOwnedMultipleOf),
+  "totalClaimedHexes": zod.number().min(getUserStatsResponseTotalsTotalClaimedHexesMin).multipleOf(getUserStatsResponseTotalsTotalClaimedHexesMultipleOf),
+  "totalNewHexes": zod.number().min(getUserStatsResponseTotalsTotalNewHexesMin).multipleOf(getUserStatsResponseTotalsTotalNewHexesMultipleOf),
+  "totalStolenHexes": zod.number().min(getUserStatsResponseTotalsTotalStolenHexesMin).multipleOf(getUserStatsResponseTotalsTotalStolenHexesMultipleOf)
+}),
+  "recentRuns": zod.array(zod.object({
+  "runId": zod.string(),
+  "distanceKm": zod.number(),
+  "averagePaceMinPerKm": zod.number().nullable(),
+  "startedAt": zod.coerce.date(),
+  "endedAt": zod.coerce.date(),
+  "claimedHexes": zod.number().min(getUserStatsResponseRecentRunsItemClaimedHexesMin).multipleOf(getUserStatsResponseRecentRunsItemClaimedHexesMultipleOf),
+  "newHexes": zod.number().min(getUserStatsResponseRecentRunsItemNewHexesMin).multipleOf(getUserStatsResponseRecentRunsItemNewHexesMultipleOf),
+  "stolenHexes": zod.number().min(getUserStatsResponseRecentRunsItemStolenHexesMin).multipleOf(getUserStatsResponseRecentRunsItemStolenHexesMultipleOf)
+})).max(getUserStatsResponseRecentRunsMax)
 })

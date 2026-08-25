@@ -12,6 +12,10 @@ tags:
     description: Health operations
   - name: runs
     description: HexRunner run persistence
+  - name: territory
+    description: HexRunner territory ownership
+  - name: users
+    description: HexRunner user statistics and rankings
 paths:
   /healthz:
     get:
@@ -63,6 +67,92 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /hex-ownership/lookup:
+    post:
+      operationId: lookupHexOwnership
+      tags: [territory]
+      summary: Look up ownership for H3 cells
+      description: Returns ownership for at most 1000 supplied resolution-9 H3 indexes. Unclaimed cells are returned with null ownership.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HexOwnershipLookupRequest"
+      responses:
+        "200":
+          description: Ownership snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HexOwnershipLookupResult"
+        "400":
+          description: Invalid or excessive lookup payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Ownership could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [users]
+      summary: Get the territory leaderboard
+      description: Returns at most 20 users ordered by total hexes descending and user ID ascending.
+      parameters:
+        - name: currentUserId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/UserId"
+      responses:
+        "200":
+          description: Territory leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardResult"
+        "500":
+          description: Leaderboard could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /users/{userId}/stats:
+    get:
+      operationId: getUserStats
+      tags: [users]
+      summary: Get user totals and recent runs
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/UserId"
+      responses:
+        "200":
+          description: User totals and up to five recent runs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStatsResult"
+        "400":
+          description: Invalid user ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Stats could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -87,7 +177,51 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
+        accuracyMeters:
+          type: number
+          minimum: 0
+        speedMetersPerSecond:
+          type: number
+          minimum: 0
+        mocked:
+          type: boolean
       required: [lat, lng, timestamp]
+    UserId:
+      type: string
+      minLength: 8
+      maxLength: 120
+      pattern: "^[A-Za-z0-9_-]+$"
+    RunAntiSpoofAdvisory:
+      type: object
+      description: Client-observed telemetry retained for future anti-spoof analysis. These fields are advisory and do not reject a run.
+      properties:
+        flaggedSuspicious:
+          type: boolean
+        reason:
+          type: string
+          maxLength: 200
+        mockLocationDetected:
+          type: boolean
+        averageAccuracyMeters:
+          type: number
+          minimum: 0
+        maxSpeedMetersPerSecond:
+          type: number
+          minimum: 0
+    RunAntiSpoofResult:
+      type: object
+      properties:
+        flaggedSuspicious:
+          type: boolean
+        reason:
+          type: [string, "null"]
+        mockLocationDetected:
+          type: [boolean, "null"]
+        averageAccuracyMeters:
+          type: [number, "null"]
+        maxSpeedMetersPerSecond:
+          type: [number, "null"]
+      required: [flaggedSuspicious, reason, mockLocationDetected, averageAccuracyMeters, maxSpeedMetersPerSecond]
     SaveRunRequest:
       type: object
       properties:
@@ -97,10 +231,7 @@ components:
           maxLength: 120
           pattern: "^[A-Za-z0-9_-]+$"
         userId:
-          type: string
-          minLength: 8
-          maxLength: 120
-          pattern: "^[A-Za-z0-9_-]+$"
+          $ref: "#/components/schemas/UserId"
         startedAt:
           type: string
           format: date-time
@@ -128,6 +259,8 @@ components:
             minLength: 15
             maxLength: 16
             pattern: "^89[0-9a-f]{13}$"
+        antiSpoof:
+          $ref: "#/components/schemas/RunAntiSpoofAdvisory"
       required:
         - clientRunId
         - userId
@@ -146,7 +279,156 @@ components:
           type: boolean
         idempotent:
           type: boolean
-      required: [runId, saved, idempotent]
+        newHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        stolenHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        claimedHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        antiSpoof:
+          $ref: "#/components/schemas/RunAntiSpoofResult"
+      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, antiSpoof]
+    HexOwnershipLookupRequest:
+      type: object
+      properties:
+        h3Indexes:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 15
+            maxLength: 16
+            pattern: "^89[0-9a-f]{13}$"
+      required: [h3Indexes]
+    HexOwnership:
+      type: object
+      properties:
+        h3Index:
+          type: string
+        ownerId:
+          type: [string, "null"]
+        claimedAt:
+          type: [string, "null"]
+          format: date-time
+      required: [h3Index, ownerId, claimedAt]
+    HexOwnershipLookupResult:
+      type: object
+      properties:
+        ownership:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/HexOwnership"
+      required: [ownership]
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: number
+          multipleOf: 1
+          minimum: 1
+        displayName:
+          type: string
+        totalHexesOwned:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        isCurrentUser:
+          type: boolean
+      required: [rank, displayName, totalHexesOwned, isCurrentUser]
+    LeaderboardResult:
+      type: object
+      properties:
+        users:
+          type: array
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+      required: [users]
+    RecentRun:
+      type: object
+      properties:
+        runId:
+          type: string
+        distanceKm:
+          type: number
+        averagePaceMinPerKm:
+          type: [number, "null"]
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        claimedHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        newHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        stolenHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+      required: [runId, distanceKm, averagePaceMinPerKm, startedAt, endedAt, claimedHexes, newHexes, stolenHexes]
+    UserStatsTotals:
+      type: object
+      properties:
+        totalRuns:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        totalDistanceKm:
+          type: number
+          minimum: 0
+        totalElapsedSeconds:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        averagePaceMinPerKm:
+          type: [number, "null"]
+        totalHexesOwned:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        totalClaimedHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        totalNewHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        totalStolenHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+      required: [totalRuns, totalDistanceKm, totalElapsedSeconds, averagePaceMinPerKm, totalHexesOwned, totalClaimedHexes, totalNewHexes, totalStolenHexes]
+    UserStatsResult:
+      type: object
+      properties:
+        userId:
+          type: string
+        displayName:
+          type: string
+        totals:
+          $ref: "#/components/schemas/UserStatsTotals"
+        recentRuns:
+          type: array
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/RecentRun"
+      required: [userId, displayName, totals, recentRuns]
     ApiError:
       type: object
       properties:

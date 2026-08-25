@@ -7,7 +7,19 @@
  */
 
 export * from './apiError';
+export * from './getLeaderboardParams';
 export * from './healthStatus';
+export * from './hexOwnership';
+export * from './hexOwnershipLookupRequest';
+export * from './hexOwnershipLookupResult';
+export * from './leaderboardEntry';
+export * from './leaderboardResult';
+export * from './recentRun';
+export * from './runAntiSpoofAdvisory';
+export * from './runAntiSpoofResult';
 export * from './runPoint';
 export * from './saveRunRequest';
 export * from './saveRunResult';
+export * from './userId';
+export * from './userStatsResult';
+export * from './userStatsTotals';
