@@ -14,6 +14,8 @@ import {
   buildTerritoryPaintSpots,
   type TerritoryRoutePoint,
 } from '@/src/services/territoryDisplay';
+import type { SafetyAreaSignal } from '@workspace/api-client-react';
+import { hexToCenter } from '@/src/services/hexEngine';
 
 export type TerritoryPaintProps = {
   center?: { latitude: number; longitude: number };
@@ -21,6 +23,7 @@ export type TerritoryPaintProps = {
   otherHexIndexes?: ReadonlySet<string>;
   claimReadyHexIndexes?: ReadonlySet<string>;
   routePoints?: readonly TerritoryRoutePoint[];
+  safetyAreas?: readonly SafetyAreaSignal[];
 };
 
 type CanvasPoint = { x: number; y: number };
@@ -51,6 +54,7 @@ export default function TerritoryPaint({
   otherHexIndexes,
   claimReadyHexIndexes,
   routePoints = [],
+  safetyAreas = [],
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -131,6 +135,26 @@ export default function TerritoryPaint({
           opacity={0.28}
           fill="none"
         />
+
+        {safetyAreas
+          .filter((area) => area.concernScore !== null)
+          .map((area) => {
+            const centerPoint = hexToCenter(area.areaH3Index);
+            const point = project(centerPoint.latitude, centerPoint.longitude, origin);
+            return (
+              <Circle
+                key={`safety:${area.areaH3Index}`}
+                cx={point.x}
+                cy={point.y}
+                r={300 * spotScale}
+                fill={colors.destructive}
+                fillOpacity={0.08}
+                stroke={colors.destructive}
+                strokeOpacity={0.5}
+                strokeWidth={5}
+              />
+            );
+          })}
 
         {spots.map((spot) => {
           const point = project(

@@ -167,6 +167,77 @@ export interface HexOwnershipLookupResult {
   ownership: HexOwnership[];
 }
 
+export interface CreateSafetyReportRequest {
+  /**
+     * @minLength 8
+     * @maxLength 120
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientReportId: string;
+  /**
+     * @minLength 8
+     * @maxLength 120
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientRunId: string;
+  /**
+     * @minLength 15
+     * @maxLength 16
+     * @pattern ^88[0-9a-f]{13}$
+     */
+  areaH3Index: string;
+  occurredAt: string;
+}
+
+export interface CreateSafetyReportResult {
+  accepted: boolean;
+  duplicate: boolean;
+  areaH3Index: string;
+  advisory: string;
+}
+
+export interface SafetyAreaLookupRequest {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     * @items.minLength 15
+     * @items.maxLength 16
+     * @items.pattern ^88[0-9a-f]{13}$
+     */
+  areaH3Indexes: string[];
+}
+
+export type SafetyAreaSignalConfidence = typeof SafetyAreaSignalConfidence[keyof typeof SafetyAreaSignalConfidence];
+
+
+export const SafetyAreaSignalConfidence = {
+  insufficient: 'insufficient',
+  emerging: 'emerging',
+  established: 'established',
+} as const;
+
+export interface SafetyAreaSignal {
+  areaH3Index: string;
+  confidence: SafetyAreaSignalConfidence;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  concernScore: number | null;
+  /**
+     * @minimum 3
+     * @nullable
+     */
+  sampleSize: number | null;
+}
+
+export interface SafetyAreaLookupResult {
+  /** @maxItems 500 */
+  areas: SafetyAreaSignal[];
+  advisory: string;
+}
+
 export interface LeaderboardEntry {
   /** @minimum 1 */
   rank: number;

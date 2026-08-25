@@ -15,10 +15,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import TerritoryPaint from '@/src/components/TerritoryPaint';
 import { useColors } from '@/hooks/useColors';
-import { hexesFromBoundingBox } from '@/src/services/hexEngine';
+import { hexesFromBoundingBox, hexToParent } from '@/src/services/hexEngine';
 import { startWatching, stopWatching } from '@/src/services/locationTracker';
 import { useAuth } from '@/src/context/AuthContext';
-import { useLookupHexOwnership, useGetUserStats, getGetUserStatsQueryKey } from '@workspace/api-client-react';
+import { useLookupHexOwnership, useLookupSafetyAreas, useGetUserStats, getGetUserStatsQueryKey, type SafetyAreaSignal } from '@workspace/api-client-react';
 import { predictFitnessProfile } from '@/src/services/fitnessModel';
 import BaselineOnboarding from '@/src/components/BaselineOnboarding';
 
@@ -96,8 +96,10 @@ function LiveMap() {
   const [myHexes, setMyHexes] = useState<Set<string>>(new Set());
   const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
   const [territoryFreshness, setTerritoryFreshness] = useState<number | null>(null);
+  const [safetyAreas, setSafetyAreas] = useState<SafetyAreaSignal[]>([]);
 
   const lookupMutation = useLookupHexOwnership();
+  const safetyLookup = useLookupSafetyAreas();
 
   const {
     data: userStats,
@@ -165,6 +167,20 @@ function LiveMap() {
     }, HEX_REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [refreshHexes, visibleHexes]);
+
+  useEffect(() => {
+    if (!visibleHexes.length) return;
+    let areaH3Indexes: string[];
+    try {
+      areaH3Indexes = [...new Set(visibleHexes.map((index) => hexToParent(index, 8)))].slice(0, 500);
+    } catch {
+      return;
+    }
+    safetyLookup.mutate(
+      { data: { areaH3Indexes } },
+      { onSuccess: (result) => setSafetyAreas(result.areas) },
+    );
+  }, [visibleHexes]);
 
   const beginWatching = useCallback(() => {
     setError(null);
@@ -310,6 +326,7 @@ function LiveMap() {
             center={coordinate}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            safetyAreas={safetyAreas}
           />
         </View>
       ) : (
@@ -330,6 +347,7 @@ function LiveMap() {
             center={coordinate}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            safetyAreas={safetyAreas}
           />
         </MapView>
       )}
@@ -369,6 +387,34 @@ function LiveMap() {
           </Text>
         </View>
       ) : null}
+
+      <View
+        pointerEvents="none"
+        style={[
+          styles.safetyAdvisory,
+          {
+            bottom: Math.max(insets.bottom, 12) + 82,
+            backgroundColor: colors.card,
+            borderColor: safetyLookup.isError ? colors.destructive : colors.border,
+          },
+        ]}
+      >
+        <Feather name="shield" size={15} color={colors.destructive} />
+        <View style={styles.safetyAdvisoryCopy}>
+          <Text style={[styles.safetyAdvisoryTitle, { color: colors.foreground }]}>
+            {safetyLookup.isPending
+              ? 'Loading safety signals…'
+              : safetyLookup.isError
+                ? 'Safety signals unavailable'
+                : safetyAreas.some((area) => area.concernScore !== null)
+                  ? 'Crowdsourced caution nearby'
+                  : 'Not enough safety data nearby'}
+          </Text>
+          <Text style={[styles.safetyAdvisoryText, { color: colors.mutedForeground }]}>
+            Coarse community signals · not a safety guarantee
+          </Text>
+        </View>
+      </View>
 
       {territoryIsLoading ? (
         <View
@@ -468,6 +514,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  safetyAdvisory: {
+    position: 'absolute',
+    left: 16,
+    right: 118,
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+  },
+  safetyAdvisoryCopy: { flex: 1 },
+  safetyAdvisoryTitle: { fontFamily: 'Inter_700Bold', fontSize: 12 },
+  safetyAdvisoryText: { fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 2 },
   statusScreen: {
     flex: 1,
     alignItems: 'center',

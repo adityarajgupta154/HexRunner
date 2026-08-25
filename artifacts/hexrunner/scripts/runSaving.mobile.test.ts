@@ -16,6 +16,10 @@ import {
   runSummarySaveAttempt,
   type RunSummarySaveStatus,
 } from '../src/services/runSummaryState';
+import {
+  createSafetyQueue,
+  PENDING_SAFETY_REPORTS_KEY,
+} from '../src/services/safetyStorageCore';
 
 function createMemoryStorage() {
   const values = new Map<string, string>();
@@ -179,5 +183,55 @@ describe('mobile run-saving regression checks', { concurrency: false }, () => {
       getPendingRunRecoveryRoute(restored, '/run-summary'),
       null,
     );
+  });
+
+  test('saving a run immediately flushes its queued safety report', async () => {
+    const { storage, values } = createMemoryStorage();
+    const clientRunId = 'run_safety_delivery_001';
+    let runExists = false;
+    const safetyQueue = createSafetyQueue({
+      storage,
+      now: () => Date.parse('2026-08-25T10:10:00.000Z'),
+      submitReport: async (report) => {
+        if (!runExists) throw new Error('409 run not saved');
+        return {
+          accepted: true,
+          duplicate: false,
+          areaH3Index: report.areaH3Index,
+          advisory: 'Crowdsourced signal only.',
+        };
+      },
+    });
+    await safetyQueue.queueSafetyReport({
+      clientReportId: 'safety_delivery_001',
+      clientRunId,
+      areaH3Index: '8860145b49fffff',
+      occurredAt: '2026-08-25T10:05:00.000Z',
+    });
+
+    const beforeSave = await safetyQueue.flushPendingSafetyReports(clientRunId);
+    assert.deepEqual(beforeSave, { delivered: 0, remaining: 1 });
+
+    await runSummarySaveAttempt({
+      clientRunId,
+      savePendingRun: async (savedRunId) => {
+        runExists = true;
+        return savedResult(savedRunId);
+      },
+      observer: {
+        onSaving() {},
+        onSaved() {},
+        onFailed(message) {
+          assert.fail(message);
+        },
+      },
+      afterSaved: async () => {
+        const delivery =
+          await safetyQueue.flushPendingSafetyReports(clientRunId);
+        assert.deepEqual(delivery, { delivered: 1, remaining: 0 });
+      },
+    });
+
+    assert.equal(values.has(PENDING_SAFETY_REPORTS_KEY), false);
   });
 });

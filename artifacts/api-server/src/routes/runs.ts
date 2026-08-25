@@ -13,6 +13,7 @@ import { verifyAnonymousCredential } from "../lib/anonymousCredential";
 import { getClaimQualitySnapshot } from "../lib/claimQuality";
 import { dailyBudgetForActivity } from "../lib/fitnessBudget";
 import { calculateRunStreak } from "../lib/runStreak";
+import { consumeRateLimit } from "../lib/rateLimit";
 
 const router: IRouter = Router();
 const RUN_POINT_INSERT_BATCH_SIZE = 5_000;
@@ -30,6 +31,10 @@ function startOfUtcDay(value: Date): Date {
 }
 
 router.post("/runs", async (req, res): Promise<void> => {
+  if (!consumeRateLimit("run-save-ip", req.ip ?? "unknown", 60, 60 * 60 * 1_000)) {
+    res.status(429).json({ error: "Too many run submissions. Try again later." });
+    return;
+  }
   const authorization = req.get("authorization");
   const credential =
     authorization?.startsWith("Bearer ")

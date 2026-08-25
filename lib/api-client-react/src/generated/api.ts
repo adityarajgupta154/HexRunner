@@ -23,11 +23,15 @@ import type {
   AnonymousIdentityCredential,
   AnonymousIdentityRegistration,
   ApiError,
+  CreateSafetyReportRequest,
+  CreateSafetyReportResult,
   GetLeaderboardParams,
   HealthStatus,
   HexOwnershipLookupRequest,
   HexOwnershipLookupResult,
   LeaderboardResult,
+  SafetyAreaLookupRequest,
+  SafetyAreaLookupResult,
   SaveRunRequest,
   SaveRunResult,
   UserBaseline,
@@ -355,6 +359,150 @@ export const useLookupHexOwnership = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getLookupHexOwnershipMutationOptions(options));
+    }
+
+export const getCreateSafetyReportUrl = () => {
+
+
+
+
+  return `/api/safety-reports`
+}
+
+/**
+ * Authenticated report reduced server-side to a coarse resolution-8 H3 area. Raw coordinates are not retained.
+ * @summary Report feeling unsafe in the current area
+ */
+export const createSafetyReport = async (createSafetyReportRequest: CreateSafetyReportRequest, options?: Parameters<typeof customFetch>[1]): Promise<CreateSafetyReportResult> => {
+
+  return customFetch<CreateSafetyReportResult>(getCreateSafetyReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createSafetyReportRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateSafetyReportMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSafetyReport>>, TError,{data: BodyType<CreateSafetyReportRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSafetyReport>>, TError,{data: BodyType<CreateSafetyReportRequest>}, TContext> => {
+
+const mutationKey = ['createSafetyReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSafetyReport>>, {data: BodyType<CreateSafetyReportRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSafetyReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSafetyReportMutationResult = NonNullable<Awaited<ReturnType<typeof createSafetyReport>>>
+    export type CreateSafetyReportMutationBody = BodyType<CreateSafetyReportRequest>
+    export type CreateSafetyReportMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Report feeling unsafe in the current area
+ */
+export const useCreateSafetyReport = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSafetyReport>>, TError,{data: BodyType<CreateSafetyReportRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSafetyReport>>,
+        TError,
+        {data: BodyType<CreateSafetyReportRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateSafetyReportMutationOptions(options));
+    }
+
+export const getLookupSafetyAreasUrl = () => {
+
+
+
+
+  return `/api/safety-areas/lookup`
+}
+
+/**
+ * Returns no score until at least three distinct reporters contributed in the retention window.
+ * @summary Look up aggregated coarse-area safety signals
+ */
+export const lookupSafetyAreas = async (safetyAreaLookupRequest: SafetyAreaLookupRequest, options?: Parameters<typeof customFetch>[1]): Promise<SafetyAreaLookupResult> => {
+
+  return customFetch<SafetyAreaLookupResult>(getLookupSafetyAreasUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(safetyAreaLookupRequest)
+  }
+);}
+
+
+
+
+
+export const getLookupSafetyAreasMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupSafetyAreas>>, TError,{data: BodyType<SafetyAreaLookupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupSafetyAreas>>, TError,{data: BodyType<SafetyAreaLookupRequest>}, TContext> => {
+
+const mutationKey = ['lookupSafetyAreas'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupSafetyAreas>>, {data: BodyType<SafetyAreaLookupRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  lookupSafetyAreas(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LookupSafetyAreasMutationResult = NonNullable<Awaited<ReturnType<typeof lookupSafetyAreas>>>
+    export type LookupSafetyAreasMutationBody = BodyType<SafetyAreaLookupRequest>
+    export type LookupSafetyAreasMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Look up aggregated coarse-area safety signals
+ */
+export const useLookupSafetyAreas = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupSafetyAreas>>, TError,{data: BodyType<SafetyAreaLookupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lookupSafetyAreas>>,
+        TError,
+        {data: BodyType<SafetyAreaLookupRequest>},
+        TContext
+      > => {
+      return useMutation(getLookupSafetyAreasMutationOptions(options));
     }
 
 export const getGetLeaderboardUrl = (params?: GetLeaderboardParams,) => {

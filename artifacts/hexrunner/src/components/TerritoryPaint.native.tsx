@@ -6,6 +6,8 @@ import {
   routeToMapCoordinates,
   type TerritoryRoutePoint,
 } from '@/src/services/territoryDisplay';
+import type { SafetyAreaSignal } from '@workspace/api-client-react';
+import { hexToCenter } from '@/src/services/hexEngine';
 
 export type TerritoryPaintProps = {
   center?: { latitude: number; longitude: number };
@@ -13,6 +15,7 @@ export type TerritoryPaintProps = {
   otherHexIndexes?: ReadonlySet<string>;
   claimReadyHexIndexes?: ReadonlySet<string>;
   routePoints?: readonly TerritoryRoutePoint[];
+  safetyAreas?: readonly SafetyAreaSignal[];
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -34,6 +37,7 @@ export default function TerritoryPaint({
   otherHexIndexes,
   claimReadyHexIndexes,
   routePoints = [],
+  safetyAreas = [],
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -52,6 +56,19 @@ export default function TerritoryPaint({
 
   return (
     <>
+      {safetyAreas
+        .filter((area) => area.concernScore !== null)
+        .map((area) => (
+          <Circle
+            key={`safety:${area.areaH3Index}`}
+            center={hexToCenter(area.areaH3Index)}
+            radius={430}
+            fillColor={hexToRgba(colors.destructive, 0.1)}
+            strokeColor={hexToRgba(colors.destructive, 0.48)}
+            strokeWidth={3}
+            zIndex={0}
+          />
+        ))}
       {spots.map((spot) => {
         const isRival = spot.ownerKind === 'rival';
         const isClaimReady = spot.ownerKind === 'claim-ready';

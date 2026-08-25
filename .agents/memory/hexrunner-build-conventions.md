@@ -45,6 +45,14 @@ Keep H3 authoritative but visually hidden; render organic paint from H3 ownershi
 
 **How to apply:** map and animation work may derive circles, ribbons, or merged display shapes from H3, but must not replace the persisted ownership model or submit display polygons as claim authority.
 
+## Crowdsourced safety boundary
+
+Safety reports must remain coarse, advisory, run-bound signals; never expose raw reporter trails or treat sparse data as evidence that an area is safe.
+
+**Why:** location safety data can identify runners and can be poisoned by cheap anonymous identities unless privacy thresholds, provenance, and abuse barriers are enforced together.
+
+**How to apply:** keep trusted contacts device-local, queue only coarse cells, verify report area/time against a plausible saved run, serialize quotas, and show “not enough data” below the established-run crowd threshold.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.

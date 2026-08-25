@@ -24,6 +24,7 @@ import {
 } from '@/src/services/runStorage';
 import { checkSession } from '@/src/services/antiSpoof';
 import { useLookupHexOwnership } from '@workspace/api-client-react';
+import SafetyTools from '@/src/components/SafetyTools';
 
 type RunPoint = {
   lat: number;
@@ -92,6 +93,7 @@ export default function RunSessionScreen() {
     dismissNotice: dismissIdentityNotice,
   } = useAuth();
   const startTimeRef = useRef<number | null>(null);
+  const clientRunIdRef = useRef<string | null>(null);
   const lastPointRef = useRef<RunPoint | null>(null);
   const distanceKmRef = useRef(0);
   const [isStarting, setIsStarting] = useState(false);
@@ -149,10 +151,15 @@ export default function RunSessionScreen() {
     setPoorAccuracyHexes(0);
     setContestedHexes(new Set());
     distanceKmRef.current = 0;
+    clientRunIdRef.current = createClientRunId();
     lastPointRef.current = null;
+    startTimeRef.current = null;
 
     try {
       await startWatching((location) => {
+        if (startTimeRef.current === null) {
+          startTimeRef.current = location.timestamp;
+        }
         const nextPoint: RunPoint = {
           lat: location.coords.latitude,
           lng: location.coords.longitude,
@@ -217,7 +224,7 @@ export default function RunSessionScreen() {
         });
       });
 
-      startTimeRef.current = Date.now();
+      startTimeRef.current ??= Date.now();
       setIsRunning(true);
     } catch (startError: unknown) {
       const message =
@@ -226,6 +233,7 @@ export default function RunSessionScreen() {
           : 'Unable to start this run.';
       setError(message);
       stopWatching();
+      startTimeRef.current = null;
     } finally {
       setIsStarting(false);
     }
@@ -289,7 +297,7 @@ export default function RunSessionScreen() {
       );
       return;
     }
-    const clientRunId = createClientRunId();
+    const clientRunId = clientRunIdRef.current ?? createClientRunId();
 
     const antiSpoofCheck = checkSession(pathPoints);
 
@@ -394,6 +402,12 @@ export default function RunSessionScreen() {
             />
             <MetricCard label="PACE" value={pace} unit="min/km" />
           </View>
+
+          <SafetyTools
+            currentPoint={pathPoints[pathPoints.length - 1] ?? null}
+            isRunning
+            clientRunId={clientRunIdRef.current}
+          />
 
           <View
             style={[
@@ -524,6 +538,8 @@ export default function RunSessionScreen() {
               ? 'Keep HexRunner open until the summary appears.'
               : 'Foreground location permission is required.'}
           </Text>
+
+          <SafetyTools currentPoint={null} isRunning={false} clientRunId={null} />
 
           {error || identityError ? (
             <View

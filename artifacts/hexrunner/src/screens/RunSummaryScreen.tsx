@@ -30,6 +30,7 @@ import {
   runSummarySaveAttempt,
   type RunSummarySaveStatus,
 } from '@/src/services/runSummaryState';
+import { flushPendingSafetyReports } from '@/src/services/safetyStorage';
 
 function numberParam(value: string | string[] | undefined): number {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -63,12 +64,19 @@ export default function RunSummaryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { uid } = useAuth();
+  const {
+    uid,
+    loading: identityLoading,
+    error: identityError,
+  } = useAuth();
   const saveStartedRef = useRef(false);
   const [saveStatus, setSaveStatus] =
     useState<RunSummarySaveStatus>('saving');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<SaveRunResult | null>(null);
+  const [safetyDelivery, setSafetyDelivery] = useState<
+    'idle' | 'sending' | 'delivered' | 'pending'
+  >('idle');
 
   const { data: userStats } = useGetUserStats(uid ?? '', {
     query: { enabled: !!uid, queryKey: getGetUserStatsQueryKey(uid ?? '') },
@@ -122,14 +130,32 @@ export default function RunSummaryScreen() {
           setSaveStatus('failed');
         },
       },
+      afterSaved: async () => {
+        setSafetyDelivery('sending');
+        const result = await flushPendingSafetyReports(clientRunId);
+        setSafetyDelivery(
+          result.remaining > 0
+            ? 'pending'
+            : result.delivered > 0
+              ? 'delivered'
+              : 'idle',
+        );
+      },
     });
   }, [clientRunId, queryClient, uid]);
 
   useEffect(() => {
-    if (saveStartedRef.current) return;
+    if (identityLoading || !uid || saveStartedRef.current) return;
     saveStartedRef.current = true;
     void persistRun();
-  }, [persistRun]);
+  }, [identityLoading, persistRun, uid]);
+
+  useEffect(() => {
+    if (!identityLoading && identityError) {
+      setSaveStatus('failed');
+      setSaveError(identityError);
+    }
+  }, [identityError, identityLoading]);
 
   const finish = useCallback(async () => {
     await clearPendingRun(clientRunId);
@@ -274,6 +300,55 @@ export default function RunSummaryScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        {safetyDelivery !== 'idle' ? (
+          <View
+            style={[
+              styles.saveCard,
+              {
+                backgroundColor: colors.card,
+                borderColor:
+                  safetyDelivery === 'pending'
+                    ? colors.destructive
+                    : colors.border,
+              },
+            ]}
+          >
+            {safetyDelivery === 'sending' ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather
+                name={safetyDelivery === 'delivered' ? 'shield' : 'clock'}
+                size={20}
+                color={
+                  safetyDelivery === 'delivered'
+                    ? colors.primary
+                    : colors.destructive
+                }
+              />
+            )}
+            <View style={styles.saveCopy}>
+              <Text style={[styles.saveTitle, { color: colors.foreground }]}>
+                {safetyDelivery === 'sending'
+                  ? 'Sending safety signal'
+                  : safetyDelivery === 'delivered'
+                    ? 'Safety signal delivered'
+                    : 'Safety signal still pending'}
+              </Text>
+              {safetyDelivery === 'pending' ? (
+                <Text
+                  style={[
+                    styles.saveError,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  Saved as a coarse area on this device. HexRunner will retry
+                  while the app is open.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
       </ScrollView>
       <View style={styles.footer}>

@@ -200,6 +200,79 @@ export const LookupHexOwnershipResponse = zod.object({
 
 
 /**
+ * Authenticated report reduced server-side to a coarse resolution-8 H3 area. Raw coordinates are not retained.
+ * @summary Report feeling unsafe in the current area
+ */
+export const createSafetyReportBodyClientReportIdMin = 8;
+export const createSafetyReportBodyClientReportIdMax = 120;
+
+
+export const createSafetyReportBodyClientReportIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const createSafetyReportBodyClientRunIdMin = 8;
+export const createSafetyReportBodyClientRunIdMax = 120;
+
+
+export const createSafetyReportBodyClientRunIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const createSafetyReportBodyAreaH3IndexMin = 15;
+export const createSafetyReportBodyAreaH3IndexMax = 16;
+
+
+export const createSafetyReportBodyAreaH3IndexRegExp = new RegExp('^88[0-9a-f]{13}$');
+
+
+export const CreateSafetyReportBody = zod.object({
+  "clientReportId": zod.string().min(createSafetyReportBodyClientReportIdMin).max(createSafetyReportBodyClientReportIdMax).regex(createSafetyReportBodyClientReportIdRegExp),
+  "clientRunId": zod.string().min(createSafetyReportBodyClientRunIdMin).max(createSafetyReportBodyClientRunIdMax).regex(createSafetyReportBodyClientRunIdRegExp),
+  "areaH3Index": zod.string().min(createSafetyReportBodyAreaH3IndexMin).max(createSafetyReportBodyAreaH3IndexMax).regex(createSafetyReportBodyAreaH3IndexRegExp),
+  "occurredAt": zod.coerce.date()
+})
+
+export const CreateSafetyReportResponse = zod.object({
+  "accepted": zod.boolean(),
+  "duplicate": zod.boolean(),
+  "areaH3Index": zod.string(),
+  "advisory": zod.string()
+})
+
+
+/**
+ * Returns no score until at least three distinct reporters contributed in the retention window.
+ * @summary Look up aggregated coarse-area safety signals
+ */
+export const lookupSafetyAreasBodyAreaH3IndexesItemMin = 15;
+export const lookupSafetyAreasBodyAreaH3IndexesItemMax = 16;
+
+
+export const lookupSafetyAreasBodyAreaH3IndexesItemRegExp = new RegExp('^88[0-9a-f]{13}$');
+export const lookupSafetyAreasBodyAreaH3IndexesMax = 500;
+
+
+
+export const LookupSafetyAreasBody = zod.object({
+  "areaH3Indexes": zod.array(zod.string().min(lookupSafetyAreasBodyAreaH3IndexesItemMin).max(lookupSafetyAreasBodyAreaH3IndexesItemMax).regex(lookupSafetyAreasBodyAreaH3IndexesItemRegExp)).min(1).max(lookupSafetyAreasBodyAreaH3IndexesMax)
+})
+
+export const lookupSafetyAreasResponseAreasItemConcernScoreMin = 0;
+export const lookupSafetyAreasResponseAreasItemConcernScoreMax = 100;
+
+export const lookupSafetyAreasResponseAreasItemSampleSizeMin = 3;
+
+export const lookupSafetyAreasResponseAreasMax = 500;
+
+
+
+export const LookupSafetyAreasResponse = zod.object({
+  "areas": zod.array(zod.object({
+  "areaH3Index": zod.string(),
+  "confidence": zod.enum(['insufficient', 'emerging', 'established']),
+  "concernScore": zod.number().min(lookupSafetyAreasResponseAreasItemConcernScoreMin).max(lookupSafetyAreasResponseAreasItemConcernScoreMax).nullable(),
+  "sampleSize": zod.number().min(lookupSafetyAreasResponseAreasItemSampleSizeMin).nullable()
+})).max(lookupSafetyAreasResponseAreasMax),
+  "advisory": zod.string()
+})
+
+
+/**
  * Returns at most 20 runners ordered by totalHexesOwned descending, then total distance, run count, and user ID.
  * @summary Get the territory leaderboard
  */

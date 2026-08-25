@@ -16,6 +16,8 @@ tags:
     description: HexRunner run persistence
   - name: territory
     description: HexRunner territory ownership
+  - name: safety
+    description: Privacy-preserving crowdsourced route safety signals
   - name: users
     description: HexRunner user statistics and rankings
 paths:
@@ -151,6 +153,64 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /safety-reports:
+    post:
+      operationId: createSafetyReport
+      tags: [safety]
+      summary: Report feeling unsafe in the current area
+      description: Authenticated report reduced server-side to a coarse resolution-8 H3 area. Raw coordinates are not retained.
+      security:
+        - anonymousDeviceCredential: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSafetyReportRequest"
+      responses:
+        "200":
+          description: Idempotent or duplicate report result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSafetyReportResult"
+        "201":
+          description: Safety report accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateSafetyReportResult"
+        "400":
+          description: Invalid or stale report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Missing or invalid device credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /safety-areas/lookup:
+    post:
+      operationId: lookupSafetyAreas
+      tags: [safety]
+      summary: Look up aggregated coarse-area safety signals
+      description: Returns no score until at least three distinct reporters contributed in the retention window.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SafetyAreaLookupRequest"
+      responses:
+        "200":
+          description: Privacy-thresholded advisory safety signals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SafetyAreaLookupResult"
   /leaderboard:
     get:
       operationId: getLeaderboard
@@ -479,6 +539,81 @@ components:
           items:
             $ref: "#/components/schemas/HexOwnership"
       required: [ownership]
+    CreateSafetyReportRequest:
+      type: object
+      properties:
+        clientReportId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        clientRunId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        areaH3Index:
+          type: string
+          minLength: 15
+          maxLength: 16
+          pattern: "^88[0-9a-f]{13}$"
+        occurredAt:
+          type: string
+          format: date-time
+      required: [clientReportId, clientRunId, areaH3Index, occurredAt]
+    CreateSafetyReportResult:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        duplicate:
+          type: boolean
+        areaH3Index:
+          type: string
+        advisory:
+          type: string
+      required: [accepted, duplicate, areaH3Index, advisory]
+    SafetyAreaLookupRequest:
+      type: object
+      properties:
+        areaH3Indexes:
+          type: array
+          minItems: 1
+          maxItems: 500
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 15
+            maxLength: 16
+            pattern: "^88[0-9a-f]{13}$"
+      required: [areaH3Indexes]
+    SafetyAreaSignal:
+      type: object
+      properties:
+        areaH3Index:
+          type: string
+        confidence:
+          type: string
+          enum: [insufficient, emerging, established]
+        concernScore:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+        sampleSize:
+          type: [number, "null"]
+          minimum: 3
+      required: [areaH3Index, confidence, concernScore, sampleSize]
+    SafetyAreaLookupResult:
+      type: object
+      properties:
+        areas:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/SafetyAreaSignal"
+        advisory:
+          type: string
+      required: [areas, advisory]
     LeaderboardEntry:
       type: object
       properties:

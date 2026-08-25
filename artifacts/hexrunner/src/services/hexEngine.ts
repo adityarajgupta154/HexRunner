@@ -77,6 +77,12 @@ export function pointToHex(lat: number, lng: number): string {
   return latLngToCell(lat, lng, HEX_RESOLUTION);
 }
 
+/** Converts a point directly to the coarse resolution-8 public safety area. */
+export function pointToSafetyArea(lat: number, lng: number): string {
+  const { latLngToCell } = loadH3();
+  return latLngToCell(lat, lng, 8);
+}
+
 /**
  * Converts an H3 cell boundary to coordinates accepted by
  * react-native-maps' Polygon component.
@@ -94,6 +100,12 @@ export function hexToCenter(h3Index: string): PolygonCoordinate {
   const { cellToLatLng } = loadH3();
   const [latitude, longitude] = cellToLatLng(h3Index);
   return { latitude, longitude };
+}
+
+/** Converts a finer H3 cell to a privacy-safe coarser parent cell. */
+export function hexToParent(h3Index: string, resolution: number): string {
+  const { cellToParent } = loadH3();
+  return cellToParent(h3Index, resolution);
 }
 
 /**

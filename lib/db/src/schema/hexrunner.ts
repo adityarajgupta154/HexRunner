@@ -123,6 +123,36 @@ export const hexrunnerTakeoverEventsTable = pgTable(
   ],
 );
 
+export const hexrunnerSafetyReportsTable = pgTable(
+  "hexrunner_safety_reports",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    runId: text("run_id")
+      .notNull()
+      .references(() => hexrunnerRunsTable.id, { onDelete: "cascade" }),
+    areaH3Index: text("area_h3_index").notNull(),
+    timeBucket: text("time_bucket").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hexrunner_safety_reports_area_created_idx").on(
+      table.areaH3Index,
+      table.createdAt,
+    ),
+    index("hexrunner_safety_reports_reporter_area_idx").on(
+      table.reporterId,
+      table.areaH3Index,
+    ),
+    index("hexrunner_safety_reports_run_id_idx").on(table.runId),
+  ],
+);
+
 export const insertHexrunnerUserSchema =
   createInsertSchema(hexrunnerUsersTable);
 export const insertHexrunnerRunSchema = createInsertSchema(hexrunnerRunsTable);
@@ -134,6 +164,9 @@ export const insertHexrunnerHexOwnershipSchema = createInsertSchema(
 );
 export const insertHexrunnerTakeoverEventSchema = createInsertSchema(
   hexrunnerTakeoverEventsTable,
+);
+export const insertHexrunnerSafetyReportSchema = createInsertSchema(
+  hexrunnerSafetyReportsTable,
 );
 
 export type HexrunnerUser = typeof hexrunnerUsersTable.$inferSelect;
@@ -153,4 +186,9 @@ export type HexrunnerTakeoverEvent =
   typeof hexrunnerTakeoverEventsTable.$inferSelect;
 export type InsertHexrunnerTakeoverEvent = z.infer<
   typeof insertHexrunnerTakeoverEventSchema
+>;
+export type HexrunnerSafetyReport =
+  typeof hexrunnerSafetyReportsTable.$inferSelect;
+export type InsertHexrunnerSafetyReport = z.infer<
+  typeof insertHexrunnerSafetyReportSchema
 >;
