@@ -31,6 +31,12 @@ Expo Location's web subscription cleanup can call a missing native emitter metho
 
 **How to apply:** keep browser previews on the browser geolocation fallback; use Expo Location's high-accuracy watcher on iOS/Android. Always test both watcher setup and cleanup.
 
+React Native may expose a `TextDecoder` that rejects `utf-16le`, while H3 4.5 eagerly requests that encoding during module initialization.
+
+**Why:** static H3 imports crashed Android route registration before Home or Run could render, even though the relevant decoder path was not used by territory calculations.
+
+**How to apply:** preserve the native-safe H3 loading boundary that probes decoder support and lets H3 select its JavaScript fallback. Validate on a physical Android device after H3, Metro, or Expo upgrades.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.
