@@ -1,0 +1,738 @@
+HEXRunner — FINAL ONBOARDING SLIDE 03
+EXACT GRAFFITI IMPLEMENTATION
+
+You are a senior Expo React Native + TypeScript engineer and UI/UX implementation specialist.
+
+I am attaching a reference image for the FINAL / THIRD onboarding screen.
+
+IMPORTANT:
+Use the attached image as the PRIMARY visual reference.
+
+I want the implementation to look extremely close to the reference image in:
+- composition
+- proportions
+- visual hierarchy
+- graffiti style
+- orange/black color palette
+- artwork placement
+- typography scale
+- spacing
+- overall visual density
+
+Do NOT simplify the design into a normal React Native onboarding screen.
+
+The result should feel like the reference image was transformed into a real, interactive mobile app screen.
+
+==================================================
+PROJECT CONTEXT
+==================================================
+
+This is an existing HexRunner Expo React Native + TypeScript application.
+
+Before changing anything:
+
+1. Inspect the existing project.
+2. Find the current onboarding implementation.
+3. Find slides 01 and 02.
+4. Reuse their existing navigation and onboarding state.
+5. Reuse existing shared components where possible.
+
+DO NOT modify:
+
+- backend
+- API
+- database
+- GPS
+- H3 territory logic
+- run tracking
+- leaderboard
+- profile
+- authentication
+- existing business logic
+
+Only implement/redesign the FINAL onboarding slide.
+
+Do not create a new navigation architecture.
+
+==================================================
+REFERENCE IMAGE
+==================================================
+
+The attached reference represents the target visual direction.
+
+It contains:
+
+- black/grunge background
+- monochrome city
+- orange graffiti
+- hooded runner
+- orange running route
+- hexagonal territory grid
+- shield/awareness symbol
+- large graffiti typography
+- street-art UI
+- orange paint CTA
+
+Reproduce this composition as closely as possible.
+
+==================================================
+CORE CONCEPT
+==================================================
+
+This is the final HexRunner onboarding message:
+
+THE STREET TALKS BACK
+
+RUN AWARE.
+
+The screen communicates:
+
+Air quality, coarse safety signals, and civic reports help you make sharper calls before you go.
+
+This is advisory awareness.
+
+Do NOT claim:
+- guaranteed safety
+- medical advice
+- emergency protection
+- 100% safe route
+
+==================================================
+DESIGN SYSTEM
+==================================================
+
+Background:
+
+#050505
+
+Primary orange:
+
+#FF4318
+
+Bright orange:
+
+#FF4B16
+
+Dark orange:
+
+#702617
+
+Warm white:
+
+#F5EEE3
+
+Muted gray:
+
+#A7A29B
+
+Black:
+
+#000000
+
+
+The dominant colors must be:
+
+BLACK
+WHITE
+ORANGE
+
+Do not introduce blue, purple, green, or modern gradient-heavy colors.
+
+==================================================
+SCREEN COMPOSITION
+==================================================
+
+The screen is portrait and full-screen.
+
+The final composition should visually follow this order:
+
+--------------------------------------------------
+
+TOP
+
+HEXRUNNER                         SKIP
+
+--------------------------------------------------
+
+UPPER HERO
+
+Large orange graffiti/paint area
+
+03
+
+Shield / Hex awareness emblem
+
+City environment + safety signals
+
+--------------------------------------------------
+
+CENTER
+
+THE STREET TALKS BACK
+
+RUN
+AWARE.
+
+Large graffiti typography
+
+--------------------------------------------------
+
+LOWER HERO
+
+Hooded runner
+
+Urban street
+
+Orange route
+
+Hexagonal territory grid
+
+--------------------------------------------------
+
+LOWER CONTENT
+
+Air quality, coarse safety signals,
+and civic reports help you make
+sharper calls before you go.
+
+--------------------------------------------------
+
+BOTTOM
+
+pagination
+
+ENTER THE ARENA →
+
+--------------------------------------------------
+
+==================================================
+BACKGROUND
+==================================================
+
+Create a cinematic layered background.
+
+Use the generated/reference artwork as the hero visual.
+
+If the attached reference image itself can be used as a bundled local artwork, use it.
+
+Suggested asset:
+
+assets/onboarding/slide-03-hero.png
+
+The image should cover the available hero region.
+
+Use:
+
+resizeMode="cover"
+
+or equivalent expo-image contentFit="cover".
+
+DO NOT distort the image.
+
+Maintain its aspect ratio.
+
+Add a subtle black overlay only if required to preserve text readability.
+
+Do not make the overlay so dark that the graffiti artwork disappears.
+
+==================================================
+HERO ARTWORK
+==================================================
+
+The hero artwork must prominently contain:
+
+1. Hooded runner
+2. Black streetwear
+3. Orange HexRunner symbol on the back
+4. Urban street
+5. Monochrome buildings
+6. Orange route
+7. Hex territory cells
+8. Orange graffiti paint
+9. Safety/environmental indicators
+
+The runner should appear integrated into the street scene.
+
+Do NOT put the runner inside a card.
+
+==================================================
+SAFETY SIGNALS
+==================================================
+
+In the upper-right portion of the hero artwork, retain the visual idea of:
+
+AQI / air quality indicator
+
+Example:
+
+AQI 68
+MODERATE
+
+Then:
+
+CAUTION
+COARSE DUST
+IN THE AREA
+
+And:
+
+CIVIC REPORTS
+2 NEARBY
+
+These should be treated as VISUAL CONCEPT elements for the onboarding artwork.
+
+Do NOT connect them to fake live data.
+
+Do not create fake API calls.
+
+They are purely explanatory artwork on this screen.
+
+==================================================
+TOP HEADER
+==================================================
+
+Left:
+
+HEXRUNNER
+
+Right:
+
+SKIP
+
+HEXRUNNER:
+
+- graffiti brush typography
+- warm white
+- orange accent
+- rough underline
+- slightly irregular
+
+SKIP:
+
+- graffiti/brush typography
+- warm white
+- orange underline
+
+Position them inside the safe area.
+
+==================================================
+STEP 03 BADGE
+==================================================
+
+The reference contains a large orange graffiti hexagonal frame.
+
+Implement this as part of the hero artwork.
+
+Inside:
+
+03
+
+And:
+
+white shield symbol
+
+The shield should feel hand-painted.
+
+Do not use the old clean pencil icon.
+
+The visual meaning is:
+
+AWARENESS
+PROTECTION
+SIGNALS
+
+==================================================
+SECTION LABEL
+==================================================
+
+Text:
+
+THE STREET TALKS BACK
+
+Use:
+
+- orange
+- graffiti brush font
+- uppercase
+- strong letter spacing
+- slight irregular rotation
+
+This should sit over/near the artwork.
+
+==================================================
+MAIN HEADLINE
+==================================================
+
+Exact text:
+
+RUN
+AWARE.
+
+Use very large graffiti typography.
+
+RUN:
+
+Warm white
+
+AWARE.:
+
+Orange
+
+or predominantly warm white with orange paint accents.
+
+The typography must look:
+
+- hand painted
+- rough
+- energetic
+- slightly imperfect
+- street-art inspired
+
+Do not use a standard thin sans-serif font.
+
+==================================================
+PAINT EFFECTS
+==================================================
+
+Add:
+
+- orange brush strokes
+- white paint splatters
+- rough edges
+- paint drips
+- small orange particles
+
+These should blend with the artwork.
+
+Avoid excessive random decoration.
+
+==================================================
+DESCRIPTION
+==================================================
+
+Exact text:
+
+Air quality, coarse safety signals, and civic reports help you make sharper calls before you go.
+
+Use:
+
+- warm gray
+- monospace/typewriter-inspired font if available
+- 16–18px
+- line height around 24px
+
+The text must remain readable.
+
+==================================================
+CITY EDITION
+==================================================
+
+Right side:
+
+/ CITY EDITION
+
+Vertical orientation.
+
+Use:
+
+- gray
+- uppercase
+- small font
+- editorial fashion-poster style
+
+Keep it decorative.
+
+Do not allow it to overlap the CTA.
+
+==================================================
+PAGINATION
+==================================================
+
+This is onboarding slide 03.
+
+Display:
+
+● ● ━━━
+
+First:
+inactive gray
+
+Second:
+inactive gray
+
+Third:
+ACTIVE orange pill
+
+Place immediately above the CTA.
+
+==================================================
+CTA
+==================================================
+
+Exact text:
+
+ENTER THE ARENA   →
+
+This is the FINAL onboarding CTA.
+
+It must navigate to the existing Home screen.
+
+Do not create a fake navigation action.
+
+Use the existing onboarding completion logic.
+
+==================================================
+CTA VISUAL DESIGN
+==================================================
+
+The CTA should look like an orange graffiti paint stroke.
+
+NOT:
+
+- normal rounded rectangle
+- pill button
+- Material button
+
+Use:
+
+orange background
+rough paint edges
+subtle black distress texture
+black graffiti typography
+
+Height:
+
+approximately 64px.
+
+Width:
+
+screen width minus approximately 40px horizontal margin.
+
+Position:
+
+bottom, respecting SafeAreaView.
+
+==================================================
+INTERACTION
+==================================================
+
+On press:
+
+1. Slightly scale button down.
+2. Restore scale.
+3. Complete onboarding using existing persistence.
+4. Navigate to Home.
+
+Use React Native Reanimated if already installed.
+
+Do not introduce unnecessary dependencies.
+
+==================================================
+SKIP
+==================================================
+
+SKIP should:
+
+- complete onboarding
+- use existing persistence
+- navigate to Home
+
+Do not change unrelated state.
+
+==================================================
+ANIMATION
+==================================================
+
+When the screen appears:
+
+Background:
+fade in
+
+Graffiti artwork:
+slight scale from 0.97 → 1
+
+Runner:
+subtle upward motion
+
+Headline:
+fade + slight upward movement
+
+Paint elements:
+quick reveal
+
+CTA:
+slide upward
+
+Keep animation between approximately 700–1100ms total.
+
+No infinite animations.
+
+Target smooth 60 FPS.
+
+==================================================
+RESPONSIVE DESIGN
+==================================================
+
+The attached image is a reference, NOT a fixed-resolution canvas.
+
+Implement responsively.
+
+Use:
+
+useWindowDimensions()
+
+or existing responsive utilities.
+
+For smaller screens:
+
+- scale hero artwork down
+- reduce headline size
+- preserve CTA
+- preserve description readability
+
+For larger screens:
+
+- allow hero artwork to occupy more space
+- preserve proportions
+
+Never stretch the artwork.
+
+Never let:
+
+- CTA
+- headline
+- description
+- pagination
+
+become clipped.
+
+==================================================
+IMAGE IMPLEMENTATION
+==================================================
+
+Prefer:
+
+expo-image
+
+if already installed.
+
+Otherwise:
+
+React Native Image.
+
+Use local assets.
+
+Suggested:
+
+assets/onboarding/
+    slide-03-hero.png
+
+If the project already contains an equivalent generated artwork, reuse it.
+
+Do not create unnecessary duplicate assets.
+
+==================================================
+COMPONENTS
+==================================================
+
+Reuse existing onboarding components from slides 01 and 02.
+
+If components are not reusable enough, create:
+
+components/onboarding/
+
+FinalHeroArtwork.tsx
+GraffitiHeader.tsx
+AwarenessBadge.tsx
+GraffitiHeadline.tsx
+PaintCTA.tsx
+PaginationDots.tsx
+
+Do not duplicate components unnecessarily.
+
+==================================================
+IMPORTANT: TEXT VS IMAGE
+==================================================
+
+Use the reference artwork as the visual hero.
+
+BUT:
+
+Interactive elements must remain real React Native elements.
+
+Therefore:
+
+HEXRUNNER → real text
+SKIP → real Pressable
+ENTER THE ARENA → real Pressable
+pagination → real UI
+navigation → real navigation
+
+Do NOT flatten the entire screen into one image.
+
+The hero artwork can be a single image layer, but the important interactive UI must remain accessible and responsive.
+
+==================================================
+ACCESSIBILITY
+==================================================
+
+SKIP:
+
+accessibilityLabel:
+"Skip onboarding"
+
+ENTER THE ARENA:
+
+accessibilityLabel:
+"Enter the HexRunner arena"
+
+Minimum touch target:
+
+44px.
+
+==================================================
+VALIDATION
+==================================================
+
+After implementation:
+
+1. Run TypeScript checks.
+2. Fix all errors.
+3. Launch Expo.
+4. Open onboarding.
+5. Navigate to slide 03.
+6. Verify artwork.
+7. Verify SKIP.
+8. Verify ENTER THE ARENA.
+9. Verify onboarding persistence.
+10. Verify Home navigation.
+11. Verify slides 01 and 02 are unaffected.
+
+==================================================
+FINAL QUALITY BAR
+==================================================
+
+Compare the implementation directly against the attached reference.
+
+The result should feel like:
+
+A REAL GRAFFITI POSTER BROUGHT TO LIFE AS A MOBILE ONBOARDING SCREEN.
+
+It should be:
+
+bold
+urban
+gritty
+premium
+competitive
+cinematic
+street-inspired
+
+The user should immediately understand:
+
+"HexRunner is not just a running tracker.
+It's a real-world territory game that also helps me run with awareness."
+
+Do not stop at explaining the implementation.
+
+Actually modify the existing project and implement the screen.
