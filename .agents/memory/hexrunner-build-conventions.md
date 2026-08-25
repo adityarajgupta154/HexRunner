@@ -34,6 +34,12 @@ For this Expo SDK 54 scaffold, Metro's live compatibility check expects `react-n
 
 **How to apply:** keep maps at Expo's currently expected version and never add it to the app.json plugins array.
 
+The Replit browser preview cannot bundle the package-level `react-native-maps` index when `Marker` is imported, because it pulls a native-only codegen module into the web graph.
+
+**Why:** platform-checking only at render time is too late; Metro resolves all static imports before that check.
+
+**How to apply:** keep a web fallback and either isolate map components in native platform files or import the platform-safe MapView entry directly. Recheck the web bundle whenever adding native map overlays.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.
