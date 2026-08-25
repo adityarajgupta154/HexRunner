@@ -45,17 +45,6 @@ router.get("/leaderboard", async (req, res) => {
   const currentUserId = parsedCurrentUser?.data.userId ?? null;
 
   try {
-    const ownershipTotals = db
-      .select({
-        userId: hexrunnerHexOwnershipTable.ownerId,
-        totalHexesOwned:
-          sql<number>`count(${hexrunnerHexOwnershipTable.h3Index})::int`.as(
-            "live_hex_count",
-          ),
-      })
-      .from(hexrunnerHexOwnershipTable)
-      .groupBy(hexrunnerHexOwnershipTable.ownerId)
-      .as("ownership_totals");
     const runTotals = db
       .select({
         userId: hexrunnerRunsTable.userId,
@@ -74,21 +63,17 @@ router.get("/leaderboard", async (req, res) => {
       .select({
         id: hexrunnerUsersTable.id,
         displayName: hexrunnerUsersTable.displayName,
-        totalHexesOwned:
-          sql<number>`coalesce(${ownershipTotals.totalHexesOwned}, 0)::int`,
-        totalRuns: runTotals.totalRuns,
-        totalDistanceKm: runTotals.totalDistanceKm,
+        totalHexesOwned: hexrunnerUsersTable.totalHexesOwned,
+        totalRuns: sql<number>`coalesce(${runTotals.totalRuns}, 0)::int`,
+        totalDistanceKm:
+          sql<number>`coalesce(${runTotals.totalDistanceKm}, 0)::float8`,
       })
       .from(hexrunnerUsersTable)
-      .innerJoin(runTotals, eq(runTotals.userId, hexrunnerUsersTable.id))
-      .leftJoin(
-        ownershipTotals,
-        eq(ownershipTotals.userId, hexrunnerUsersTable.id),
-      )
+      .leftJoin(runTotals, eq(runTotals.userId, hexrunnerUsersTable.id))
       .orderBy(
-        desc(sql`coalesce(${ownershipTotals.totalHexesOwned}, 0)`),
-        desc(runTotals.totalDistanceKm),
-        desc(runTotals.totalRuns),
+        desc(hexrunnerUsersTable.totalHexesOwned),
+        desc(sql`coalesce(${runTotals.totalDistanceKm}, 0)`),
+        desc(sql`coalesce(${runTotals.totalRuns}, 0)`),
         asc(hexrunnerUsersTable.id),
       )
       .limit(20);

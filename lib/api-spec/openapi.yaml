@@ -156,7 +156,7 @@ paths:
       operationId: getLeaderboard
       tags: [users]
       summary: Get the territory leaderboard
-      description: Returns at most 20 runners ordered by live owned hexes, total distance, run count, and user ID.
+      description: Returns at most 20 runners ordered by totalHexesOwned descending, then total distance, run count, and user ID.
       parameters:
         - name: currentUserId
           in: query
