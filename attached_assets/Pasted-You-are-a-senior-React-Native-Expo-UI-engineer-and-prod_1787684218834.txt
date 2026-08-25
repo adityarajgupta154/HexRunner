@@ -1,0 +1,375 @@
+You are a senior React Native + Expo UI engineer and product designer.
+
+I have an existing Expo React Native TypeScript app called "HexRunner".
+
+I want you to implement a new onboarding hero screen EXACTLY inspired by the attached reference image.
+
+IMPORTANT:
+- Do not modify backend.
+- Do not touch GPS logic.
+- Do not change navigation architecture.
+- Do not change authentication.
+- Only redesign and implement the frontend onboarding presentation layer.
+- Use production-ready React Native components.
+- This must work on Android and iOS using Expo.
+
+The screen should match the reference image pixel-perfectly:
+- Same composition
+- Same visual hierarchy
+- Same graffiti aesthetic
+- Same spacing
+- Same dark street poster feeling
+- Same orange/white typography style
+
+
+## Design Concept
+
+HexRunner onboarding should feel like:
+
+"Street graffiti poster + competitive running game + urban territory conquest"
+
+Reference mood:
+- Nike street campaign
+- Underground graffiti culture
+- Cyberpunk territory game
+- Urban running movement
+
+
+## Screen Layout
+
+Create a full-screen vertical onboarding page.
+
+Aspect ratio:
+Mobile portrait 9:16
+
+
+Background:
+
+Use a full-screen hero background image.
+
+Style:
+- Black concrete wall texture
+- Dark city silhouette
+- Rough grunge texture
+- Spray paint effects
+- Orange paint splashes
+- White paint scratches
+- Subtle hexagonal territory grid
+
+Add layers:
+
+1. Concrete texture background
+2. Dark black overlay
+3. City silhouette
+4. Orange graffiti paint splashes
+5. Hex grid pattern
+6. Runner artwork
+7. Typography
+8. UI controls
+
+
+## Top Header
+
+Position:
+Safe area top
+
+Left:
+
+HEXRUNNER
+
+Style:
+- Custom graffiti handwritten style
+- White color
+- Slight orange underline paint stroke
+- Letter spacing
+
+
+Right:
+
+SKIP
+
+Style:
+- Uppercase
+- White
+- Small size
+- Orange underline
+
+
+## Hero Artwork
+
+Main center visual:
+
+Create/use a runner image.
+
+Requirements:
+
+- Person wearing black hoodie
+- Running away from camera
+- Face hidden
+- Dynamic running pose
+- Streetwear style
+- Orange light reflections
+- Hexagon logo on hoodie back
+
+Position:
+
+Middle of screen.
+
+Behind runner:
+
+Add:
+- Orange paint explosion
+- Motion trails
+- Street energy
+
+
+## Main Typography
+
+Large graffiti headline:
+
+RUN
+LOUD.
+
+
+Layout exactly:
+
+RUN
+
+LOUD.
+
+
+RUN:
+- White
+- Brush graffiti font
+- Large
+
+
+LOUD:
+- Orange
+- Brush graffiti font
+- Bigger than RUN
+
+
+Typography should look hand-painted:
+- Rough edges
+- Paint texture
+- Slight rotation
+- Urban poster style
+
+
+## Hex Territory Element
+
+Add right side:
+
+Orange location pin.
+
+Below pin:
+
+A hexagonal territory cell.
+
+Style:
+- White outline hex
+- Orange glow
+- Represents claimed territory
+
+
+## Description Section
+
+Below hero:
+
+Small orange title:
+
+YOUR CITY / YOUR MARK
+
+
+Below:
+
+HexRunner turns ordinary blocks into a living territory game.
+Your route is your signature.
+
+
+Style:
+- Gray/white
+- Typewriter style font
+- High readability
+
+
+## Side Decoration
+
+Right side vertical text:
+
+/ CITY EDITION
+
+
+Style:
+- Rotated 90 degrees
+- Gray
+- Small uppercase
+
+
+## Pagination
+
+Bottom left:
+
+3 indicators.
+
+Active:
+orange horizontal pill
+
+Inactive:
+small gray circles
+
+
+## CTA Button
+
+Bottom fixed button.
+
+Text:
+
+NEXT MARK   →
+
+Style:
+
+Height:
+64px
+
+Width:
+90%
+
+Position:
+bottom with safe area
+
+
+Design:
+- Bright orange background
+- Black text
+- Graffiti brush texture
+- Slight rough edges
+- No rounded modern card style
+
+
+Press animation:
+
+Use React Native Reanimated:
+
+scale:
+1 → 0.96 → 1
+
+
+## Animations
+
+On screen load:
+
+Animation sequence:
+
+1. Background fade in
+2. City texture appears
+3. Orange paint splash scales in
+4. Runner slides upward
+5. RUN LOUD text fades and scales
+6. CTA button slides from bottom
+
+
+Use:
+
+react-native-reanimated
+
+
+Keep animations smooth at 60fps.
+
+
+## Component Structure
+
+Create:
+
+src/components/onboarding/
+
+HeroBackground.tsx
+
+GraffitiTitle.tsx
+
+RunnerArtwork.tsx
+
+HexLocationMarker.tsx
+
+SkipButton.tsx
+
+PaginationDots.tsx
+
+NextMarkButton.tsx
+
+
+Screen:
+
+app/onboarding/index.tsx
+
+
+## Assets
+
+Create structure:
+
+assets/onboarding/
+
+background-concrete.png
+
+city-silhouette.png
+
+runner.png
+
+orange-paint.png
+
+hex-grid.png
+
+location-pin.png
+
+
+## Typography
+
+Use:
+
+Primary:
+Graffiti / brush font
+
+Fallback:
+Bold italic uppercase fonts
+
+
+Secondary:
+Inter
+
+
+## Responsive Requirements
+
+Must support:
+
+- Android phones
+- iPhone notch
+- Different screen heights
+- SafeAreaView
+- Bottom navigation gesture area
+
+
+## Code Quality
+
+Requirements:
+
+- TypeScript only
+- Clean component separation
+- No hardcoded absolute values everywhere
+- Use StyleSheet
+- Reusable components
+- Optimized images
+- Production ready
+
+
+## Final Result
+
+The final screen should look like a premium gaming app onboarding screen.
+
+It should NOT look like:
+- Normal fitness app
+- Generic startup onboarding
+- Material design card UI
+
+It should look like:
+"HexRunner is an urban territory battle happening in your city."

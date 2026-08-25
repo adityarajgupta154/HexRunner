@@ -37,6 +37,12 @@ React Native may expose a `TextDecoder` that rejects `utf-16le`, while H3 4.5 ca
 
 **How to apply:** keep H3 initialization lazy and preserve the decoder compatibility probe. Catch and log H3 work inside map events, GPS callbacks, and finalization; never rely on a React boundary there. Validate on physical Android after H3, Metro, or Expo upgrades.
 
+Full-screen raster slides inside a horizontal React Native Web list must use the rendered root frame, not static device or source-image dimensions.
+
+**Why:** browser previews can expose physical-pixel or natural-image sizes to React Native layout, producing a cropped poster and page offsets larger than the visible CSS viewport even though the app root itself is correctly sized.
+
+**How to apply:** measure the rendered web root, give every page an explicit matching frame, size the image explicitly, keep later pages opaque, and verify paging with a real coordinate tap rather than a DOM-triggered click.
+
 ## Territory presentation boundary
 
 Keep H3 authoritative but visually hidden; render organic paint from H3 ownership and live GPS paths instead of exposing the cell lattice.
