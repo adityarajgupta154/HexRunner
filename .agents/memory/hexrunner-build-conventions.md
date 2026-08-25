@@ -43,6 +43,12 @@ Full-screen raster slides inside a horizontal React Native Web list must use the
 
 **How to apply:** measure the rendered web root, give every page an explicit matching frame, size the image explicitly, keep later pages opaque, and verify paging with a real coordinate tap rather than a DOM-triggered click.
 
+When a HexRunner onboarding or setup reference is marked “same-to-same,” use the approved artwork as the exact visual layer and place real accessible controls over its coordinates instead of recreating its look in code.
+
+**Why:** a programmatic approximation lost the graffiti typography, texture, proportions, and icon treatment even though the form remained functional.
+
+**How to apply:** preserve the reference at full-screen dimensions, keep submitted values and state changes visible through focused overlays, and verify the untouched frame before testing interactions.
+
 ## Territory presentation boundary
 
 Keep H3 authoritative and show the resolution-9 territory lattice on the Home map: neutral cells use subtle outlines, owned cells are orange, and rival cells are red.
