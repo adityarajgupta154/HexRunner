@@ -376,7 +376,9 @@ export default function RunSessionScreen() {
           <View style={styles.runMapFrame}>
             <RunMap
               currentPoint={pathPoints[pathPoints.length - 1] ?? null}
+              pathPoints={pathPoints}
               claimedHexIndexes={claimedHexes}
+              contestedHexIndexes={contestedHexes}
             />
           </View>
 
@@ -404,15 +406,15 @@ export default function RunSessionScreen() {
             </View>
             <View style={styles.claimedTextBlock}>
               <Text style={[styles.claimedText, { color: colors.foreground }]}>
-                Claim-ready hexes: {claimedHexes.size}
+                Paint-ready zones: {claimedHexes.size}
               </Text>
               <Text
                 style={[styles.claimedMeta, { color: colors.mutedForeground }]}
               >
                 {pendingCoverageHexes > 0
-                  ? `${pendingCoverageHexes} cell${pendingCoverageHexes === 1 ? '' : 's'} need 6s of coverage`
+                  ? `${pendingCoverageHexes} zone${pendingCoverageHexes === 1 ? '' : 's'} need 6s of coverage`
                   : poorAccuracyHexes > 0
-                    ? `${poorAccuracyHexes} cell${poorAccuracyHexes === 1 ? '' : 's'} skipped for poor GPS accuracy`
+                    ? `${poorAccuracyHexes} zone${poorAccuracyHexes === 1 ? '' : 's'} skipped for poor GPS accuracy`
                     : `${pathPoints.length} location ${pathPoints.length === 1 ? 'point' : 'points'} captured`}
               </Text>
             </View>
@@ -422,7 +424,7 @@ export default function RunSessionScreen() {
             <View style={[styles.contestCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
               <Feather name="crosshair" size={17} color={colors.primary} />
               <Text style={[styles.contestText, { color: colors.accentForeground }]}>
-                Contesting {contestedHexes.size} rival {contestedHexes.size === 1 ? 'cell' : 'cells'} — finish your coverage to take them over.
+                Painting over {contestedHexes.size} rival {contestedHexes.size === 1 ? 'zone' : 'zones'} — finish your coverage to take them over.
               </Text>
             </View>
           ) : null}

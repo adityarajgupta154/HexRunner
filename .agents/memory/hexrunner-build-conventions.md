@@ -37,6 +37,14 @@ React Native may expose a `TextDecoder` that rejects `utf-16le`, while H3 4.5 ca
 
 **How to apply:** keep H3 initialization lazy and preserve the decoder compatibility probe. Catch and log H3 work inside map events, GPS callbacks, and finalization; never rely on a React boundary there. Validate on physical Android after H3, Metro, or Expo upgrades.
 
+## Territory presentation boundary
+
+Keep H3 authoritative but visually hidden; render organic paint from H3 ownership and live GPS paths instead of exposing the cell lattice.
+
+**Why:** stable cell IDs are required for transactional ownership, takeovers, budgets, and anti-abuse checks, while visible hex grids make the product feel like a board game rather than a personal running experience.
+
+**How to apply:** map and animation work may derive circles, ribbons, or merged display shapes from H3, but must not replace the persisted ownership model or submit display polygons as claim authority.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.

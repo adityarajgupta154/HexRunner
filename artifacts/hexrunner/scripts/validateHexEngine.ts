@@ -34,6 +34,7 @@ try {
   const {
     hexesFromBoundingBox,
     hexesFromPath,
+    hexToCenter,
     hexToPolygon,
     pointToHex,
   } = require('../src/services/hexEngine') as typeof import('../src/services/hexEngine');
@@ -67,6 +68,35 @@ try {
     ),
     'hexToPolygon must return finite map coordinates.',
   );
+  const center = hexToCenter(bengaluru);
+  assert(
+    Number.isFinite(center.latitude) && Number.isFinite(center.longitude),
+    'hexToCenter must return a finite paint anchor.',
+  );
+
+  const {
+    buildTerritoryPaintSpots,
+    routeToMapCoordinates,
+  } = require('../src/services/territoryDisplay') as typeof import('../src/services/territoryDisplay');
+  const paintSpots = buildTerritoryPaintSpots(
+    new Set([bengaluru]),
+    new Set(),
+  );
+  assertEqual(
+    paintSpots.length,
+    1,
+    'The paint layer must render only owned territory, never an empty grid.',
+  );
+  assertEqual(
+    paintSpots[0]?.ownerKind,
+    'mine',
+    'Owned territory must retain its presentation owner kind.',
+  );
+  const route = routeToMapCoordinates([
+    { lat: 12.9716, lng: 77.5946, timestamp: 1 },
+    { lat: 12.972, lng: 77.595, timestamp: 2 },
+  ]);
+  assertEqual(route.length, 2, 'The live route ribbon must preserve GPS points.');
 
   const visibleHexes = hexesFromBoundingBox({
     north: 12.975,
@@ -80,7 +110,7 @@ try {
   );
 
   console.log(
-    `H3 Android compatibility passed: ${bengaluru}, ${polygon.length} boundary points, ${visibleHexes.length} visible cells.`,
+    `H3 paint compatibility passed: ${bengaluru}, ${polygon.length} boundary points, ${visibleHexes.length} visible cells, ${paintSpots.length} owned paint spot.`,
   );
 } finally {
   Object.defineProperty(globalThis, 'TextDecoder', {

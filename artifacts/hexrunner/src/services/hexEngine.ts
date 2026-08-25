@@ -89,6 +89,13 @@ export function hexToPolygon(h3Index: string): PolygonCoordinate[] {
   }));
 }
 
+/** Returns the geographic center of an H3 cell for presentation layers. */
+export function hexToCenter(h3Index: string): PolygonCoordinate {
+  const { cellToLatLng } = loadH3();
+  const [latitude, longitude] = cellToLatLng(h3Index);
+  return { latitude, longitude };
+}
+
 /**
  * Converts path points into unique H3 cells, preserving first-seen order.
  */

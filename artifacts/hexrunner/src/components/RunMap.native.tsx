@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import MapView, {
   type MapStyleElement,
   type Region,
 } from 'react-native-maps';
-import HexGrid from '@/src/components/HexGrid';
+import TerritoryPaint from '@/src/components/TerritoryPaint';
 import { useColors } from '@/hooks/useColors';
-import { hexesFromBoundingBox } from '@/src/services/hexEngine';
+import type { TerritoryRoutePoint } from '@/src/services/territoryDisplay';
 
 type RunPoint = {
   lat: number;
@@ -16,7 +16,9 @@ type RunPoint = {
 
 type RunMapProps = {
   currentPoint: RunPoint | null;
+  pathPoints: readonly TerritoryRoutePoint[];
   claimedHexIndexes: ReadonlySet<string>;
+  contestedHexIndexes?: ReadonlySet<string>;
 };
 
 const RUN_MAP_DELTA = {
@@ -45,63 +47,14 @@ const DARK_MAP_STYLE: MapStyleElement[] = [
   },
 ];
 
-function hexesForRegion(region: Region): string[] {
-  return hexesFromBoundingBox({
-    north: Math.min(90, region.latitude + region.latitudeDelta / 2),
-    south: Math.max(-90, region.latitude - region.latitudeDelta / 2),
-    east: region.longitude + region.longitudeDelta / 2,
-    west: region.longitude - region.longitudeDelta / 2,
-  });
-}
-
-function changedSignificantly(previous: Region, next: Region): boolean {
-  const latitudeMovement =
-    Math.abs(next.latitude - previous.latitude) / previous.latitudeDelta;
-  const longitudeMovement =
-    Math.abs(next.longitude - previous.longitude) / previous.longitudeDelta;
-  const latitudeZoom =
-    Math.abs(next.latitudeDelta - previous.latitudeDelta) /
-    previous.latitudeDelta;
-  const longitudeZoom =
-    Math.abs(next.longitudeDelta - previous.longitudeDelta) /
-    previous.longitudeDelta;
-
-  return (
-    latitudeMovement >= 0.18 ||
-    longitudeMovement >= 0.18 ||
-    latitudeZoom >= 0.15 ||
-    longitudeZoom >= 0.15
-  );
-}
-
 export default function RunMap({
   currentPoint,
+  pathPoints,
   claimedHexIndexes,
+  contestedHexIndexes,
 }: RunMapProps) {
   const colors = useColors();
   const mapRef = useRef<MapView | null>(null);
-  const lastHexRegionRef = useRef<Region | null>(null);
-  const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
-  const [gridError, setGridError] = useState<string | null>(null);
-
-  const updateVisibleHexes = useCallback((region: Region, force = false) => {
-    const previous = lastHexRegionRef.current;
-    if (!force && previous && !changedSignificantly(previous, region)) return;
-
-    lastHexRegionRef.current = region;
-    try {
-      setVisibleHexes(hexesForRegion(region));
-      setGridError(null);
-    } catch (error) {
-      console.error('[HexRunner] Unable to update the run H3 grid.', error);
-      setGridError('Territory grid unavailable. GPS tracking is still active.');
-    }
-  }, []);
-
-  const handleRegionChangeComplete = useCallback(
-    (region: Region) => updateVisibleHexes(region),
-    [updateVisibleHexes],
-  );
 
   useEffect(() => {
     if (!currentPoint) return;
@@ -150,31 +103,33 @@ export default function RunMap({
         initialRegion={initialRegion}
         customMapStyle={DARK_MAP_STYLE}
         minZoomLevel={14}
-        onMapReady={() => updateVisibleHexes(initialRegion, true)}
-        onRegionChangeComplete={handleRegionChangeComplete}
         showsCompass={false}
         showsMyLocationButton={false}
         showsUserLocation
         toolbarEnabled={false}
       >
-        <HexGrid
-          hexIndexes={visibleHexes}
-          claimedHexIndexes={claimedHexIndexes}
+        <TerritoryPaint
+          center={{
+            latitude: currentPoint.lat,
+            longitude: currentPoint.lng,
+          }}
+          routePoints={pathPoints}
+          otherHexIndexes={contestedHexIndexes}
+          claimReadyHexIndexes={claimedHexIndexes}
         />
       </MapView>
-      {gridError ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.gridError,
-            { backgroundColor: colors.card, borderColor: colors.destructive },
-          ]}
-        >
-          <Text style={[styles.gridErrorText, { color: colors.foreground }]}>
-            {gridError}
-          </Text>
-        </View>
-      ) : null}
+      <View
+        pointerEvents="none"
+        style={[
+          styles.paintBadge,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <View style={[styles.paintDot, { backgroundColor: colors.primary }]} />
+        <Text style={[styles.paintText, { color: colors.foreground }]}>
+          PAINTING LIVE
+        </Text>
+      </View>
     </View>
   );
 }
@@ -197,20 +152,26 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
   },
-  gridError: {
+  paintBadge: {
     position: 'absolute',
     top: 12,
     left: 12,
-    right: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 999,
   },
-  gridErrorText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 17,
-    textAlign: 'center',
+  paintDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 99,
+  },
+  paintText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 1.1,
   },
 });

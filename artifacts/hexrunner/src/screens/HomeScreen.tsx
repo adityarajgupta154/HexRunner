@@ -13,8 +13,7 @@ import type { MapStyleElement, Region } from 'react-native-maps';
 import MapView from 'react-native-maps/lib/MapView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
-import HexGrid from '@/src/components/HexGrid';
-import PlaceholderScreen from '@/src/components/PlaceholderScreen';
+import TerritoryPaint from '@/src/components/TerritoryPaint';
 import { useColors } from '@/hooks/useColors';
 import { hexesFromBoundingBox } from '@/src/services/hexEngine';
 import { startWatching, stopWatching } from '@/src/services/locationTracker';
@@ -77,16 +76,6 @@ const DARK_MAP_STYLE: MapStyleElement[] = [
 ];
 
 export default function HomeScreen() {
-  if (Platform.OS === 'web') {
-    return (
-      <PlaceholderScreen
-        title="Home"
-        subtitle="Open this project in Expo Go to view your live GPS map."
-        icon="map"
-      />
-    );
-  }
-
   return <LiveMap />;
 }
 
@@ -221,6 +210,18 @@ function LiveMap() {
     [refreshHexes],
   );
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !location) return;
+    calculateVisibleHexes(
+      {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        ...MAP_DELTA,
+      },
+      true,
+    );
+  }, [calculateVisibleHexes, location]);
+
   const retryTerritoryData = useCallback(() => {
     void refetchStats();
     const currentRegion = lastHexRegionRef.current;
@@ -303,21 +304,35 @@ function LiveMap() {
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFill}
-        initialRegion={initialRegion}
-        customMapStyle={DARK_MAP_STYLE}
-        minZoomLevel={14}
-        onMapReady={() => calculateVisibleHexes(initialRegion, true)}
-        onRegionChangeComplete={handleRegionChangeComplete}
-        showsCompass={false}
-        showsMyLocationButton={false}
-        showsUserLocation
-        toolbarEnabled={false}
-      >
-        <HexGrid hexIndexes={visibleHexes} claimedHexIndexes={myHexes} otherHexIndexes={otherHexes} />
-      </MapView>
+      {Platform.OS === 'web' ? (
+        <View style={StyleSheet.absoluteFill}>
+          <TerritoryPaint
+            center={coordinate}
+            claimedHexIndexes={myHexes}
+            otherHexIndexes={otherHexes}
+          />
+        </View>
+      ) : (
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={initialRegion}
+          customMapStyle={DARK_MAP_STYLE}
+          minZoomLevel={14}
+          onMapReady={() => calculateVisibleHexes(initialRegion, true)}
+          onRegionChangeComplete={handleRegionChangeComplete}
+          showsCompass={false}
+          showsMyLocationButton={false}
+          showsUserLocation
+          toolbarEnabled={false}
+        >
+          <TerritoryPaint
+            center={coordinate}
+            claimedHexIndexes={myHexes}
+            otherHexIndexes={otherHexes}
+          />
+        </MapView>
+      )}
 
       <View pointerEvents="none" style={[styles.topBar, { top: insets.top + 14 }]}>
         <View style={[styles.liveBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -326,7 +341,7 @@ function LiveMap() {
         </View>
 
         <View
-          accessibilityLabel={`Today's target: ${userStats?.totals.todayClaimedHexes ?? 0} of ${userStats?.totals.dailyBudget ?? 10} hexes`}
+          accessibilityLabel={`Today's target: ${userStats?.totals.todayClaimedHexes ?? 0} of ${userStats?.totals.dailyBudget ?? 10} territory zones`}
           style={[styles.tierBadge, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
           <Feather name="target" size={14} color={colors.primary} />
@@ -415,13 +430,13 @@ function LiveMap() {
             },
           ]}
         >
-          <Feather name="hexagon" size={18} color={colors.primary} />
+           <Feather name="edit-3" size={18} color={colors.primary} />
           <View style={styles.territoryNoticeCopy}>
             <Text style={[styles.territoryNoticeText, { color: colors.foreground }]}>
-              No hexes owned yet
+               Your city is waiting
             </Text>
             <Text style={[styles.territoryNoticeSub, { color: colors.mutedForeground }]}>
-              Start a run to claim your first territory.
+               Start a run and paint your first route.
             </Text>
           </View>
         </View>
