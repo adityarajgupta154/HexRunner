@@ -18,6 +18,7 @@ export const FITNESS_BUDGETS: Readonly<Record<FitnessTier, number>> = {
 
 export type RecentRun = {
   distanceKm: number;
+  averagePaceMinPerKm?: number | null;
   elapsedSeconds?: number;
   durationSeconds?: number;
   endedAt?: string | number | Date;
@@ -156,7 +157,8 @@ function endedAtMilliseconds(value: RecentRun['endedAt']): number | null {
 }
 
 /**
- * Computes [distance, duration, speed, reported level], each normalized to 0–1.
+ * Computes [pace score, distance, recent-run frequency, reported activity],
+ * each normalized to 0–1. A higher pace score means a faster average pace.
  * Invalid runs are ignored. Dated runs are sorted newest-first; otherwise input
  * order is treated as newest-first. At most five valid runs contribute.
  */
@@ -167,9 +169,15 @@ export function computeFitnessFeatures(
   const validRuns = recentRuns
     .map((run, index) => {
       const durationSeconds = run.elapsedSeconds ?? run.durationSeconds;
+      const calculatedPace =
+        run.distanceKm > 0 && Number.isFinite(durationSeconds)
+          ? (durationSeconds ?? 0) / 60 / run.distanceKm
+          : Number.NaN;
       return {
         distanceKm: run.distanceKm,
         durationSeconds,
+        averagePaceMinPerKm:
+          run.averagePaceMinPerKm ?? calculatedPace,
         timestamp: endedAtMilliseconds(run.endedAt),
         index,
       };
@@ -178,8 +186,8 @@ export function computeFitnessFeatures(
       (run) =>
         Number.isFinite(run.distanceKm) &&
         run.distanceKm >= 0 &&
-        Number.isFinite(run.durationSeconds) &&
-        (run.durationSeconds ?? 0) > 0,
+        Number.isFinite(run.averagePaceMinPerKm) &&
+        run.averagePaceMinPerKm > 0,
     )
     .sort((left, right) => {
       if (left.timestamp === null && right.timestamp === null) {
@@ -199,22 +207,18 @@ export function computeFitnessFeatures(
     (sum, run) => sum + run.distanceKm,
     0,
   );
-  const totalDurationSeconds = validRuns.reduce(
-    (sum, run) => sum + (run.durationSeconds ?? 0),
-    0,
-  );
+  const averagePaceMinPerKm =
+    validRuns.reduce(
+      (sum, run) => sum + run.averagePaceMinPerKm,
+      0,
+    ) / validRuns.length;
   const averageDistanceKm = totalDistanceKm / validRuns.length;
-  const averageDurationMinutes =
-    totalDurationSeconds / validRuns.length / 60;
-  const aggregateSpeedKmh =
-    totalDurationSeconds > 0
-      ? totalDistanceKm / (totalDurationSeconds / 3_600)
-      : 0;
+  const recentRunFrequency = validRuns.length / MAX_RECENT_RUNS;
 
   return [
+    clamp((12 - averagePaceMinPerKm) / 9, 0, 1),
     clamp(averageDistanceKm / 15, 0, 1),
-    clamp(averageDurationMinutes / 120, 0, 1),
-    clamp(aggregateSpeedKmh / 16, 0, 1),
+    clamp(recentRunFrequency, 0, 1),
     levelIndex(selfReportedLevel) / 3,
   ];
 }

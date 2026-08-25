@@ -1,154 +1,250 @@
-"""Train HexRunner's tiny on-device fitness classifier.
+"""Train and export HexRunner's tiny NumPy fitness classifier.
 
-This file intentionally uses only Python's standard library, so it can be
-uploaded to and run directly in Google Colab without installing packages.
+The disclosed synthetic label rule is a product heuristic, not a medical or
+professional fitness assessment.
 """
 
+from __future__ import annotations
+
+import argparse
 import json
-import math
 from pathlib import Path
 
+import numpy as np
+
 SEED = 0x484558
-ROWS_PER_TIER = 125
-EPOCHS = 2000
-LEARNING_RATE = 0.8
+ROWS_PER_CLASS = 125
+EPOCHS = 2_000
+LEARNING_RATE = 0.15
+
+TIERS = ["beginner", "casual", "regular", "trained"]
+ARCHITECTURE = [4, 8, 4]
+
+PACE_MIN_MIN_PER_KM = 3.0
+PACE_MAX_MIN_PER_KM = 12.0
+MAX_AVG_DISTANCE_KM = 15.0
+MAX_RECENT_RUNS = 5
+MAX_ACTIVITY_LEVEL = 3
+
+# Features are [pace score, distance, frequency, activity], all in [0, 1].
+# A higher pace score means a faster (lower minutes/km) average pace.
+LABEL_WEIGHTS = np.array([0.35, 0.30, 0.20, 0.15], dtype=np.float64)
+LABEL_THRESHOLDS = np.array([0.27, 0.48, 0.69], dtype=np.float64)
 
 
-class Lcg:
-    """Small cross-language deterministic pseudo-random number generator."""
+def normalize_features(
+    avg_pace_min_per_km: np.ndarray,
+    avg_distance_km: np.ndarray,
+    recent_run_count: np.ndarray,
+    activity_level: np.ndarray,
+) -> np.ndarray:
+    """Normalize the four raw inputs to the exact features used on-device."""
+    pace_score = np.clip(
+        (PACE_MAX_MIN_PER_KM - avg_pace_min_per_km)
+        / (PACE_MAX_MIN_PER_KM - PACE_MIN_MIN_PER_KM),
+        0.0,
+        1.0,
+    )
+    distance_score = np.clip(avg_distance_km / MAX_AVG_DISTANCE_KM, 0.0, 1.0)
+    frequency_score = np.clip(recent_run_count / MAX_RECENT_RUNS, 0.0, 1.0)
+    activity_score = np.clip(activity_level / MAX_ACTIVITY_LEVEL, 0.0, 1.0)
+    return np.column_stack(
+        [pace_score, distance_score, frequency_score, activity_score]
+    )
 
-    def __init__(self, seed):
-        self.state = seed & 0xFFFFFFFF
 
-    def random(self):
-        self.state = (1664525 * self.state + 1013904223) & 0xFFFFFFFF
-        return self.state / 4294967296
-
-    def centered(self):
-        return self.random() * 2.0 - 1.0
+def label_features(features: np.ndarray) -> np.ndarray:
+    """Apply the disclosed weighted-score thresholds to normalized rows."""
+    fitness_score = features @ LABEL_WEIGHTS
+    return np.digitize(fitness_score, LABEL_THRESHOLDS).astype(np.int64)
 
 
-def clamp(value, lower, upper):
-    return max(lower, min(upper, value))
+def make_dataset(rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Generate 500 balanced rows labeled by the explicit score rule."""
+    buckets: list[list[np.ndarray]] = [[] for _ in TIERS]
 
+    while any(len(bucket) < ROWS_PER_CLASS for bucket in buckets):
+        batch_size = 1_024
+        avg_pace = rng.uniform(
+            PACE_MIN_MIN_PER_KM, PACE_MAX_MIN_PER_KM, batch_size
+        )
+        avg_distance = rng.uniform(0.5, MAX_AVG_DISTANCE_KM, batch_size)
+        run_count = rng.integers(1, MAX_RECENT_RUNS + 1, batch_size)
+        activity_level = rng.integers(0, MAX_ACTIVITY_LEVEL + 1, batch_size)
 
-def make_dataset():
-    """Return 500 disclosed synthetic rows: 125 for each fitness tier."""
-    rng = Lcg(SEED)
-    # distance km, duration minutes, speed km/h, reported-level index
-    centers = [
-        (1.6, 22.0, 4.8, 0.0),
-        (3.5, 34.0, 6.3, 1.0),
-        (6.2, 46.0, 8.6, 2.0),
-        (10.2, 63.0, 11.8, 3.0),
+        features = normalize_features(
+            avg_pace, avg_distance, run_count, activity_level
+        )
+        labels = label_features(features)
+
+        for row, label in zip(features, labels, strict=True):
+            bucket = buckets[int(label)]
+            if len(bucket) < ROWS_PER_CLASS:
+                bucket.append(row)
+
+    dataset = [
+        (row, label)
+        for label, bucket in enumerate(buckets)
+        for row in bucket
     ]
-    rows = []
-    for label, (distance, duration, speed, level) in enumerate(centers):
-        for _ in range(ROWS_PER_TIER):
-            # The ranges deliberately overlap: run history and self-report both
-            # contribute, rather than any one feature acting as the label.
-            raw = [
-                clamp(distance + rng.centered() * 1.5, 0.1, 15.0),
-                clamp(duration + rng.centered() * 13.0, 3.0, 120.0),
-                clamp(speed + rng.centered() * 2.0, 1.0, 16.0),
-                clamp(level + rng.centered() * 0.55, 0.0, 3.0),
-            ]
-            rows.append((
-                [raw[0] / 15.0, raw[1] / 120.0, raw[2] / 16.0, raw[3] / 3.0],
-                label,
-            ))
-    return rows
+    rng.shuffle(dataset)
+    features = np.vstack([row for row, _ in dataset])
+    labels = np.array([label for _, label in dataset], dtype=np.int64)
+    return features, labels
 
 
-def softmax(values):
-    peak = max(values)
-    exponents = [math.exp(value - peak) for value in values]
-    total = sum(exponents)
-    return [value / total for value in exponents]
+def softmax(logits: np.ndarray) -> np.ndarray:
+    shifted = logits - logits.max(axis=1, keepdims=True)
+    exponentials = np.exp(shifted)
+    return exponentials / exponentials.sum(axis=1, keepdims=True)
 
 
-def train():
-    rows = make_dataset()
-    rng = Lcg(SEED ^ 0xA11CE)
-    w1 = [[rng.centered() * 0.5 for _ in range(8)] for _ in range(4)]
-    b1 = [0.0] * 8
-    w2 = [[rng.centered() * 0.5 for _ in range(4)] for _ in range(8)]
-    b2 = [0.0] * 4
+def train(
+    features: np.ndarray,
+    labels: np.ndarray,
+    epochs: int,
+    learning_rate: float,
+    rng: np.random.Generator,
+) -> tuple[dict[str, np.ndarray], dict[str, float]]:
+    """Train a 4→8 ReLU→4 softmax network with full-batch gradient descent."""
+    row_count = features.shape[0]
+    targets = np.eye(ARCHITECTURE[-1], dtype=np.float64)[labels]
 
-    for _ in range(EPOCHS):
-        dw1 = [[0.0] * 8 for _ in range(4)]
-        db1 = [0.0] * 8
-        dw2 = [[0.0] * 4 for _ in range(8)]
-        db2 = [0.0] * 4
+    weights = {
+        "W1": rng.normal(
+            0.0, np.sqrt(2.0 / ARCHITECTURE[0]), (ARCHITECTURE[0], ARCHITECTURE[1])
+        ),
+        "b1": np.zeros(ARCHITECTURE[1], dtype=np.float64),
+        "W2": rng.normal(
+            0.0, np.sqrt(2.0 / ARCHITECTURE[1]), (ARCHITECTURE[1], ARCHITECTURE[2])
+        ),
+        "b2": np.zeros(ARCHITECTURE[2], dtype=np.float64),
+    }
 
-        for inputs, label in rows:
-            hidden_raw = [
-                b1[h] + sum(inputs[i] * w1[i][h] for i in range(4))
-                for h in range(8)
-            ]
-            hidden = [max(0.0, value) for value in hidden_raw]
-            logits = [
-                b2[o] + sum(hidden[h] * w2[h][o] for h in range(8))
-                for o in range(4)
-            ]
-            probabilities = softmax(logits)
-            output_gradient = [
-                probabilities[o] - (1.0 if o == label else 0.0)
-                for o in range(4)
-            ]
+    for epoch in range(epochs):
+        hidden_raw = features @ weights["W1"] + weights["b1"]
+        hidden = np.maximum(hidden_raw, 0.0)
+        probabilities = softmax(hidden @ weights["W2"] + weights["b2"])
 
-            for h in range(8):
-                for o in range(4):
-                    dw2[h][o] += hidden[h] * output_gradient[o]
-            for o in range(4):
-                db2[o] += output_gradient[o]
-            for h in range(8):
-                hidden_gradient = sum(
-                    w2[h][o] * output_gradient[o] for o in range(4)
-                )
-                if hidden_raw[h] <= 0.0:
-                    hidden_gradient = 0.0
-                db1[h] += hidden_gradient
-                for i in range(4):
-                    dw1[i][h] += inputs[i] * hidden_gradient
+        output_gradient = (probabilities - targets) / row_count
+        d_w2 = hidden.T @ output_gradient
+        d_b2 = output_gradient.sum(axis=0)
+        hidden_gradient = (output_gradient @ weights["W2"].T) * (hidden_raw > 0.0)
+        d_w1 = features.T @ hidden_gradient
+        d_b1 = hidden_gradient.sum(axis=0)
 
-        step = LEARNING_RATE / len(rows)
-        for i in range(4):
-            for h in range(8):
-                w1[i][h] -= step * dw1[i][h]
-        for h in range(8):
-            b1[h] -= step * db1[h]
-            for o in range(4):
-                w2[h][o] -= step * dw2[h][o]
-        for o in range(4):
-            b2[o] -= step * db2[o]
+        weights["W1"] -= learning_rate * d_w1
+        weights["b1"] -= learning_rate * d_b1
+        weights["W2"] -= learning_rate * d_w2
+        weights["b2"] -= learning_rate * d_b2
 
-    return {
-        "formatVersion": 1,
-        "architecture": [4, 8, 4],
-        "tiers": ["beginner", "casual", "regular", "trained"],
+        if epoch == 0 or (epoch + 1) % 250 == 0:
+            loss = -np.mean(np.log(probabilities[np.arange(row_count), labels] + 1e-12))
+            accuracy = np.mean(probabilities.argmax(axis=1) == labels)
+            print(
+                f"epoch {epoch + 1:4d}/{epochs}: "
+                f"loss={loss:.4f}, accuracy={accuracy:.1%}"
+            )
+
+    hidden = np.maximum(features @ weights["W1"] + weights["b1"], 0.0)
+    probabilities = softmax(hidden @ weights["W2"] + weights["b2"])
+    metrics = {
+        "trainingAccuracy": float(np.mean(probabilities.argmax(axis=1) == labels)),
+        "crossEntropy": float(
+            -np.mean(np.log(probabilities[np.arange(row_count), labels] + 1e-12))
+        ),
+    }
+    return weights, metrics
+
+
+def export_weights(
+    destination: Path,
+    weights: dict[str, np.ndarray],
+    metrics: dict[str, float],
+    row_count: int,
+    epochs: int,
+    learning_rate: float,
+) -> None:
+    payload = {
+        "formatVersion": 2,
+        "architecture": ARCHITECTURE,
+        "tiers": TIERS,
+        "features": [
+            "normalizedAvgPace",
+            "normalizedAvgDistance",
+            "normalizedRunFrequency",
+            "normalizedActivityLevel",
+        ],
         "normalization": {
-            "distanceKm": 15,
-            "durationMinutes": 120,
-            "speedKmh": 16,
-            "reportedLevelIndex": 3,
+            "avgPaceMinPerKm": {
+                "minimum": PACE_MIN_MIN_PER_KM,
+                "maximum": PACE_MAX_MIN_PER_KM,
+                "formula": "clip((maximum - pace) / (maximum - minimum), 0, 1)",
+            },
+            "avgDistanceKm": {"divisor": MAX_AVG_DISTANCE_KM},
+            "recentRunCount": {"divisor": MAX_RECENT_RUNS},
+            "activityLevelIndex": {"divisor": MAX_ACTIVITY_LEVEL},
+        },
+        "labelRule": {
+            "scoreWeights": LABEL_WEIGHTS.tolist(),
+            "thresholds": LABEL_THRESHOLDS.tolist(),
+            "classes": TIERS,
         },
         "provenance": {
-            "dataset": "synthetic-v1",
-            "rows": len(rows),
+            "dataset": "synthetic-balanced-rule-v2",
+            "rows": row_count,
+            "rowsPerClass": ROWS_PER_CLASS,
             "seed": SEED,
-            "epochs": EPOCHS,
-            "learningRate": LEARNING_RATE,
+            "epochs": epochs,
+            "learningRate": learning_rate,
+            "optimizer": "full-batch-gradient-descent",
             "trainer": "scripts/train_fitness_model.py",
         },
-        "W1": w1,
-        "b1": b1,
-        "W2": w2,
-        "b2": b2,
+        "metrics": metrics,
+        **{name: value.tolist() for name, value in weights.items()},
     }
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(f"Wrote {destination}")
+
+
+def parse_args() -> argparse.Namespace:
+    default_output = (
+        Path(__file__).resolve().parents[1] / "src/models/fitnessWeights.json"
+    )
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--epochs", type=int, default=EPOCHS)
+    parser.add_argument("--learning-rate", type=float, default=LEARNING_RATE)
+    parser.add_argument("--output", type=Path, default=default_output)
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    if args.epochs <= 0:
+        raise ValueError("--epochs must be positive")
+    if args.learning_rate <= 0:
+        raise ValueError("--learning-rate must be positive")
+
+    dataset_rng = np.random.default_rng(SEED)
+    training_rng = np.random.default_rng(SEED ^ 0xA11CE)
+    features, labels = make_dataset(dataset_rng)
+    weights, metrics = train(
+        features, labels, args.epochs, args.learning_rate, training_rng
+    )
+    export_weights(
+        args.output,
+        weights,
+        metrics,
+        len(features),
+        args.epochs,
+        args.learning_rate,
+    )
+    print(
+        f"Final training accuracy: {metrics['trainingAccuracy']:.1%}; "
+        f"cross-entropy: {metrics['crossEntropy']:.4f}"
+    )
 
 
 if __name__ == "__main__":
-    destination = Path(__file__).resolve().parents[1] / "src/models/fitnessWeights.json"
-    destination.write_text(json.dumps(train(), indent=2) + "\n", encoding="utf-8")
-    print("Wrote", destination)
+    main()

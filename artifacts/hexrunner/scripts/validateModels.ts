@@ -12,32 +12,41 @@ function assert(condition: boolean, message: string): void {
 const profiles: Array<{
   expected: FitnessTier;
   level: FitnessTier;
-  run: RecentRun;
+  runs: RecentRun[];
 }> = [
   {
     expected: 'beginner',
     level: 'beginner',
-    run: { distanceKm: 1.5, elapsedSeconds: 20 * 60 },
+    runs: [{ distanceKm: 1.5, elapsedSeconds: 20 * 60 }],
   },
   {
     expected: 'casual',
     level: 'casual',
-    run: { distanceKm: 3.5, elapsedSeconds: 34 * 60 },
+    runs: Array.from({ length: 2 }, () => ({
+      distanceKm: 3.5,
+      elapsedSeconds: 34 * 60,
+    })),
   },
   {
     expected: 'regular',
     level: 'regular',
-    run: { distanceKm: 6.2, elapsedSeconds: 46 * 60 },
+    runs: Array.from({ length: 4 }, () => ({
+      distanceKm: 6.2,
+      elapsedSeconds: 46 * 60,
+    })),
   },
   {
     expected: 'trained',
     level: 'trained',
-    run: { distanceKm: 10.2, elapsedSeconds: 63 * 60 },
+    runs: Array.from({ length: 5 }, () => ({
+      distanceKm: 10.2,
+      elapsedSeconds: 63 * 60,
+    })),
   },
 ];
 
 for (const profile of profiles) {
-  const prediction = predictFitnessProfile([profile.run], profile.level);
+  const prediction = predictFitnessProfile(profile.runs, profile.level);
   assert(
     prediction.tier === profile.expected,
     `Expected ${profile.expected}, received ${prediction.tier}.`,
