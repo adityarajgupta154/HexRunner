@@ -31,6 +31,7 @@ import {
   type RunSummarySaveStatus,
 } from '@/src/services/runSummaryState';
 import { flushPendingSafetyReports } from '@/src/services/safetyStorage';
+import { flushPendingCivicReports } from '@/src/services/civicStorage';
 
 function numberParam(value: string | string[] | undefined): number {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -75,6 +76,9 @@ export default function RunSummaryScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<SaveRunResult | null>(null);
   const [safetyDelivery, setSafetyDelivery] = useState<
+    'idle' | 'sending' | 'delivered' | 'pending'
+  >('idle');
+  const [civicDelivery, setCivicDelivery] = useState<
     'idle' | 'sending' | 'delivered' | 'pending'
   >('idle');
 
@@ -131,15 +135,38 @@ export default function RunSummaryScreen() {
         },
       },
       afterSaved: async () => {
-        setSafetyDelivery('sending');
-        const result = await flushPendingSafetyReports(clientRunId);
-        setSafetyDelivery(
-          result.remaining > 0
-            ? 'pending'
-            : result.delivered > 0
-              ? 'delivered'
-              : 'idle',
-        );
+        await Promise.all([
+          (async () => {
+            setSafetyDelivery('sending');
+            try {
+              const result = await flushPendingSafetyReports(clientRunId);
+              setSafetyDelivery(
+                result.remaining > 0
+                  ? 'pending'
+                  : result.delivered > 0
+                    ? 'delivered'
+                    : 'idle',
+              );
+            } catch {
+              setSafetyDelivery('pending');
+            }
+          })(),
+          (async () => {
+            setCivicDelivery('sending');
+            try {
+              const result = await flushPendingCivicReports(clientRunId);
+              setCivicDelivery(
+                result.remaining > 0
+                  ? 'pending'
+                  : result.delivered > 0
+                    ? 'delivered'
+                    : 'idle',
+              );
+            } catch {
+              setCivicDelivery('pending');
+            }
+          })(),
+        ]);
       },
     });
   }, [clientRunId, queryClient, uid]);
@@ -344,6 +371,55 @@ export default function RunSummaryScreen() {
                 >
                   Saved as a coarse area on this device. HexRunner will retry
                   while the app is open.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+
+        {civicDelivery !== 'idle' ? (
+          <View
+            style={[
+              styles.saveCard,
+              {
+                backgroundColor: colors.card,
+                borderColor:
+                  civicDelivery === 'pending'
+                    ? colors.destructive
+                    : colors.border,
+              },
+            ]}
+          >
+            {civicDelivery === 'sending' ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather
+                name={civicDelivery === 'delivered' ? 'check-circle' : 'clock'}
+                size={20}
+                color={
+                  civicDelivery === 'delivered'
+                    ? colors.primary
+                    : colors.destructive
+                }
+              />
+            )}
+            <View style={styles.saveCopy}>
+              <Text style={[styles.saveTitle, { color: colors.foreground }]}>
+                {civicDelivery === 'sending'
+                  ? 'Sending street issue report'
+                  : civicDelivery === 'delivered'
+                    ? 'Street issue report delivered'
+                    : 'Street issue report still pending'}
+              </Text>
+              {civicDelivery === 'pending' ? (
+                <Text
+                  style={[
+                    styles.saveError,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  Its metadata is queued on this device. HexRunner will retry
+                  when street issue reporting next opens.
                 </Text>
               ) : null}
             </View>

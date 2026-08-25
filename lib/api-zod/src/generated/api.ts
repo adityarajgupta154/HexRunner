@@ -273,6 +273,214 @@ export const LookupSafetyAreasResponse = zod.object({
 
 
 /**
+ * Proxies Open-Meteo air-quality data and returns explicit source, observation time, fetch time, freshness, and non-medical exercise guidance.
+ * @summary Get sourced current and forecast air quality
+ */
+export const getAirQualityQueryLatitudeMin = -90;
+export const getAirQualityQueryLatitudeMax = 90;
+
+export const getAirQualityQueryLongitudeMin = -180;
+export const getAirQualityQueryLongitudeMax = 180;
+
+
+
+export const GetAirQualityQueryParams = zod.object({
+  "latitude": zod.coerce.number().min(getAirQualityQueryLatitudeMin).max(getAirQualityQueryLatitudeMax),
+  "longitude": zod.coerce.number().min(getAirQualityQueryLongitudeMin).max(getAirQualityQueryLongitudeMax)
+})
+
+export const getAirQualityResponseAqiMin = 0;
+export const getAirQualityResponseAqiMax = 500;
+export const getAirQualityResponseAqiMultipleOf = 1;
+
+export const getAirQualityResponseSuggestedWindowOneExpectedAqiMin = 0;
+export const getAirQualityResponseSuggestedWindowOneExpectedAqiMax = 500;
+export const getAirQualityResponseSuggestedWindowOneExpectedAqiMultipleOf = 1;
+
+
+
+export const GetAirQualityResponse = zod.object({
+  "aqi": zod.number().min(getAirQualityResponseAqiMin).max(getAirQualityResponseAqiMax).multipleOf(getAirQualityResponseAqiMultipleOf),
+  "level": zod.enum(['good', 'moderate', 'unhealthy_sensitive', 'unhealthy', 'very_unhealthy', 'hazardous']),
+  "healthContext": zod.string(),
+  "observationTime": zod.coerce.date(),
+  "fetchedAt": zod.coerce.date(),
+  "isStale": zod.boolean(),
+  "sourceName": zod.string(),
+  "sourceUrl": zod.string(),
+  "suggestedWindow": zod.union([zod.object({
+  "startsAt": zod.coerce.date(),
+  "endsAt": zod.coerce.date(),
+  "expectedAqi": zod.number().min(getAirQualityResponseSuggestedWindowOneExpectedAqiMin).max(getAirQualityResponseSuggestedWindowOneExpectedAqiMax).multipleOf(getAirQualityResponseSuggestedWindowOneExpectedAqiMultipleOf),
+  "reason": zod.string()
+}),zod.null()]),
+  "disclaimer": zod.string()
+})
+
+
+/**
+ * @summary Request a short-lived civic photo upload URL
+ */
+export const requestCivicPhotoUploadBodySizeBytesMax = 10485760;
+export const requestCivicPhotoUploadBodySizeBytesMultipleOf = 1;
+
+
+
+export const RequestCivicPhotoUploadBody = zod.object({
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp']),
+  "sizeBytes": zod.number().min(1).max(requestCivicPhotoUploadBodySizeBytesMax).multipleOf(requestCivicPhotoUploadBodySizeBytesMultipleOf)
+})
+
+export const requestCivicPhotoUploadResponseObjectPathRegExp = new RegExp('^/civic-photos/[A-Za-z0-9_-]+$');
+
+
+export const RequestCivicPhotoUploadResponse = zod.object({
+  "uploadUrl": zod.string(),
+  "objectPath": zod.string().regex(requestCivicPhotoUploadResponseObjectPathRegExp),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * Persists photo-backed issue metadata without exposing reporter identity or exact coordinates publicly.
+ * @summary Submit a coarse civic issue report
+ */
+export const createCivicReportBodyClientReportIdMin = 8;
+export const createCivicReportBodyClientReportIdMax = 120;
+
+
+export const createCivicReportBodyClientReportIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const createCivicReportBodyClientRunIdMin = 8;
+export const createCivicReportBodyClientRunIdMax = 120;
+
+
+export const createCivicReportBodyClientRunIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const createCivicReportBodyAreaH3IndexMin = 15;
+export const createCivicReportBodyAreaH3IndexMax = 16;
+
+
+export const createCivicReportBodyAreaH3IndexRegExp = new RegExp('^88[0-9a-f]{13}$');
+export const createCivicReportBodyNoteMax = 280;
+
+export const createCivicReportBodyPhotoObjectPathRegExp = new RegExp('^/civic-photos/[A-Za-z0-9_-]+$');
+
+
+export const CreateCivicReportBody = zod.object({
+  "clientReportId": zod.string().min(createCivicReportBodyClientReportIdMin).max(createCivicReportBodyClientReportIdMax).regex(createCivicReportBodyClientReportIdRegExp),
+  "clientRunId": zod.string().min(createCivicReportBodyClientRunIdMin).max(createCivicReportBodyClientRunIdMax).regex(createCivicReportBodyClientRunIdRegExp),
+  "category": zod.enum(['pothole', 'garbage', 'broken_streetlight']),
+  "areaH3Index": zod.string().min(createCivicReportBodyAreaH3IndexMin).max(createCivicReportBodyAreaH3IndexMax).regex(createCivicReportBodyAreaH3IndexRegExp),
+  "occurredAt": zod.coerce.date(),
+  "note": zod.string().max(createCivicReportBodyNoteMax).optional(),
+  "photoObjectPath": zod.string().regex(createCivicReportBodyPhotoObjectPathRegExp),
+  "consentToPublishCoarseReport": zod.boolean()
+})
+
+export const CreateCivicReportResponse = zod.object({
+  "reportId": zod.string(),
+  "accepted": zod.boolean(),
+  "duplicate": zod.boolean(),
+  "moderationState": zod.enum(['unreviewed', 'possible_duplicate', 'flagged', 'reviewed']),
+  "advisory": zod.string()
+})
+
+
+/**
+ * @summary Flag a duplicate or inappropriate civic report
+ */
+export const flagCivicReportPathReportIdMin = 8;
+export const flagCivicReportPathReportIdMax = 120;
+
+
+export const flagCivicReportPathReportIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const FlagCivicReportParams = zod.object({
+  "reportId": zod.coerce.string().min(flagCivicReportPathReportIdMin).max(flagCivicReportPathReportIdMax).regex(flagCivicReportPathReportIdRegExp)
+})
+
+export const FlagCivicReportBody = zod.object({
+  "reason": zod.enum(['duplicate', 'inappropriate', 'confirmed_valid'])
+})
+
+export const flagCivicReportResponseFlagCountMin = 0;
+export const flagCivicReportResponseFlagCountMultipleOf = 1;
+
+
+
+export const FlagCivicReportResponse = zod.object({
+  "reportId": zod.string(),
+  "recorded": zod.boolean(),
+  "flagCount": zod.number().min(flagCivicReportResponseFlagCountMin).multipleOf(flagCivicReportResponseFlagCountMultipleOf),
+  "moderationState": zod.enum(['unreviewed', 'possible_duplicate', 'flagged', 'reviewed'])
+})
+
+
+/**
+ * @summary Look up privacy-safe civic issues and informal caretakers
+ */
+export const lookupCivicMapBodyAreaH3IndexesItemRegExp = new RegExp('^88[0-9a-f]{13}$');
+export const lookupCivicMapBodyAreaH3IndexesMax = 500;
+
+export const lookupCivicMapBodyH3IndexesItemRegExp = new RegExp('^89[0-9a-f]{13}$');
+export const lookupCivicMapBodyH3IndexesMax = 1000;
+
+
+
+export const LookupCivicMapBody = zod.object({
+  "areaH3Indexes": zod.array(zod.string().regex(lookupCivicMapBodyAreaH3IndexesItemRegExp)).min(1).max(lookupCivicMapBodyAreaH3IndexesMax),
+  "h3Indexes": zod.array(zod.string().regex(lookupCivicMapBodyH3IndexesItemRegExp)).max(lookupCivicMapBodyH3IndexesMax)
+})
+
+export const lookupCivicMapResponseAreasItemTotalReportsMultipleOf = 1;
+
+export const lookupCivicMapResponseAreasItemUnreviewedReportsMin = 0;
+export const lookupCivicMapResponseAreasItemUnreviewedReportsMultipleOf = 1;
+
+export const lookupCivicMapResponseAreasMax = 500;
+
+export const lookupCivicMapResponseCaretakersMax = 1000;
+
+
+
+export const LookupCivicMapResponse = zod.object({
+  "areas": zod.array(zod.object({
+  "areaH3Index": zod.string(),
+  "totalReports": zod.number().min(1).multipleOf(lookupCivicMapResponseAreasItemTotalReportsMultipleOf),
+  "unreviewedReports": zod.number().min(lookupCivicMapResponseAreasItemUnreviewedReportsMin).multipleOf(lookupCivicMapResponseAreasItemUnreviewedReportsMultipleOf),
+  "categories": zod.array(zod.enum(['pothole', 'garbage', 'broken_streetlight'])),
+  "latestReportAt": zod.coerce.date(),
+  "latestReportId": zod.string()
+})).max(lookupCivicMapResponseAreasMax),
+  "caretakers": zod.array(zod.object({
+  "h3Index": zod.string(),
+  "adoptedAt": zod.coerce.date(),
+  "label": zod.string()
+})).max(lookupCivicMapResponseCaretakersMax),
+  "advisory": zod.string()
+})
+
+
+/**
+ * This community label grants no authority, exclusivity, or municipal role and does not change territory ownership.
+ * @summary Informally adopt a currently owned territory zone
+ */
+export const adoptCivicZoneBodyH3IndexRegExp = new RegExp('^89[0-9a-f]{13}$');
+
+
+export const AdoptCivicZoneBody = zod.object({
+  "h3Index": zod.string().regex(adoptCivicZoneBodyH3IndexRegExp)
+})
+
+export const AdoptCivicZoneResponse = zod.object({
+  "h3Index": zod.string(),
+  "adoptedAt": zod.coerce.date(),
+  "informal": zod.boolean(),
+  "advisory": zod.string()
+})
+
+
+/**
  * Returns at most 20 runners ordered by totalHexesOwned descending, then total distance, run count, and user ID.
  * @summary Get the territory leaderboard
  */

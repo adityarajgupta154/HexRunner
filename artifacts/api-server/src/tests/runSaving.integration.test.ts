@@ -4,6 +4,7 @@ import { createServer, type Server } from "node:http";
 import { after, before, describe, test } from "node:test";
 import {
   db,
+  hexrunnerCivicUploadGrantsTable,
   hexrunnerHexOwnershipTable,
   hexrunnerRunPointsTable,
   hexrunnerRunsTable,
@@ -13,6 +14,7 @@ import {
 import { eq, inArray, or } from "drizzle-orm";
 import { latLngToCell } from "h3-js";
 import app from "../app";
+import { cleanupExpiredCivicData } from "../routes/civic";
 
 process.env.SESSION_SECRET ||= "hexrunner-run-saving-tests-only";
 
@@ -25,6 +27,7 @@ const TEST_USERS = {
   thief: `device_test_thief_${TEST_NAMESPACE}`,
   newer: `device_test_newer_${TEST_NAMESPACE}`,
   older: `device_test_older_${TEST_NAMESPACE}`,
+  cleanup: `device_test_cleanup_${TEST_NAMESPACE}`,
 };
 const TEST_RUNS = {
   success: `run_test_success_${TEST_NAMESPACE}`,
@@ -549,6 +552,66 @@ describe("run-saving integration", { concurrency: false }, () => {
         afterSteal &&
         afterSteal.claimedAt.getTime() > beforeSteal.claimedAt.getTime(),
       "Stealing a hex must refresh its claimedAt timestamp.",
+    );
+  });
+
+  test("cleanup cannot let consumed grants starve expired drafts", async () => {
+    await db.insert(hexrunnerUsersTable).values({ id: TEST_USERS.cleanup });
+    const expiredAt = new Date(Date.now() - 60_000);
+    await db.insert(hexrunnerCivicUploadGrantsTable).values([
+      ...Array.from({ length: 101 }, (_, index) => ({
+        objectPath: `/civic-photos/${TEST_NAMESPACE}-consumed-${index}`,
+        ownerId: TEST_USERS.cleanup,
+        contentType: "image/png" as const,
+        sizeBytes: 1,
+        expiresAt: expiredAt,
+        consumedAt: expiredAt,
+      })),
+      {
+        objectPath: `/civic-photos/${TEST_NAMESPACE}-unconsumed`,
+        ownerId: TEST_USERS.cleanup,
+        contentType: "image/png" as const,
+        sizeBytes: 1,
+        expiresAt: expiredAt,
+      },
+    ]);
+
+    await cleanupExpiredCivicData(async () => undefined);
+
+    const [unconsumed] = await db
+      .select({ objectPath: hexrunnerCivicUploadGrantsTable.objectPath })
+      .from(hexrunnerCivicUploadGrantsTable)
+      .where(
+        eq(
+          hexrunnerCivicUploadGrantsTable.objectPath,
+          `/civic-photos/${TEST_NAMESPACE}-unconsumed`,
+        ),
+      );
+    assert.equal(unconsumed, undefined);
+
+    const afterFirstBatch = await db
+      .select({
+        stagingCleanedAt:
+          hexrunnerCivicUploadGrantsTable.stagingCleanedAt,
+      })
+      .from(hexrunnerCivicUploadGrantsTable)
+      .where(eq(hexrunnerCivicUploadGrantsTable.ownerId, TEST_USERS.cleanup));
+    assert.equal(
+      afterFirstBatch.filter((grant) => grant.stagingCleanedAt).length,
+      100,
+    );
+
+    await cleanupExpiredCivicData(async () => undefined);
+    const afterSecondBatch = await db
+      .select({
+        stagingCleanedAt:
+          hexrunnerCivicUploadGrantsTable.stagingCleanedAt,
+      })
+      .from(hexrunnerCivicUploadGrantsTable)
+      .where(eq(hexrunnerCivicUploadGrantsTable.ownerId, TEST_USERS.cleanup));
+    assert.equal(
+      afterSecondBatch.filter((grant) => grant.stagingCleanedAt).length,
+      101,
     );
   });
 

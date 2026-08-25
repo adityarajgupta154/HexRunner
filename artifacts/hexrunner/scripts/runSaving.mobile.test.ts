@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import type {
+  CreateCivicReportRequest,
   SaveRunRequest,
   SaveRunResult,
 } from '@workspace/api-client-react';
@@ -20,6 +21,10 @@ import {
   createSafetyQueue,
   PENDING_SAFETY_REPORTS_KEY,
 } from '../src/services/safetyStorageCore';
+import {
+  createCivicQueue,
+  PENDING_CIVIC_REPORTS_KEY,
+} from '../src/services/civicStorageCore';
 
 function createMemoryStorage() {
   const values = new Map<string, string>();
@@ -233,5 +238,69 @@ describe('mobile run-saving regression checks', { concurrency: false }, () => {
     });
 
     assert.equal(values.has(PENDING_SAFETY_REPORTS_KEY), false);
+  });
+
+  test('a stable civic draft survives an uncertain response and flushes after run save', async () => {
+    const { storage, values } = createMemoryStorage();
+    const clientRunId = 'run_civic_delivery_001';
+    const draft: CreateCivicReportRequest = {
+      clientReportId: 'civic_delivery_001',
+      clientRunId,
+      category: 'pothole',
+      areaH3Index: '8860145b49fffff',
+      occurredAt: '2026-08-25T10:05:00.000Z',
+      photoObjectPath: '/civic-photos/retry-safe-photo',
+      consentToPublishCoarseReport: true,
+    };
+    let runExists = false;
+    const attempts: string[] = [];
+    const civicQueue = createCivicQueue({
+      storage,
+      submitReport: async (report) => {
+        attempts.push(report.clientReportId);
+        if (!runExists) throw new Error('409 run not saved');
+        return {
+          reportId: report.clientReportId,
+          accepted: true,
+          duplicate: false,
+          moderationState: 'unreviewed',
+          advisory: 'Community information only.',
+        };
+      },
+    });
+    await civicQueue.queueCivicReport(draft);
+
+    assert.deepEqual(
+      await civicQueue.flushPendingCivicReports(clientRunId),
+      { delivered: 0, remaining: 1 },
+    );
+    assert.ok(values.has(PENDING_CIVIC_REPORTS_KEY));
+
+    await runSummarySaveAttempt({
+      clientRunId,
+      savePendingRun: async (savedRunId) => {
+        runExists = true;
+        return savedResult(savedRunId);
+      },
+      observer: {
+        onSaving() {},
+        onSaved() {},
+        onFailed(message) {
+          assert.fail(message);
+        },
+      },
+      afterSaved: async () => {
+        assert.deepEqual(
+          await civicQueue.flushPendingCivicReports(clientRunId),
+          { delivered: 1, remaining: 0 },
+        );
+      },
+    });
+
+    assert.deepEqual(attempts, [
+      'civic_delivery_001',
+      'civic_delivery_001',
+    ]);
+    assert.equal(values.has(PENDING_CIVIC_REPORTS_KEY), false);
   });
 });

@@ -44,7 +44,7 @@ try {
     outdir: outputDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "warning",
-    external: ["*.node", "pg-native"],
+    external: ["*.node", "pg-native", "sharp"],
     plugins: [esbuildPluginPino({ transports: ["pino-pretty"] })],
     banner: {
       js: `import { createRequire as __bannerCrReq } from 'node:module';

@@ -25,6 +25,7 @@ import {
 import { checkSession } from '@/src/services/antiSpoof';
 import { useLookupHexOwnership } from '@workspace/api-client-react';
 import SafetyTools from '@/src/components/SafetyTools';
+import CivicReportTools from '@/src/components/CivicReportTools';
 
 type RunPoint = {
   lat: number;
@@ -406,6 +407,10 @@ export default function RunSessionScreen() {
           <SafetyTools
             currentPoint={pathPoints[pathPoints.length - 1] ?? null}
             isRunning
+            clientRunId={clientRunIdRef.current}
+          />
+          <CivicReportTools
+            currentPoint={pathPoints[pathPoints.length - 1] ?? null}
             clientRunId={clientRunIdRef.current}
           />
 

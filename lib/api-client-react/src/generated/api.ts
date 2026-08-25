@@ -20,11 +20,23 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdoptCivicZoneRequest,
+  AdoptCivicZoneResult,
+  AirQualityResult,
   AnonymousIdentityCredential,
   AnonymousIdentityRegistration,
   ApiError,
+  CivicMapLookupRequest,
+  CivicMapLookupResult,
+  CivicPhotoUploadRequest,
+  CivicPhotoUploadResult,
+  CreateCivicReportRequest,
+  CreateCivicReportResult,
   CreateSafetyReportRequest,
   CreateSafetyReportResult,
+  FlagCivicReportRequest,
+  FlagCivicReportResult,
+  GetAirQualityParams,
   GetLeaderboardParams,
   HealthStatus,
   HexOwnershipLookupRequest,
@@ -503,6 +515,449 @@ export const useLookupSafetyAreas = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLookupSafetyAreasMutationOptions(options));
+    }
+
+export const getGetAirQualityUrl = (params: GetAirQualityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/air-quality?${stringifiedParams}` : `/api/air-quality`
+}
+
+/**
+ * Proxies Open-Meteo air-quality data and returns explicit source, observation time, fetch time, freshness, and non-medical exercise guidance.
+ * @summary Get sourced current and forecast air quality
+ */
+export const getAirQuality = async (params: GetAirQualityParams, options?: Parameters<typeof customFetch>[1]): Promise<AirQualityResult> => {
+
+  return customFetch<AirQualityResult>(getGetAirQualityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAirQualityQueryKey = (params?: GetAirQualityParams,) => {
+    return [
+    `/api/air-quality`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAirQualityQueryOptions = <TData = Awaited<ReturnType<typeof getAirQuality>>, TError = ErrorType<ApiError>>(params: GetAirQualityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAirQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAirQualityQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAirQuality>>> = ({ signal }) => getAirQuality(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAirQuality>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAirQualityQueryResult = NonNullable<Awaited<ReturnType<typeof getAirQuality>>>
+export type GetAirQualityQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get sourced current and forecast air quality
+ */
+
+export function useGetAirQuality<TData = Awaited<ReturnType<typeof getAirQuality>>, TError = ErrorType<ApiError>>(
+ params: GetAirQualityParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAirQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAirQualityQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestCivicPhotoUploadUrl = () => {
+
+
+
+
+  return `/api/civic-photo-uploads`
+}
+
+/**
+ * @summary Request a short-lived civic photo upload URL
+ */
+export const requestCivicPhotoUpload = async (civicPhotoUploadRequest: CivicPhotoUploadRequest, options?: Parameters<typeof customFetch>[1]): Promise<CivicPhotoUploadResult> => {
+
+  return customFetch<CivicPhotoUploadResult>(getRequestCivicPhotoUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(civicPhotoUploadRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestCivicPhotoUploadMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestCivicPhotoUpload>>, TError,{data: BodyType<CivicPhotoUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestCivicPhotoUpload>>, TError,{data: BodyType<CivicPhotoUploadRequest>}, TContext> => {
+
+const mutationKey = ['requestCivicPhotoUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestCivicPhotoUpload>>, {data: BodyType<CivicPhotoUploadRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestCivicPhotoUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestCivicPhotoUploadMutationResult = NonNullable<Awaited<ReturnType<typeof requestCivicPhotoUpload>>>
+    export type RequestCivicPhotoUploadMutationBody = BodyType<CivicPhotoUploadRequest>
+    export type RequestCivicPhotoUploadMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Request a short-lived civic photo upload URL
+ */
+export const useRequestCivicPhotoUpload = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestCivicPhotoUpload>>, TError,{data: BodyType<CivicPhotoUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestCivicPhotoUpload>>,
+        TError,
+        {data: BodyType<CivicPhotoUploadRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestCivicPhotoUploadMutationOptions(options));
+    }
+
+export const getCreateCivicReportUrl = () => {
+
+
+
+
+  return `/api/civic-reports`
+}
+
+/**
+ * Persists photo-backed issue metadata without exposing reporter identity or exact coordinates publicly.
+ * @summary Submit a coarse civic issue report
+ */
+export const createCivicReport = async (createCivicReportRequest: CreateCivicReportRequest, options?: Parameters<typeof customFetch>[1]): Promise<CreateCivicReportResult> => {
+
+  return customFetch<CreateCivicReportResult>(getCreateCivicReportUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createCivicReportRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateCivicReportMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCivicReport>>, TError,{data: BodyType<CreateCivicReportRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCivicReport>>, TError,{data: BodyType<CreateCivicReportRequest>}, TContext> => {
+
+const mutationKey = ['createCivicReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCivicReport>>, {data: BodyType<CreateCivicReportRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCivicReport(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCivicReportMutationResult = NonNullable<Awaited<ReturnType<typeof createCivicReport>>>
+    export type CreateCivicReportMutationBody = BodyType<CreateCivicReportRequest>
+    export type CreateCivicReportMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Submit a coarse civic issue report
+ */
+export const useCreateCivicReport = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCivicReport>>, TError,{data: BodyType<CreateCivicReportRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCivicReport>>,
+        TError,
+        {data: BodyType<CreateCivicReportRequest>},
+        TContext
+      > => {
+      return useMutation(getCreateCivicReportMutationOptions(options));
+    }
+
+export const getFlagCivicReportUrl = (reportId: string,) => {
+
+
+
+
+  return `/api/civic-reports/${reportId}/flags`
+}
+
+/**
+ * @summary Flag a duplicate or inappropriate civic report
+ */
+export const flagCivicReport = async (reportId: string,
+    flagCivicReportRequest: FlagCivicReportRequest, options?: Parameters<typeof customFetch>[1]): Promise<FlagCivicReportResult> => {
+
+  return customFetch<FlagCivicReportResult>(getFlagCivicReportUrl(reportId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(flagCivicReportRequest)
+  }
+);}
+
+
+
+
+
+export const getFlagCivicReportMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof flagCivicReport>>, TError,{reportId: string;data: BodyType<FlagCivicReportRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof flagCivicReport>>, TError,{reportId: string;data: BodyType<FlagCivicReportRequest>}, TContext> => {
+
+const mutationKey = ['flagCivicReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof flagCivicReport>>, {reportId: string;data: BodyType<FlagCivicReportRequest>}> = (props) => {
+          const {reportId,data} = props ?? {};
+
+          return  flagCivicReport(reportId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FlagCivicReportMutationResult = NonNullable<Awaited<ReturnType<typeof flagCivicReport>>>
+    export type FlagCivicReportMutationBody = BodyType<FlagCivicReportRequest>
+    export type FlagCivicReportMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Flag a duplicate or inappropriate civic report
+ */
+export const useFlagCivicReport = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof flagCivicReport>>, TError,{reportId: string;data: BodyType<FlagCivicReportRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof flagCivicReport>>,
+        TError,
+        {reportId: string;data: BodyType<FlagCivicReportRequest>},
+        TContext
+      > => {
+      return useMutation(getFlagCivicReportMutationOptions(options));
+    }
+
+export const getLookupCivicMapUrl = () => {
+
+
+
+
+  return `/api/civic-map/lookup`
+}
+
+/**
+ * @summary Look up privacy-safe civic issues and informal caretakers
+ */
+export const lookupCivicMap = async (civicMapLookupRequest: CivicMapLookupRequest, options?: Parameters<typeof customFetch>[1]): Promise<CivicMapLookupResult> => {
+
+  return customFetch<CivicMapLookupResult>(getLookupCivicMapUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(civicMapLookupRequest)
+  }
+);}
+
+
+
+
+
+export const getLookupCivicMapMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupCivicMap>>, TError,{data: BodyType<CivicMapLookupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof lookupCivicMap>>, TError,{data: BodyType<CivicMapLookupRequest>}, TContext> => {
+
+const mutationKey = ['lookupCivicMap'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof lookupCivicMap>>, {data: BodyType<CivicMapLookupRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  lookupCivicMap(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LookupCivicMapMutationResult = NonNullable<Awaited<ReturnType<typeof lookupCivicMap>>>
+    export type LookupCivicMapMutationBody = BodyType<CivicMapLookupRequest>
+    export type LookupCivicMapMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Look up privacy-safe civic issues and informal caretakers
+ */
+export const useLookupCivicMap = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof lookupCivicMap>>, TError,{data: BodyType<CivicMapLookupRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof lookupCivicMap>>,
+        TError,
+        {data: BodyType<CivicMapLookupRequest>},
+        TContext
+      > => {
+      return useMutation(getLookupCivicMapMutationOptions(options));
+    }
+
+export const getAdoptCivicZoneUrl = () => {
+
+
+
+
+  return `/api/civic-caretakers`
+}
+
+/**
+ * This community label grants no authority, exclusivity, or municipal role and does not change territory ownership.
+ * @summary Informally adopt a currently owned territory zone
+ */
+export const adoptCivicZone = async (adoptCivicZoneRequest: AdoptCivicZoneRequest, options?: Parameters<typeof customFetch>[1]): Promise<AdoptCivicZoneResult> => {
+
+  return customFetch<AdoptCivicZoneResult>(getAdoptCivicZoneUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adoptCivicZoneRequest)
+  }
+);}
+
+
+
+
+
+export const getAdoptCivicZoneMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adoptCivicZone>>, TError,{data: BodyType<AdoptCivicZoneRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adoptCivicZone>>, TError,{data: BodyType<AdoptCivicZoneRequest>}, TContext> => {
+
+const mutationKey = ['adoptCivicZone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adoptCivicZone>>, {data: BodyType<AdoptCivicZoneRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adoptCivicZone(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdoptCivicZoneMutationResult = NonNullable<Awaited<ReturnType<typeof adoptCivicZone>>>
+    export type AdoptCivicZoneMutationBody = BodyType<AdoptCivicZoneRequest>
+    export type AdoptCivicZoneMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Informally adopt a currently owned territory zone
+ */
+export const useAdoptCivicZone = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adoptCivicZone>>, TError,{data: BodyType<AdoptCivicZoneRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adoptCivicZone>>,
+        TError,
+        {data: BodyType<AdoptCivicZoneRequest>},
+        TContext
+      > => {
+      return useMutation(getAdoptCivicZoneMutationOptions(options));
     }
 
 export const getGetLeaderboardUrl = (params?: GetLeaderboardParams,) => {

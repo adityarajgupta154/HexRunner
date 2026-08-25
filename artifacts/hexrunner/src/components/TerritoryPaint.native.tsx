@@ -6,7 +6,10 @@ import {
   routeToMapCoordinates,
   type TerritoryRoutePoint,
 } from '@/src/services/territoryDisplay';
-import type { SafetyAreaSignal } from '@workspace/api-client-react';
+import type {
+  CivicAreaSignal,
+  SafetyAreaSignal,
+} from '@workspace/api-client-react';
 import { hexToCenter } from '@/src/services/hexEngine';
 
 export type TerritoryPaintProps = {
@@ -16,6 +19,8 @@ export type TerritoryPaintProps = {
   claimReadyHexIndexes?: ReadonlySet<string>;
   routePoints?: readonly TerritoryRoutePoint[];
   safetyAreas?: readonly SafetyAreaSignal[];
+  civicAreas?: readonly CivicAreaSignal[];
+  caretakerH3Indexes?: ReadonlySet<string>;
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -38,6 +43,8 @@ export default function TerritoryPaint({
   claimReadyHexIndexes,
   routePoints = [],
   safetyAreas = [],
+  civicAreas = [],
+  caretakerH3Indexes,
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -69,6 +76,28 @@ export default function TerritoryPaint({
             zIndex={0}
           />
         ))}
+      {civicAreas.map((area) => (
+        <Circle
+          key={`civic:${area.areaH3Index}`}
+          center={hexToCenter(area.areaH3Index)}
+          radius={85}
+          fillColor={hexToRgba(colors.accentForeground, 0.72)}
+          strokeColor={hexToRgba(colors.card, 0.92)}
+          strokeWidth={4}
+          zIndex={3}
+        />
+      ))}
+      {[...(caretakerH3Indexes ?? [])].map((h3Index) => (
+        <Circle
+          key={`caretaker:${h3Index}`}
+          center={hexToCenter(h3Index)}
+          radius={105}
+          fillColor={hexToRgba(colors.primary, 0.04)}
+          strokeColor={hexToRgba(colors.primary, 0.92)}
+          strokeWidth={4}
+          zIndex={3}
+        />
+      ))}
       {spots.map((spot) => {
         const isRival = spot.ownerKind === 'rival';
         const isClaimReady = spot.ownerKind === 'claim-ready';

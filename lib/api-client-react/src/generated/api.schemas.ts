@@ -238,6 +238,198 @@ export interface SafetyAreaLookupResult {
   advisory: string;
 }
 
+export type AirQualityLevel = typeof AirQualityLevel[keyof typeof AirQualityLevel];
+
+
+export const AirQualityLevel = {
+  good: 'good',
+  moderate: 'moderate',
+  unhealthy_sensitive: 'unhealthy_sensitive',
+  unhealthy: 'unhealthy',
+  very_unhealthy: 'very_unhealthy',
+  hazardous: 'hazardous',
+} as const;
+
+export interface ExerciseWindow {
+  startsAt: string;
+  endsAt: string;
+  /**
+     * @minimum 0
+     * @maximum 500
+     */
+  expectedAqi: number;
+  reason: string;
+}
+
+export interface AirQualityResult {
+  /**
+     * @minimum 0
+     * @maximum 500
+     */
+  aqi: number;
+  level: AirQualityLevel;
+  healthContext: string;
+  observationTime: string;
+  fetchedAt: string;
+  isStale: boolean;
+  sourceName: string;
+  sourceUrl: string;
+  suggestedWindow: ExerciseWindow | null;
+  disclaimer: string;
+}
+
+export type CivicCategory = typeof CivicCategory[keyof typeof CivicCategory];
+
+
+export const CivicCategory = {
+  pothole: 'pothole',
+  garbage: 'garbage',
+  broken_streetlight: 'broken_streetlight',
+} as const;
+
+export type CivicModerationState = typeof CivicModerationState[keyof typeof CivicModerationState];
+
+
+export const CivicModerationState = {
+  unreviewed: 'unreviewed',
+  possible_duplicate: 'possible_duplicate',
+  flagged: 'flagged',
+  reviewed: 'reviewed',
+} as const;
+
+export type CivicPhotoUploadRequestContentType = typeof CivicPhotoUploadRequestContentType[keyof typeof CivicPhotoUploadRequestContentType];
+
+
+export const CivicPhotoUploadRequestContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+} as const;
+
+export interface CivicPhotoUploadRequest {
+  contentType: CivicPhotoUploadRequestContentType;
+  /**
+     * @minimum 1
+     * @maximum 10485760
+     */
+  sizeBytes: number;
+}
+
+export interface CivicPhotoUploadResult {
+  uploadUrl: string;
+  /** @pattern ^/civic-photos/[A-Za-z0-9_-]+$ */
+  objectPath: string;
+  expiresAt: string;
+}
+
+export interface CreateCivicReportRequest {
+  /**
+     * @minLength 8
+     * @maxLength 120
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientReportId: string;
+  /**
+     * @minLength 8
+     * @maxLength 120
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientRunId: string;
+  category: CivicCategory;
+  /**
+     * @minLength 15
+     * @maxLength 16
+     * @pattern ^88[0-9a-f]{13}$
+     */
+  areaH3Index: string;
+  occurredAt: string;
+  /** @maxLength 280 */
+  note?: string;
+  /** @pattern ^/civic-photos/[A-Za-z0-9_-]+$ */
+  photoObjectPath: string;
+  consentToPublishCoarseReport: boolean;
+}
+
+export interface CreateCivicReportResult {
+  reportId: string;
+  accepted: boolean;
+  duplicate: boolean;
+  moderationState: CivicModerationState;
+  advisory: string;
+}
+
+export type FlagCivicReportRequestReason = typeof FlagCivicReportRequestReason[keyof typeof FlagCivicReportRequestReason];
+
+
+export const FlagCivicReportRequestReason = {
+  duplicate: 'duplicate',
+  inappropriate: 'inappropriate',
+  confirmed_valid: 'confirmed_valid',
+} as const;
+
+export interface FlagCivicReportRequest {
+  reason: FlagCivicReportRequestReason;
+}
+
+export interface FlagCivicReportResult {
+  reportId: string;
+  recorded: boolean;
+  /** @minimum 0 */
+  flagCount: number;
+  moderationState: CivicModerationState;
+}
+
+export interface CivicMapLookupRequest {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     * @items.pattern ^88[0-9a-f]{13}$
+     */
+  areaH3Indexes: string[];
+  /**
+     * @maxItems 1000
+     * @items.pattern ^89[0-9a-f]{13}$
+     */
+  h3Indexes: string[];
+}
+
+export interface CivicAreaSignal {
+  areaH3Index: string;
+  /** @minimum 1 */
+  totalReports: number;
+  /** @minimum 0 */
+  unreviewedReports: number;
+  categories: CivicCategory[];
+  latestReportAt: string;
+  latestReportId: string;
+}
+
+export interface CivicCaretakerSignal {
+  h3Index: string;
+  adoptedAt: string;
+  label: string;
+}
+
+export interface CivicMapLookupResult {
+  /** @maxItems 500 */
+  areas: CivicAreaSignal[];
+  /** @maxItems 1000 */
+  caretakers: CivicCaretakerSignal[];
+  advisory: string;
+}
+
+export interface AdoptCivicZoneRequest {
+  /** @pattern ^89[0-9a-f]{13}$ */
+  h3Index: string;
+}
+
+export interface AdoptCivicZoneResult {
+  h3Index: string;
+  adoptedAt: string;
+  informal: boolean;
+  advisory: string;
+}
+
 export interface LeaderboardEntry {
   /** @minimum 1 */
   rank: number;
@@ -356,6 +548,19 @@ export interface UserStatsResult {
 export interface ApiError {
   error: string;
 }
+
+export type GetAirQualityParams = {
+/**
+ * @minimum -90
+ * @maximum 90
+ */
+latitude: number;
+/**
+ * @minimum -180
+ * @maximum 180
+ */
+longitude: number;
+};
 
 export type GetLeaderboardParams = {
 currentUserId?: UserId;

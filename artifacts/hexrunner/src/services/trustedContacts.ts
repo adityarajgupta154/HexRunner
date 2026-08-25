@@ -2,7 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const TRUSTED_CONTACTS_KEY = '@hexrunner/trusted-contacts';
+const TRUSTED_CONTACTS_KEY =
+  Platform.OS === 'web'
+    ? '@hexrunner/trusted-contacts'
+    : 'hexrunner.trusted-contacts';
 const PHONE_PATTERN = /^[+0-9][0-9 ()-]{5,24}$/;
 
 export type TrustedContact = { name: string; phone: string };

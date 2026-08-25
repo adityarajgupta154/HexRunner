@@ -21,6 +21,14 @@ import { useAuth } from '@/src/context/AuthContext';
 import { useLookupHexOwnership, useLookupSafetyAreas, useGetUserStats, getGetUserStatsQueryKey, type SafetyAreaSignal } from '@workspace/api-client-react';
 import { predictFitnessProfile } from '@/src/services/fitnessModel';
 import BaselineOnboarding from '@/src/components/BaselineOnboarding';
+import AirQualityCard from '@/src/components/AirQualityCard';
+import {
+  type CivicAreaSignal,
+  useAdoptCivicZone,
+  useFlagCivicReport,
+  useLookupCivicMap,
+} from '@workspace/api-client-react';
+import { pointToHex } from '@/src/services/hexEngine';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -97,9 +105,16 @@ function LiveMap() {
   const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
   const [territoryFreshness, setTerritoryFreshness] = useState<number | null>(null);
   const [safetyAreas, setSafetyAreas] = useState<SafetyAreaSignal[]>([]);
+  const [civicAreas, setCivicAreas] = useState<CivicAreaSignal[]>([]);
+  const [caretakerHexes, setCaretakerHexes] = useState<Set<string>>(new Set());
+  const [showCivicLayer, setShowCivicLayer] = useState(true);
+  const [civicNotice, setCivicNotice] = useState<string | null>(null);
 
   const lookupMutation = useLookupHexOwnership();
   const safetyLookup = useLookupSafetyAreas();
+  const civicLookup = useLookupCivicMap();
+  const adoptZone = useAdoptCivicZone();
+  const flagCivicReport = useFlagCivicReport();
 
   const {
     data: userStats,
@@ -179,6 +194,17 @@ function LiveMap() {
     safetyLookup.mutate(
       { data: { areaH3Indexes } },
       { onSuccess: (result) => setSafetyAreas(result.areas) },
+    );
+    civicLookup.mutate(
+      { data: { areaH3Indexes, h3Indexes: visibleHexes.slice(0, 1000) } },
+      {
+        onSuccess: (result) => {
+          setCivicAreas(result.areas);
+          setCaretakerHexes(
+            new Set(result.caretakers.map((caretaker) => caretaker.h3Index)),
+          );
+        },
+      },
     );
   }, [visibleHexes]);
 
@@ -305,6 +331,38 @@ function LiveMap() {
     longitude: location.coords.longitude,
   };
   const initialRegion = { ...coordinate, ...MAP_DELTA };
+  const currentH3Index = pointToHex(coordinate.latitude, coordinate.longitude);
+  const canAdoptCurrentZone = myHexes.has(currentH3Index);
+  const currentZoneIsAdopted = caretakerHexes.has(currentH3Index);
+  const latestCivicArea = civicAreas[0] ?? null;
+
+  const adoptCurrentZone = () => {
+    setCivicNotice(null);
+    adoptZone.mutate(
+      { data: { h3Index: currentH3Index } },
+      {
+        onSuccess: (result) => {
+          setCaretakerHexes((current) => new Set(current).add(result.h3Index));
+          setCivicNotice('Zone informally adopted. This grants no authority.');
+        },
+        onError: () => setCivicNotice('This zone could not be adopted.'),
+      },
+    );
+  };
+
+  const moderateLatestCivicReport = (
+    reason: 'duplicate' | 'inappropriate' | 'confirmed_valid',
+  ) => {
+    if (!latestCivicArea) return;
+    setCivicNotice(null);
+    flagCivicReport.mutate(
+      { reportId: latestCivicArea.latestReportId, data: { reason } },
+      {
+        onSuccess: () => setCivicNotice('Thanks. Your flag was recorded for review.'),
+        onError: () => setCivicNotice('This report could not be flagged.'),
+      },
+    );
+  };
   const territoryIsLoading =
     isStatsLoading || (lookupMutation.isPending && !hasLoadedOwnership);
   const territoryFailed =
@@ -327,6 +385,10 @@ function LiveMap() {
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
             safetyAreas={safetyAreas}
+            civicAreas={showCivicLayer ? civicAreas : []}
+            caretakerH3Indexes={
+              showCivicLayer ? caretakerHexes : undefined
+            }
           />
         </View>
       ) : (
@@ -348,6 +410,10 @@ function LiveMap() {
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
             safetyAreas={safetyAreas}
+            civicAreas={showCivicLayer ? civicAreas : []}
+            caretakerH3Indexes={
+              showCivicLayer ? caretakerHexes : undefined
+            }
           />
         </MapView>
       )}
@@ -367,6 +433,13 @@ function LiveMap() {
             {userStats?.totals.todayClaimedHexes ?? 0}/{userStats?.totals.dailyBudget ?? 10} today
           </Text>
         </View>
+      </View>
+
+      <View style={[styles.aqiPanel, { top: insets.top + 62 }]}>
+        <AirQualityCard
+          latitude={coordinate.latitude}
+          longitude={coordinate.longitude}
+        />
       </View>
 
       {territoryFreshness !== null ? (
@@ -408,13 +481,104 @@ function LiveMap() {
                 ? 'Safety signals unavailable'
                 : safetyAreas.some((area) => area.concernScore !== null)
                   ? 'Crowdsourced caution nearby'
-                  : 'Not enough safety data nearby'}
+                   : civicAreas.length > 0
+                     ? `${civicAreas.reduce((sum, area) => sum + area.totalReports, 0)} civic issue${civicAreas.reduce((sum, area) => sum + area.totalReports, 0) === 1 ? '' : 's'} nearby`
+                     : 'Not enough safety data nearby'}
           </Text>
           <Text style={[styles.safetyAdvisoryText, { color: colors.mutedForeground }]}>
-            Coarse community signals · not a safety guarantee
+            {civicAreas.length > 0
+              ? 'Coarse community reports · may be unreviewed'
+              : 'Coarse community signals · not a safety guarantee'}
           </Text>
         </View>
       </View>
+
+      <View
+        style={[
+          styles.communityControls,
+          {
+            bottom: Math.max(insets.bottom, 12) + 146,
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: showCivicLayer }}
+          onPress={() => setShowCivicLayer((current) => !current)}
+          style={[
+            styles.communityAction,
+            {
+              backgroundColor: showCivicLayer ? colors.accent : colors.muted,
+            },
+          ]}
+        >
+          <Feather name="map-pin" size={15} color={colors.primary} />
+          <Text style={[styles.communityActionText, { color: colors.foreground }]}>
+            Civic {showCivicLayer ? 'on' : 'off'}
+          </Text>
+        </Pressable>
+        {canAdoptCurrentZone && !currentZoneIsAdopted ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={adoptZone.isPending}
+            onPress={adoptCurrentZone}
+            style={[styles.communityAction, { backgroundColor: colors.muted }]}
+          >
+            {adoptZone.isPending ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Feather name="heart" size={15} color={colors.primary} />
+            )}
+            <Text style={[styles.communityActionText, { color: colors.foreground }]}>
+              Adopt zone
+            </Text>
+          </Pressable>
+        ) : null}
+        {latestCivicArea ? (
+          <>
+            <Pressable
+              accessibilityLabel="Confirm latest civic report as valid community information"
+              onPress={() => moderateLatestCivicReport('confirmed_valid')}
+              style={[styles.iconAction, { backgroundColor: colors.muted }]}
+            >
+              <Feather name="check" size={15} color={colors.primary} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Flag latest civic report as a duplicate"
+              onPress={() => moderateLatestCivicReport('duplicate')}
+              style={[styles.iconAction, { backgroundColor: colors.muted }]}
+            >
+              <Feather name="copy" size={15} color={colors.mutedForeground} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Flag latest civic report as inappropriate"
+              onPress={() => moderateLatestCivicReport('inappropriate')}
+              style={[styles.iconAction, { backgroundColor: colors.muted }]}
+            >
+              <Feather name="flag" size={15} color={colors.destructive} />
+            </Pressable>
+          </>
+        ) : null}
+      </View>
+      {civicNotice ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.civicNotice,
+            {
+              bottom: Math.max(insets.bottom, 12) + 202,
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.civicNoticeText, { color: colors.foreground }]}>
+            {civicNotice}
+          </Text>
+        </View>
+      ) : null}
 
       {territoryIsLoading ? (
         <View
@@ -513,6 +677,56 @@ function LiveMap() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  aqiPanel: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+  },
+  communityControls: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    padding: 6,
+    borderWidth: 1,
+    borderRadius: 16,
+  },
+  communityAction: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    borderRadius: 11,
+  },
+  communityActionText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+  },
+  iconAction: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  civicNotice: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  civicNoticeText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    textAlign: 'center',
   },
   safetyAdvisory: {
     position: 'absolute',

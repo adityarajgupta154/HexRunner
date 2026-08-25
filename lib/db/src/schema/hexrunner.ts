@@ -7,6 +7,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -153,6 +154,113 @@ export const hexrunnerSafetyReportsTable = pgTable(
   ],
 );
 
+export const hexrunnerCivicReportsTable = pgTable(
+  "hexrunner_civic_reports",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    runId: text("run_id").references(() => hexrunnerRunsTable.id, {
+      onDelete: "set null",
+    }),
+    category: text("category").notNull(),
+    areaH3Index: text("area_h3_index").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    note: text("note"),
+    photoObjectPath: text("photo_object_path").notNull(),
+    moderationState: text("moderation_state")
+      .default("unreviewed")
+      .notNull(),
+    duplicateOfId: text("duplicate_of_id"),
+    flagCount: integer("flag_count").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hexrunner_civic_reports_area_created_idx").on(
+      table.areaH3Index,
+      table.createdAt,
+    ),
+    index("hexrunner_civic_reports_reporter_idx").on(table.reporterId),
+    index("hexrunner_civic_reports_moderation_idx").on(table.moderationState),
+    uniqueIndex("hexrunner_civic_reports_photo_path_unique").on(
+      table.photoObjectPath,
+    ),
+  ],
+);
+
+export const hexrunnerCivicUploadGrantsTable = pgTable(
+  "hexrunner_civic_upload_grants",
+  {
+    objectPath: text("object_path").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    sealedObjectPath: text("sealed_object_path"),
+    contentSha256: text("content_sha256"),
+    sealedAt: timestamp("sealed_at", { withTimezone: true }),
+    stagingCleanedAt: timestamp("staging_cleaned_at", {
+      withTimezone: true,
+    }),
+    deleteAttempts: integer("delete_attempts").default(0).notNull(),
+    lastDeleteError: text("last_delete_error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hexrunner_civic_upload_grants_owner_idx").on(table.ownerId),
+    index("hexrunner_civic_upload_grants_expiry_idx").on(table.expiresAt),
+    uniqueIndex("hexrunner_civic_upload_grants_sealed_unique").on(
+      table.sealedObjectPath,
+    ),
+  ],
+);
+
+export const hexrunnerCivicReportFlagsTable = pgTable(
+  "hexrunner_civic_report_flags",
+  {
+    reportId: text("report_id")
+      .notNull()
+      .references(() => hexrunnerCivicReportsTable.id, {
+        onDelete: "cascade",
+      }),
+    flaggerId: text("flagger_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.reportId, table.flaggerId] }),
+    index("hexrunner_civic_report_flags_report_idx").on(table.reportId),
+  ],
+);
+
+export const hexrunnerZoneCaretakersTable = pgTable(
+  "hexrunner_zone_caretakers",
+  {
+    h3Index: text("h3_index").primaryKey(),
+    caretakerId: text("caretaker_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    adoptedAt: timestamp("adopted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("hexrunner_zone_caretakers_user_idx").on(table.caretakerId),
+  ],
+);
+
 export const insertHexrunnerUserSchema =
   createInsertSchema(hexrunnerUsersTable);
 export const insertHexrunnerRunSchema = createInsertSchema(hexrunnerRunsTable);
@@ -167,6 +275,18 @@ export const insertHexrunnerTakeoverEventSchema = createInsertSchema(
 );
 export const insertHexrunnerSafetyReportSchema = createInsertSchema(
   hexrunnerSafetyReportsTable,
+);
+export const insertHexrunnerCivicReportSchema = createInsertSchema(
+  hexrunnerCivicReportsTable,
+);
+export const insertHexrunnerCivicUploadGrantSchema = createInsertSchema(
+  hexrunnerCivicUploadGrantsTable,
+);
+export const insertHexrunnerCivicReportFlagSchema = createInsertSchema(
+  hexrunnerCivicReportFlagsTable,
+);
+export const insertHexrunnerZoneCaretakerSchema = createInsertSchema(
+  hexrunnerZoneCaretakersTable,
 );
 
 export type HexrunnerUser = typeof hexrunnerUsersTable.$inferSelect;
@@ -191,4 +311,24 @@ export type HexrunnerSafetyReport =
   typeof hexrunnerSafetyReportsTable.$inferSelect;
 export type InsertHexrunnerSafetyReport = z.infer<
   typeof insertHexrunnerSafetyReportSchema
+>;
+export type HexrunnerCivicReport =
+  typeof hexrunnerCivicReportsTable.$inferSelect;
+export type InsertHexrunnerCivicReport = z.infer<
+  typeof insertHexrunnerCivicReportSchema
+>;
+export type HexrunnerCivicUploadGrant =
+  typeof hexrunnerCivicUploadGrantsTable.$inferSelect;
+export type InsertHexrunnerCivicUploadGrant = z.infer<
+  typeof insertHexrunnerCivicUploadGrantSchema
+>;
+export type HexrunnerCivicReportFlag =
+  typeof hexrunnerCivicReportFlagsTable.$inferSelect;
+export type InsertHexrunnerCivicReportFlag = z.infer<
+  typeof insertHexrunnerCivicReportFlagSchema
+>;
+export type HexrunnerZoneCaretaker =
+  typeof hexrunnerZoneCaretakersTable.$inferSelect;
+export type InsertHexrunnerZoneCaretaker = z.infer<
+  typeof insertHexrunnerZoneCaretakerSchema
 >;

@@ -6,12 +6,32 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './adoptCivicZoneRequest';
+export * from './adoptCivicZoneResult';
+export * from './airQualityLevel';
+export * from './airQualityResult';
 export * from './anonymousIdentityCredential';
 export * from './anonymousIdentityRegistration';
 export * from './apiError';
+export * from './civicAreaSignal';
+export * from './civicCaretakerSignal';
+export * from './civicCategory';
+export * from './civicMapLookupRequest';
+export * from './civicMapLookupResult';
+export * from './civicModerationState';
+export * from './civicPhotoUploadRequest';
+export * from './civicPhotoUploadRequestContentType';
+export * from './civicPhotoUploadResult';
+export * from './createCivicReportRequest';
+export * from './createCivicReportResult';
 export * from './createSafetyReportRequest';
 export * from './createSafetyReportResult';
+export * from './exerciseWindow';
 export * from './fitnessTier';
+export * from './flagCivicReportRequest';
+export * from './flagCivicReportRequestReason';
+export * from './flagCivicReportResult';
+export * from './getAirQualityParams';
 export * from './getLeaderboardParams';
 export * from './healthStatus';
 export * from './hexOwnership';

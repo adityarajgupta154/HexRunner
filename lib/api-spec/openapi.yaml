@@ -18,6 +18,10 @@ tags:
     description: HexRunner territory ownership
   - name: safety
     description: Privacy-preserving crowdsourced route safety signals
+  - name: airQuality
+    description: Sourced local air-quality guidance
+  - name: civic
+    description: Coarse, moderated community street-issue reports
   - name: users
     description: HexRunner user statistics and rankings
 paths:
@@ -211,6 +215,209 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SafetyAreaLookupResult"
+  /air-quality:
+    get:
+      operationId: getAirQuality
+      tags: [airQuality]
+      summary: Get sourced current and forecast air quality
+      description: Proxies Open-Meteo air-quality data and returns explicit source, observation time, fetch time, freshness, and non-medical exercise guidance.
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+      responses:
+        "200":
+          description: Sourced AQI reading and guidance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AirQualityResult"
+        "400":
+          description: Invalid coordinates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Source unavailable or returned no usable current AQI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /civic-photo-uploads:
+    post:
+      operationId: requestCivicPhotoUpload
+      tags: [civic]
+      summary: Request a short-lived civic photo upload URL
+      security:
+        - anonymousDeviceCredential: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CivicPhotoUploadRequest"
+      responses:
+        "200":
+          description: Short-lived App Storage upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CivicPhotoUploadResult"
+        "400":
+          description: Invalid photo metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Missing or invalid device credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /civic-reports:
+    post:
+      operationId: createCivicReport
+      tags: [civic]
+      summary: Submit a coarse civic issue report
+      description: Persists photo-backed issue metadata without exposing reporter identity or exact coordinates publicly.
+      security:
+        - anonymousDeviceCredential: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCivicReportRequest"
+      responses:
+        "200":
+          description: Idempotent civic report result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCivicReportResult"
+        "201":
+          description: Civic report accepted for moderation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateCivicReportResult"
+        "400":
+          description: Invalid report or missing uploaded photo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Missing or invalid device credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /civic-reports/{reportId}/flags:
+    post:
+      operationId: flagCivicReport
+      tags: [civic]
+      summary: Flag a duplicate or inappropriate civic report
+      security:
+        - anonymousDeviceCredential: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 120
+            pattern: "^[A-Za-z0-9_-]+$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlagCivicReportRequest"
+      responses:
+        "200":
+          description: Flag recorded idempotently
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlagCivicReportResult"
+        "401":
+          description: Missing or invalid device credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Report not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /civic-map/lookup:
+    post:
+      operationId: lookupCivicMap
+      tags: [civic]
+      summary: Look up privacy-safe civic issues and informal caretakers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CivicMapLookupRequest"
+      responses:
+        "200":
+          description: Coarse public civic map layer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CivicMapLookupResult"
+  /civic-caretakers:
+    post:
+      operationId: adoptCivicZone
+      tags: [civic]
+      summary: Informally adopt a currently owned territory zone
+      description: This community label grants no authority, exclusivity, or municipal role and does not change territory ownership.
+      security:
+        - anonymousDeviceCredential: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdoptCivicZoneRequest"
+      responses:
+        "200":
+          description: Existing or newly recorded informal adoption
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdoptCivicZoneResult"
+        "401":
+          description: Missing or invalid device credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Zone is not currently owned by this runner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /leaderboard:
     get:
       operationId: getLeaderboard
@@ -614,6 +821,244 @@ components:
         advisory:
           type: string
       required: [areas, advisory]
+    AirQualityLevel:
+      type: string
+      enum: [good, moderate, unhealthy_sensitive, unhealthy, very_unhealthy, hazardous]
+    AirQualityResult:
+      type: object
+      properties:
+        aqi:
+          type: number
+          multipleOf: 1
+          minimum: 0
+          maximum: 500
+        level:
+          $ref: "#/components/schemas/AirQualityLevel"
+        healthContext:
+          type: string
+        observationTime:
+          type: string
+          format: date-time
+        fetchedAt:
+          type: string
+          format: date-time
+        isStale:
+          type: boolean
+        sourceName:
+          type: string
+        sourceUrl:
+          type: string
+        suggestedWindow:
+          oneOf:
+            - $ref: "#/components/schemas/ExerciseWindow"
+            - type: "null"
+        disclaimer:
+          type: string
+      required: [aqi, level, healthContext, observationTime, fetchedAt, isStale, sourceName, sourceUrl, suggestedWindow, disclaimer]
+    ExerciseWindow:
+      type: object
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        expectedAqi:
+          type: number
+          multipleOf: 1
+          minimum: 0
+          maximum: 500
+        reason:
+          type: string
+      required: [startsAt, endsAt, expectedAqi, reason]
+    CivicCategory:
+      type: string
+      enum: [pothole, garbage, broken_streetlight]
+    CivicModerationState:
+      type: string
+      enum: [unreviewed, possible_duplicate, flagged, reviewed]
+    CivicPhotoUploadRequest:
+      type: object
+      properties:
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        sizeBytes:
+          type: number
+          multipleOf: 1
+          minimum: 1
+          maximum: 10485760
+      required: [contentType, sizeBytes]
+    CivicPhotoUploadResult:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+        objectPath:
+          type: string
+          pattern: "^/civic-photos/[A-Za-z0-9_-]+$"
+        expiresAt:
+          type: string
+          format: date-time
+      required: [uploadUrl, objectPath, expiresAt]
+    CreateCivicReportRequest:
+      type: object
+      properties:
+        clientReportId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        clientRunId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        category:
+          $ref: "#/components/schemas/CivicCategory"
+        areaH3Index:
+          type: string
+          minLength: 15
+          maxLength: 16
+          pattern: "^88[0-9a-f]{13}$"
+        occurredAt:
+          type: string
+          format: date-time
+        note:
+          type: string
+          maxLength: 280
+        photoObjectPath:
+          type: string
+          pattern: "^/civic-photos/[A-Za-z0-9_-]+$"
+        consentToPublishCoarseReport:
+          type: boolean
+      required: [clientReportId, clientRunId, category, areaH3Index, occurredAt, photoObjectPath, consentToPublishCoarseReport]
+    CreateCivicReportResult:
+      type: object
+      properties:
+        reportId:
+          type: string
+        accepted:
+          type: boolean
+        duplicate:
+          type: boolean
+        moderationState:
+          $ref: "#/components/schemas/CivicModerationState"
+        advisory:
+          type: string
+      required: [reportId, accepted, duplicate, moderationState, advisory]
+    FlagCivicReportRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          enum: [duplicate, inappropriate, confirmed_valid]
+      required: [reason]
+    FlagCivicReportResult:
+      type: object
+      properties:
+        reportId:
+          type: string
+        recorded:
+          type: boolean
+        flagCount:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        moderationState:
+          $ref: "#/components/schemas/CivicModerationState"
+      required: [reportId, recorded, flagCount, moderationState]
+    CivicMapLookupRequest:
+      type: object
+      properties:
+        areaH3Indexes:
+          type: array
+          minItems: 1
+          maxItems: 500
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^88[0-9a-f]{13}$"
+        h3Indexes:
+          type: array
+          maxItems: 1000
+          uniqueItems: true
+          items:
+            type: string
+            pattern: "^89[0-9a-f]{13}$"
+      required: [areaH3Indexes, h3Indexes]
+    CivicAreaSignal:
+      type: object
+      properties:
+        areaH3Index:
+          type: string
+        totalReports:
+          type: number
+          multipleOf: 1
+          minimum: 1
+        unreviewedReports:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        categories:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/CivicCategory"
+        latestReportAt:
+          type: string
+          format: date-time
+        latestReportId:
+          type: string
+      required: [areaH3Index, totalReports, unreviewedReports, categories, latestReportAt, latestReportId]
+    CivicCaretakerSignal:
+      type: object
+      properties:
+        h3Index:
+          type: string
+        adoptedAt:
+          type: string
+          format: date-time
+        label:
+          type: string
+      required: [h3Index, adoptedAt, label]
+    CivicMapLookupResult:
+      type: object
+      properties:
+        areas:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/CivicAreaSignal"
+        caretakers:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: "#/components/schemas/CivicCaretakerSignal"
+        advisory:
+          type: string
+      required: [areas, caretakers, advisory]
+    AdoptCivicZoneRequest:
+      type: object
+      properties:
+        h3Index:
+          type: string
+          pattern: "^89[0-9a-f]{13}$"
+      required: [h3Index]
+    AdoptCivicZoneResult:
+      type: object
+      properties:
+        h3Index:
+          type: string
+        adoptedAt:
+          type: string
+          format: date-time
+        informal:
+          type: boolean
+        advisory:
+          type: string
+      required: [h3Index, adoptedAt, informal, advisory]
     LeaderboardEntry:
       type: object
       properties:

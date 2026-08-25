@@ -14,7 +14,10 @@ import {
   buildTerritoryPaintSpots,
   type TerritoryRoutePoint,
 } from '@/src/services/territoryDisplay';
-import type { SafetyAreaSignal } from '@workspace/api-client-react';
+import type {
+  CivicAreaSignal,
+  SafetyAreaSignal,
+} from '@workspace/api-client-react';
 import { hexToCenter } from '@/src/services/hexEngine';
 
 export type TerritoryPaintProps = {
@@ -24,6 +27,8 @@ export type TerritoryPaintProps = {
   claimReadyHexIndexes?: ReadonlySet<string>;
   routePoints?: readonly TerritoryRoutePoint[];
   safetyAreas?: readonly SafetyAreaSignal[];
+  civicAreas?: readonly CivicAreaSignal[];
+  caretakerH3Indexes?: ReadonlySet<string>;
 };
 
 type CanvasPoint = { x: number; y: number };
@@ -55,6 +60,8 @@ export default function TerritoryPaint({
   claimReadyHexIndexes,
   routePoints = [],
   safetyAreas = [],
+  civicAreas = [],
+  caretakerH3Indexes,
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -155,6 +162,48 @@ export default function TerritoryPaint({
               />
             );
           })}
+
+        {civicAreas.map((area) => {
+          const centerPoint = hexToCenter(area.areaH3Index);
+          const point = project(
+            centerPoint.latitude,
+            centerPoint.longitude,
+            origin,
+          );
+          return (
+            <Circle
+              key={`civic:${area.areaH3Index}`}
+              cx={point.x}
+              cy={point.y}
+              r={Math.max(24, 70 * spotScale)}
+              fill={colors.accentForeground}
+              fillOpacity={0.72}
+              stroke={colors.card}
+              strokeWidth={8}
+            />
+          );
+        })}
+
+        {[...(caretakerH3Indexes ?? [])].map((h3Index) => {
+          const centerPoint = hexToCenter(h3Index);
+          const point = project(
+            centerPoint.latitude,
+            centerPoint.longitude,
+            origin,
+          );
+          return (
+            <Circle
+              key={`caretaker:${h3Index}`}
+              cx={point.x}
+              cy={point.y}
+              r={Math.max(34, 95 * spotScale)}
+              fill="none"
+              stroke={colors.primary}
+              strokeOpacity={0.92}
+              strokeWidth={7}
+            />
+          );
+        })}
 
         {spots.map((spot) => {
           const point = project(

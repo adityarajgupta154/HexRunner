@@ -53,6 +53,14 @@ Safety reports must remain coarse, advisory, run-bound signals; never expose raw
 
 **How to apply:** keep trusted contacts device-local, queue only coarse cells, verify report area/time against a plausible saved run, serialize quotas, and show “not enough data” below the established-run crowd threshold.
 
+## Civic photo evidence boundary
+
+Treat client-uploaded civic photos as temporary staging only; accepted reports must reference a server-sealed immutable copy, never an object covered by a client-visible write URL.
+
+**Why:** validating a staging object is insufficient while its signed upload URL remains usable, because the client could replace the bytes after validation. Retained consumed grants can also starve draft cleanup unless staging cleanup advances monotonically.
+
+**How to apply:** bound and decode the complete image, hash and copy it to a server-only object, enforce a hard sealed-draft expiry, delete staging after the upload URL expires, and keep consumed-staging cleanup in a separate marked queue from expired drafts.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.
