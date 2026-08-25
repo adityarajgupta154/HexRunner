@@ -9,13 +9,15 @@ import {
   hexrunnerRunsTable,
   hexrunnerUsersTable,
 } from "@workspace/db";
+import { verifyAnonymousCredential } from "../lib/anonymousCredential";
 
 const router: IRouter = Router();
 const RUN_POINT_INSERT_BATCH_SIZE = 5_000;
 const H3_RESOLUTION = 9;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1_000;
 
-router.post("/runs", async (req, res) => {
+router.post("/runs", async (req, res): Promise<void> => {
+  const authorization = req.get("authorization");
   const parsed = SaveRunBody.safeParse(req.body);
 
   if (!parsed.success) {
@@ -51,7 +53,7 @@ router.post("/runs", async (req, res) => {
       await tx
         .insert(hexrunnerUsersTable)
         .values({
-          id: run.userId,
+          id: userId,
           lastSeenAt: now,
         })
         .onConflictDoUpdate({
@@ -105,7 +107,7 @@ router.post("/runs", async (req, res) => {
         .insert(hexrunnerRunsTable)
         .values({
           id: run.clientRunId,
-          userId: run.userId,
+          userId,
           startedAt: run.startedAt,
           endedAt: run.endedAt,
           elapsedSeconds: run.elapsedSeconds,
@@ -195,7 +197,7 @@ router.post("/runs", async (req, res) => {
           .values(
             run.claimedHexes.map((h3Index) => ({
               h3Index,
-              ownerId: run.userId,
+              ownerId: userId,
               lastRunId: run.clientRunId,
               claimedAt: now,
             })),
@@ -203,7 +205,7 @@ router.post("/runs", async (req, res) => {
           .onConflictDoUpdate({
             target: hexrunnerHexOwnershipTable.h3Index,
             set: {
-              ownerId: run.userId,
+              ownerId: userId,
               lastRunId: run.clientRunId,
               claimedAt: now,
             },
@@ -214,7 +216,7 @@ router.post("/runs", async (req, res) => {
           .set({
             totalHexesOwned: sql`${hexrunnerUsersTable.totalHexesOwned} + ${run.claimedHexes.length}`,
           })
-          .where(eq(hexrunnerUsersTable.id, run.userId));
+          .where(eq(hexrunnerUsersTable.id, userId));
       }
 
       return {
@@ -263,3 +265,10 @@ router.post("/runs", async (req, res) => {
 });
 
 export default router;
+  const credential =
+    authorization?.startsWith("Bearer ")
+      ? authorization.slice("Bearer ".length).trim()
+      : "";
+  const userId = credential
+    ? verifyAnonymousCredential(credential)
+    : null;

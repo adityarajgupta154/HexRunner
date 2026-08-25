@@ -18,6 +18,43 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * Claims an unused locally generated device UID and returns a server-verifiable credential.
+ * @summary Register an anonymous device identity
+ */
+export const registerAnonymousIdentityBodyRequestedUserIdMin = 8;
+export const registerAnonymousIdentityBodyRequestedUserIdMax = 120;
+
+
+export const registerAnonymousIdentityBodyRequestedUserIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const registerAnonymousIdentityBodyEnrollmentSecretMin = 64;
+export const registerAnonymousIdentityBodyEnrollmentSecretMax = 128;
+
+
+export const registerAnonymousIdentityBodyEnrollmentSecretRegExp = new RegExp('^[0-9a-f]+$');
+
+
+export const RegisterAnonymousIdentityBody = zod.object({
+  "requestedUserId": zod.string().min(registerAnonymousIdentityBodyRequestedUserIdMin).max(registerAnonymousIdentityBodyRequestedUserIdMax).regex(registerAnonymousIdentityBodyRequestedUserIdRegExp),
+  "enrollmentSecret": zod.string().min(registerAnonymousIdentityBodyEnrollmentSecretMin).max(registerAnonymousIdentityBodyEnrollmentSecretMax).regex(registerAnonymousIdentityBodyEnrollmentSecretRegExp)
+})
+
+export const registerAnonymousIdentityResponseUserIdMin = 8;
+export const registerAnonymousIdentityResponseUserIdMax = 120;
+
+
+export const registerAnonymousIdentityResponseUserIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const registerAnonymousIdentityResponseCredentialMin = 32;
+export const registerAnonymousIdentityResponseCredentialMax = 1024;
+
+
+
+export const RegisterAnonymousIdentityResponse = zod.object({
+  "userId": zod.string().min(registerAnonymousIdentityResponseUserIdMin).max(registerAnonymousIdentityResponseUserIdMax).regex(registerAnonymousIdentityResponseUserIdRegExp),
+  "credential": zod.string().min(registerAnonymousIdentityResponseCredentialMin).max(registerAnonymousIdentityResponseCredentialMax)
+})
+
+
+/**
  * Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
  * @summary Save a completed run
  */
@@ -26,11 +63,6 @@ export const saveRunBodyClientRunIdMax = 120;
 
 
 export const saveRunBodyClientRunIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
-export const saveRunBodyUserIdMin = 8;
-export const saveRunBodyUserIdMax = 120;
-
-
-export const saveRunBodyUserIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
 export const saveRunBodyElapsedSecondsMin = 0;
 export const saveRunBodyElapsedSecondsMultipleOf = 1;
 
@@ -68,7 +100,6 @@ export const saveRunBodyAntiSpoofMaxSpeedMetersPerSecondMin = 0;
 
 export const SaveRunBody = zod.object({
   "clientRunId": zod.string().min(saveRunBodyClientRunIdMin).max(saveRunBodyClientRunIdMax).regex(saveRunBodyClientRunIdRegExp),
-  "userId": zod.string().min(saveRunBodyUserIdMin).max(saveRunBodyUserIdMax).regex(saveRunBodyUserIdRegExp),
   "startedAt": zod.coerce.date(),
   "endedAt": zod.coerce.date(),
   "elapsedSeconds": zod.number().min(saveRunBodyElapsedSecondsMin).multipleOf(saveRunBodyElapsedSecondsMultipleOf),

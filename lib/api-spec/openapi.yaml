@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: identity
+    description: HexRunner anonymous device identity
   - name: runs
     description: HexRunner run persistence
   - name: territory
@@ -30,6 +32,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /anonymous-identities:
+    post:
+      operationId: registerAnonymousIdentity
+      tags: [identity]
+      summary: Register an anonymous device identity
+      description: Claims an unused locally generated device UID and returns a server-verifiable credential.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnonymousIdentityRegistration"
+      responses:
+        "200":
+          description: Existing enrollment recovered idempotently
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnonymousIdentityCredential"
+        "201":
+          description: Anonymous device identity registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnonymousIdentityCredential"
+        "400":
+          description: Invalid identity registration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Requested UID is already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Identity could not be registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /runs:
     post:
       operationId: saveRun
@@ -57,6 +102,12 @@ paths:
                 $ref: "#/components/schemas/SaveRunResult"
         "400":
           description: Invalid run payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Missing or invalid anonymous device credential
           content:
             application/json:
               schema:
@@ -162,6 +213,33 @@ components:
           type: string
       required:
         - status
+    AnonymousIdentityRegistration:
+      type: object
+      properties:
+        requestedUserId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        enrollmentSecret:
+          type: string
+          minLength: 64
+          maxLength: 128
+          pattern: "^[0-9a-f]+$"
+      required: [requestedUserId, enrollmentSecret]
+    AnonymousIdentityCredential:
+      type: object
+      properties:
+        userId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        credential:
+          type: string
+          minLength: 32
+          maxLength: 1024
+      required: [userId, credential]
     RunPoint:
       type: object
       properties:
@@ -230,8 +308,6 @@ components:
           minLength: 8
           maxLength: 120
           pattern: "^[A-Za-z0-9_-]+$"
-        userId:
-          $ref: "#/components/schemas/UserId"
         startedAt:
           type: string
           format: date-time
@@ -263,7 +339,6 @@ components:
           $ref: "#/components/schemas/RunAntiSpoofAdvisory"
       required:
         - clientRunId
-        - userId
         - startedAt
         - endedAt
         - elapsedSeconds

@@ -22,6 +22,14 @@ import { setBaseUrl } from '@workspace/api-client-react';
 SplashScreen.preventAutoHideAsync();
 
 const configuredDomain = process.env.EXPO_PUBLIC_DOMAIN?.trim();
+
+const apiOrigin = configuredDomain
+  ? /^https?:\/\//i.test(configuredDomain)
+    ? configuredDomain
+    : `https://${configuredDomain}`
+  : typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : null;
 if (configuredDomain) {
   setBaseUrl(/^https?:\/\//i.test(configuredDomain) ? configuredDomain : `https://${configuredDomain}`);
 } else if (typeof window !== 'undefined' && window.location?.origin) {

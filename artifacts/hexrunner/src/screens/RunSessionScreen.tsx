@@ -83,7 +83,13 @@ export default function RunSessionScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { uid, loading: identityLoading, error: identityError } = useAuth();
+  const {
+    uid,
+    loading: identityLoading,
+    error: identityError,
+    notice: identityNotice,
+    dismissNotice: dismissIdentityNotice,
+  } = useAuth();
   const startTimeRef = useRef<number | null>(null);
   const lastPointRef = useRef<RunPoint | null>(null);
   const distanceKmRef = useRef(0);
@@ -242,7 +248,6 @@ export default function RunSessionScreen() {
 
     const pendingRun: PendingRun = {
       clientRunId,
-      userId: uid,
       startedAt: new Date(startedAt).toISOString(),
       endedAt: new Date(endedAt).toISOString(),
       elapsedSeconds: finalElapsedSeconds,
@@ -473,6 +478,31 @@ export default function RunSessionScreen() {
               <Text style={[styles.errorText, { color: colors.foreground }]}>
                 {error ?? identityError}
               </Text>
+            </View>
+          ) : null}
+
+          {identityNotice ? (
+            <View
+              style={[
+                styles.errorCard,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.primary,
+                },
+              ]}
+            >
+              <Feather name="info" size={18} color={colors.primary} />
+              <Text style={[styles.errorText, { color: colors.foreground }]}>
+                {identityNotice}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss identity notice"
+                hitSlop={8}
+                onPress={() => void dismissIdentityNotice()}
+              >
+                <Feather name="x" size={18} color={colors.mutedForeground} />
+              </Pressable>
             </View>
           ) : null}
         </View>

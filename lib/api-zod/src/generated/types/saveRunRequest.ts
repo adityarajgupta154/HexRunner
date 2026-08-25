@@ -7,7 +7,6 @@
  */
 import type { RunAntiSpoofAdvisory } from './runAntiSpoofAdvisory';
 import type { RunPoint } from './runPoint';
-import type { UserId } from './userId';
 
 export interface SaveRunRequest {
   /**
@@ -16,7 +15,6 @@ export interface SaveRunRequest {
      * @pattern ^[A-Za-z0-9_-]+$
      */
   clientRunId: string;
-  userId: UserId;
   startedAt: Date;
   endedAt: Date;
   /** @minimum 0 */

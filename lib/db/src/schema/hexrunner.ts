@@ -15,6 +15,7 @@ export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   id: text("id").primaryKey(),
   displayName: text("display_name"),
   totalHexesOwned: integer("total_hexes_owned").default(0).notNull(),
+  enrollmentSecretHash: text("enrollment_secret_hash"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

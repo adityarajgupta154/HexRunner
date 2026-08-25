@@ -9,6 +9,35 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface AnonymousIdentityRegistration {
+  /**
+     * @minLength 8
+     * @maxLength 120
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  requestedUserId: string;
+  /**
+     * @minLength 64
+     * @maxLength 128
+     * @pattern ^[0-9a-f]+$
+     */
+  enrollmentSecret: string;
+}
+
+export interface AnonymousIdentityCredential {
+  /**
+     * @minLength 8
+     * @maxLength 120
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  userId: string;
+  /**
+     * @minLength 32
+     * @maxLength 1024
+     */
+  credential: string;
+}
+
 export interface RunPoint {
   /**
      * @minimum -90
@@ -69,7 +98,6 @@ export interface SaveRunRequest {
      * @pattern ^[A-Za-z0-9_-]+$
      */
   clientRunId: string;
-  userId: UserId;
   startedAt: string;
   endedAt: string;
   /** @minimum 0 */

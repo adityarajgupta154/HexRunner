@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AnonymousIdentityCredential,
+  AnonymousIdentityRegistration,
   ApiError,
   GetLeaderboardParams,
   HealthStatus,
@@ -130,9 +132,77 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+export const getRegisterAnonymousIdentityUrl = () => {
 
 
 
+
+  return `/api/anonymous-identities`
+}
+
+/**
+ * Claims an unused locally generated device UID and returns a server-verifiable credential.
+ * @summary Register an anonymous device identity
+ */
+export const registerAnonymousIdentity = async (anonymousIdentityRegistration: AnonymousIdentityRegistration, options?: Parameters<typeof customFetch>[1]): Promise<AnonymousIdentityCredential> => {
+
+  return customFetch<AnonymousIdentityCredential>(getRegisterAnonymousIdentityUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(anonymousIdentityRegistration)
+  }
+);}
+
+
+
+
+
+export const getRegisterAnonymousIdentityMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerAnonymousIdentity>>, TError,{data: BodyType<AnonymousIdentityRegistration>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerAnonymousIdentity>>, TError,{data: BodyType<AnonymousIdentityRegistration>}, TContext> => {
+
+const mutationKey = ['registerAnonymousIdentity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerAnonymousIdentity>>, {data: BodyType<AnonymousIdentityRegistration>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerAnonymousIdentity(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterAnonymousIdentityMutationResult = NonNullable<Awaited<ReturnType<typeof registerAnonymousIdentity>>>
+    export type RegisterAnonymousIdentityMutationBody = BodyType<AnonymousIdentityRegistration>
+    export type RegisterAnonymousIdentityMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Register an anonymous device identity
+ */
+export const useRegisterAnonymousIdentity = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerAnonymousIdentity>>, TError,{data: BodyType<AnonymousIdentityRegistration>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerAnonymousIdentity>>,
+        TError,
+        {data: BodyType<AnonymousIdentityRegistration>},
+        TContext
+      > => {
+      return useMutation(getRegisterAnonymousIdentityMutationOptions(options));
+    }
 
 export const getSaveRunUrl = () => {
 
@@ -356,7 +426,6 @@ export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboa
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
 
 
 

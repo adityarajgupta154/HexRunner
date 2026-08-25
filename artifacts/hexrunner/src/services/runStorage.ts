@@ -1,6 +1,5 @@
 import {
   saveRun,
-  setBaseUrl,
   type SaveRunRequest,
   type SaveRunResult,
 } from '@workspace/api-client-react';
@@ -9,27 +8,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 let pendingRun: SaveRunRequest | null = null;
 const saveRequests = new Map<string, Promise<SaveRunResult>>();
 const PENDING_RUN_KEY = '@hexrunner/pending-run';
-
-function apiOrigin(): string | null {
-  const configuredDomain = process.env.EXPO_PUBLIC_DOMAIN?.trim();
-
-  if (configuredDomain) {
-    return /^https?:\/\//i.test(configuredDomain)
-      ? configuredDomain
-      : `https://${configuredDomain}`;
-  }
-
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    return window.location.origin;
-  }
-
-  return null;
-}
-
-const baseUrl = apiOrigin();
-if (baseUrl) {
-  setBaseUrl(baseUrl);
-}
 
 export type PendingRun = SaveRunRequest;
 
@@ -81,10 +59,6 @@ export async function clearPendingRun(clientRunId: string): Promise<void> {
 export async function savePendingRun(
   clientRunId: string,
 ): Promise<SaveRunResult> {
-  if (!baseUrl) {
-    throw new Error('The Replit API address is unavailable.');
-  }
-
   const run = await loadPendingRun(clientRunId);
   if (!run) {
     throw new Error('This run is no longer available to save.');

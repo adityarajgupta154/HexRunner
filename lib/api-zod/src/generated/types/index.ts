@@ -6,6 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './anonymousIdentityCredential';
+export * from './anonymousIdentityRegistration';
 export * from './apiError';
 export * from './getLeaderboardParams';
 export * from './healthStatus';
