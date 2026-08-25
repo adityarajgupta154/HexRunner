@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { GetAirQualityQueryParams } from "@workspace/api-zod";
 import {
   AIR_QUALITY_CACHE_TTL_MS,
+  AIR_QUALITY_STALE_IF_ERROR_MS,
   AirQualityAreaCache,
   buildAirQualityResponse,
   coarseAirQualityArea,
@@ -13,6 +14,7 @@ const router: IRouter = Router();
 
 const sourceCache = new AirQualityAreaCache<AirQualitySnapshot>(
   AIR_QUALITY_CACHE_TTL_MS,
+  { staleIfErrorMs: AIR_QUALITY_STALE_IF_ERROR_MS },
 );
 
 class AirQualitySourceError extends Error {
@@ -76,10 +78,25 @@ router.get("/air-quality", async (req, res): Promise<void> => {
   );
 
   try {
-    const snapshot = await sourceCache.getOrLoad(area.key, () =>
+    const cacheResult = await sourceCache.getOrLoad(area.key, () =>
       fetchAirQualitySnapshot(area.latitude, area.longitude),
     );
-    res.json(buildAirQualityResponse(snapshot));
+    if (cacheResult.isFallback) {
+      req.log.warn(
+        {
+          fetchedAt: cacheResult.value.fetchedAt,
+          staleIfErrorMs: AIR_QUALITY_STALE_IF_ERROR_MS,
+        },
+        "Serving last-known air quality after an upstream failure",
+      );
+    }
+    res.json(
+      buildAirQualityResponse(
+        cacheResult.value,
+        new Date(),
+        cacheResult.isFallback,
+      ),
+    );
   } catch (error) {
     if (error instanceof AirQualitySourceError) {
       req.log.warn(

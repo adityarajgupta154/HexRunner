@@ -39,8 +39,12 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
     const first = await cache.getOrLoad("area", loader);
     const second = await cache.getOrLoad("area", loader);
 
-    assert.deepEqual(first, { sequence: 1 });
-    assert.strictEqual(second, first);
+    assert.deepEqual(first, {
+      value: { sequence: 1 },
+      isFallback: false,
+    });
+    assert.strictEqual(second.value, first.value);
+    assert.equal(second.isFallback, false);
     assert.equal(calls, 1);
   });
 
@@ -68,14 +72,22 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
   test("loads a fresh value when the cache entry expires", async () => {
     let now = 1_000;
     let calls = 0;
-    const cache = new AirQualityAreaCache<{ sequence: number }>(100, () => now);
+    const cache = new AirQualityAreaCache<{ sequence: number }>(100, {
+      now: () => now,
+    });
     const loader = async () => ({ sequence: ++calls });
 
-    assert.deepEqual(await cache.getOrLoad("area", loader), { sequence: 1 });
+    assert.deepEqual((await cache.getOrLoad("area", loader)).value, {
+      sequence: 1,
+    });
     now = 1_099;
-    assert.deepEqual(await cache.getOrLoad("area", loader), { sequence: 1 });
+    assert.deepEqual((await cache.getOrLoad("area", loader)).value, {
+      sequence: 1,
+    });
     now = 1_100;
-    assert.deepEqual(await cache.getOrLoad("area", loader), { sequence: 2 });
+    assert.deepEqual((await cache.getOrLoad("area", loader)).value, {
+      sequence: 2,
+    });
     assert.equal(calls, 2);
   });
 
@@ -92,13 +104,92 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
       cache.getOrLoad("area", loader),
       /upstream unavailable/,
     );
-    assert.deepEqual(await cache.getOrLoad("area", loader), {
+    assert.deepEqual((await cache.getOrLoad("area", loader)).value, {
       available: true,
     });
     assert.equal(calls, 2);
   });
 
-  test("preserves fetch time while recomputing stale state and future windows", () => {
+  test("serves an expired snapshot only within the stale-if-error grace period", async () => {
+    let now = 1_000;
+    const cachedValue = { sequence: 1 };
+    const cache = new AirQualityAreaCache<{ sequence: number }>(100, {
+      staleIfErrorMs: 200,
+      now: () => now,
+    });
+
+    assert.deepEqual(
+      await cache.getOrLoad("area", async () => cachedValue),
+      { value: cachedValue, isFallback: false },
+    );
+
+    now = 1_100;
+    assert.deepEqual(
+      await cache.getOrLoad("area", async () => {
+        throw new Error("upstream unavailable");
+      }),
+      { value: cachedValue, isFallback: true },
+    );
+
+    now = 1_299;
+    assert.equal(
+      (
+        await cache.getOrLoad("area", async () => {
+          throw new Error("upstream unavailable");
+        })
+      ).isFallback,
+      true,
+    );
+
+    now = 1_300;
+    await assert.rejects(
+      cache.getOrLoad("area", async () => {
+        throw new Error("upstream unavailable");
+      }),
+      /upstream unavailable/,
+    );
+  });
+
+  test("replaces a fallback as soon as the upstream source recovers", async () => {
+    let now = 1_000;
+    let calls = 0;
+    const cache = new AirQualityAreaCache<{ sequence: number }>(100, {
+      staleIfErrorMs: 200,
+      now: () => now,
+    });
+    const initial = await cache.getOrLoad("area", async () => ({
+      sequence: ++calls,
+    }));
+
+    now = 1_100;
+    const fallback = await cache.getOrLoad("area", async () => {
+      calls += 1;
+      throw new Error("upstream unavailable");
+    });
+    const recovered = await cache.getOrLoad("area", async () => ({
+      sequence: ++calls,
+    }));
+    const cachedRecovery = await cache.getOrLoad("area", async () => ({
+      sequence: ++calls,
+    }));
+
+    assert.deepEqual(initial, {
+      value: { sequence: 1 },
+      isFallback: false,
+    });
+    assert.deepEqual(fallback, {
+      value: { sequence: 1 },
+      isFallback: true,
+    });
+    assert.deepEqual(recovered, {
+      value: { sequence: 3 },
+      isFallback: false,
+    });
+    assert.strictEqual(cachedRecovery.value, recovered.value);
+    assert.equal(calls, 3);
+  });
+
+  test("preserves upstream timestamps while marking fallback data stale", () => {
     const snapshot: AirQualitySnapshot = {
       fetchedAt: new Date("2026-08-25T10:05:00.000Z"),
       payload: {
@@ -121,6 +212,12 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
     const laterResponse = buildAirQualityResponse(
       snapshot,
       new Date("2026-08-25T12:01:00.000Z"),
+      true,
+    );
+    const afterForecastResponse = buildAirQualityResponse(
+      snapshot,
+      new Date("2026-08-25T14:01:00.000Z"),
+      true,
     );
 
     assert.equal(
@@ -135,6 +232,10 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
       laterResponse.fetchedAt.getTime(),
       snapshot.fetchedAt.getTime(),
     );
+    assert.equal(
+      laterResponse.observationTime.getTime(),
+      freshResponse.observationTime.getTime(),
+    );
     assert.equal(freshResponse.isStale, false);
     assert.equal(laterResponse.isStale, true);
     assert.equal(
@@ -142,5 +243,6 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
       "2026-08-25T14:00:00.000Z",
     );
     assert.equal(laterResponse.suggestedWindow?.expectedAqi, 65);
+    assert.equal(afterForecastResponse.suggestedWindow, null);
   });
 });

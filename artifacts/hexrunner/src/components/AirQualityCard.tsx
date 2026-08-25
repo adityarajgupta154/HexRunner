@@ -57,6 +57,14 @@ function formatFreshness(observationTime: string): string {
   })}`;
 }
 
+function formatStaleWarning(observationTime: string): string {
+  const freshness = formatFreshness(observationTime);
+  const observedAge = freshness.startsWith('Observed ')
+    ? freshness.slice('Observed '.length)
+    : freshness;
+  return `LAST OBSERVATION · ${observedAge.toUpperCase()} · USE CAUTION`;
+}
+
 function formatWindowTime(value: string): string | null {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
@@ -160,19 +168,6 @@ export default function AirQualityCard({
 
   return (
     <View style={[cardStyle, data.isStale && { borderColor: levelColor }]}>
-      {data.isStale ? (
-        <View
-          accessibilityLabel="Warning: air quality observation is stale"
-          accessibilityLiveRegion="polite"
-          style={[styles.staleBanner, { backgroundColor: `${levelColor}20` }]}
-        >
-          <Feather name="alert-triangle" size={15} color={levelColor} />
-          <Text style={[styles.staleText, { color: levelColor }]}>
-            STALE OBSERVATION · USE CAUTION
-          </Text>
-        </View>
-      ) : null}
-
       <View style={styles.header}>
         <View style={styles.eyebrow}>
           <Feather name="wind" size={15} color={colors.primary} />
@@ -190,6 +185,25 @@ export default function AirQualityCard({
           </Text>
         </View>
       </View>
+
+      {data.isStale ? (
+        <View
+          accessibilityLabel={`Warning: air quality observation is stale. ${formatFreshness(data.observationTime)}. Use caution.`}
+          accessibilityLiveRegion="polite"
+          style={[
+            styles.staleBanner,
+            {
+              backgroundColor: `${levelColor}20`,
+              borderColor: `${levelColor}55`,
+            },
+          ]}
+        >
+          <Feather name="alert-triangle" size={15} color={levelColor} />
+          <Text style={[styles.staleText, { color: levelColor }]}>
+            {formatStaleWarning(data.observationTime)}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.readingRow}>
         <View
@@ -286,19 +300,23 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   staleBanner: {
-    margin: -14,
-    marginBottom: 13,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
+    borderWidth: 1,
+    borderRadius: 10,
   },
   staleText: {
+    flex: 1,
     fontFamily: 'Inter_700Bold',
     fontSize: 11,
+    lineHeight: 15,
     letterSpacing: 0.65,
+    textAlign: 'center',
   },
   stateRow: {
     minHeight: 54,

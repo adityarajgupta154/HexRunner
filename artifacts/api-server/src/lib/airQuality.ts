@@ -2,6 +2,7 @@ import { cellToLatLng, latLngToCell } from "h3-js";
 import { GetAirQualityResponse } from "@workspace/api-zod";
 
 export const AIR_QUALITY_CACHE_TTL_MS = 10 * 60 * 1_000;
+export const AIR_QUALITY_STALE_IF_ERROR_MS = 30 * 60 * 1_000;
 
 const AIR_QUALITY_AREA_RESOLUTION = 7;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1_000;
@@ -30,48 +31,91 @@ export type CoarseAirQualityArea = {
 type CacheEntry<T> = {
   value: T;
   expiresAt: number;
+  discardAt: number;
+};
+
+export type AirQualityCacheResult<T> = {
+  value: T;
+  isFallback: boolean;
+};
+
+type AirQualityAreaCacheOptions = {
+  staleIfErrorMs?: number;
+  now?: () => number;
+  maxEntries?: number;
 };
 
 export class AirQualityAreaCache<T> {
   private readonly values = new Map<string, CacheEntry<T>>();
-  private readonly inFlight = new Map<string, Promise<T>>();
+  private readonly inFlight = new Map<
+    string,
+    Promise<AirQualityCacheResult<T>>
+  >();
+  private readonly staleIfErrorMs: number;
+  private readonly now: () => number;
+  private readonly maxEntries: number;
 
   constructor(
     private readonly ttlMs: number,
-    private readonly now: () => number = Date.now,
-    private readonly maxEntries = 512,
+    options: AirQualityAreaCacheOptions = {},
   ) {
+    this.staleIfErrorMs = options.staleIfErrorMs ?? 0;
+    this.now = options.now ?? Date.now;
+    this.maxEntries = options.maxEntries ?? 512;
     if (ttlMs <= 0) throw new Error("Cache TTL must be positive.");
-    if (maxEntries <= 0) throw new Error("Cache capacity must be positive.");
+    if (this.staleIfErrorMs < 0) {
+      throw new Error("Cache stale-if-error period cannot be negative.");
+    }
+    if (this.maxEntries <= 0) {
+      throw new Error("Cache capacity must be positive.");
+    }
   }
 
-  getOrLoad(key: string, loader: () => Promise<T>): Promise<T> {
+  getOrLoad(
+    key: string,
+    loader: () => Promise<T>,
+  ): Promise<AirQualityCacheResult<T>> {
     const now = this.now();
-    this.pruneExpired(now);
+    this.pruneDiscarded(now);
 
     const cached = this.values.get(key);
     if (cached && cached.expiresAt > now) {
-      return Promise.resolve(cached.value);
+      return Promise.resolve({ value: cached.value, isFallback: false });
     }
 
     const existingRequest = this.inFlight.get(key);
     if (existingRequest) return existingRequest;
 
-    let request: Promise<T>;
+    let request: Promise<AirQualityCacheResult<T>>;
     request = Promise.resolve()
       .then(loader)
       .then((value) => {
-        this.pruneExpired(this.now());
+        const loadedAt = this.now();
+        this.pruneDiscarded(loadedAt);
         if (!this.values.has(key) && this.values.size >= this.maxEntries) {
           const oldestKey = this.values.keys().next().value as
             string | undefined;
           if (oldestKey) this.values.delete(oldestKey);
         }
+        const expiresAt = loadedAt + this.ttlMs;
         this.values.set(key, {
           value,
-          expiresAt: this.now() + this.ttlMs,
+          expiresAt,
+          discardAt: expiresAt + this.staleIfErrorMs,
         });
-        return value;
+        return { value, isFallback: false };
+      })
+      .catch((error: unknown) => {
+        const failedAt = this.now();
+        const fallback = this.values.get(key);
+        if (
+          fallback &&
+          fallback.expiresAt <= failedAt &&
+          fallback.discardAt > failedAt
+        ) {
+          return { value: fallback.value, isFallback: true };
+        }
+        throw error;
       })
       .finally(() => {
         if (this.inFlight.get(key) === request) {
@@ -83,9 +127,9 @@ export class AirQualityAreaCache<T> {
     return request;
   }
 
-  private pruneExpired(now: number): void {
+  private pruneDiscarded(now: number): void {
     for (const [key, entry] of this.values) {
-      if (entry.expiresAt <= now) this.values.delete(key);
+      if (entry.discardAt <= now) this.values.delete(key);
     }
   }
 }
@@ -205,6 +249,7 @@ function suggestedExerciseWindow(
 export function buildAirQualityResponse(
   snapshot: AirQualitySnapshot,
   servedAt = new Date(),
+  isFallback = false,
 ) {
   const rawAqi = snapshot.payload.current?.us_aqi;
   const rawObservationTime = snapshot.payload.current?.time;
@@ -228,7 +273,9 @@ export function buildAirQualityResponse(
     ...classification,
     observationTime,
     fetchedAt: snapshot.fetchedAt,
-    isStale: servedAt.getTime() - observationTime.getTime() > STALE_AFTER_MS,
+    isStale:
+      isFallback ||
+      servedAt.getTime() - observationTime.getTime() > STALE_AFTER_MS,
     sourceName: "Open-Meteo Air Quality",
     sourceUrl: SOURCE_URL,
     suggestedWindow: suggestedExerciseWindow(snapshot.payload, aqi, servedAt),
