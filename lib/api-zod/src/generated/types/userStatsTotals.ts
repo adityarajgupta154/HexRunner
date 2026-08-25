@@ -23,4 +23,10 @@ export interface UserStatsTotals {
   totalNewHexes: number;
   /** @minimum 0 */
   totalStolenHexes: number;
+  /** @minimum 0 */
+  currentStreak: number;
+  /** @minimum 0 */
+  todayClaimedHexes: number;
+  /** @minimum 1 */
+  dailyBudget: number;
 }

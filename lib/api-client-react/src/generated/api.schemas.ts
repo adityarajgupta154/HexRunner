@@ -126,6 +126,14 @@ export interface SaveRunResult {
   stolenHexes: number;
   /** @minimum 0 */
   claimedHexes: number;
+  /** @minimum 0 */
+  budgetSkippedHexes: number;
+  /** @minimum 0 */
+  dailyClaimedHexes: number;
+  /** @minimum 1 */
+  dailyBudget: number;
+  /** @minimum 0 */
+  currentStreak: number;
   antiSpoof: RunAntiSpoofResult;
 }
 
@@ -146,6 +154,12 @@ export interface HexOwnership {
   ownerId: string | null;
   /** @nullable */
   claimedAt: string | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  freshnessScore: number | null;
 }
 
 export interface HexOwnershipLookupResult {
@@ -166,7 +180,17 @@ export interface LeaderboardEntry {
   isCurrentUser: boolean;
 }
 
+export type LeaderboardScope = typeof LeaderboardScope[keyof typeof LeaderboardScope];
+
+
+export const LeaderboardScope = {
+  global: 'global',
+  city: 'city',
+  friends: 'friends',
+} as const;
+
 export interface LeaderboardResult {
+  scope: LeaderboardScope;
   /** @maxItems 20 */
   users: LeaderboardEntry[];
 }
@@ -203,14 +227,59 @@ export interface UserStatsTotals {
   totalNewHexes: number;
   /** @minimum 0 */
   totalStolenHexes: number;
+  /** @minimum 0 */
+  currentStreak: number;
+  /** @minimum 0 */
+  todayClaimedHexes: number;
+  /** @minimum 1 */
+  dailyBudget: number;
+}
+
+export type FitnessTier = typeof FitnessTier[keyof typeof FitnessTier];
+
+
+export const FitnessTier = {
+  beginner: 'beginner',
+  casual: 'casual',
+  regular: 'regular',
+  trained: 'trained',
+} as const;
+
+export interface UserBaselineUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  displayName?: string;
+  /**
+     * @minLength 1
+     * @maxLength 60
+     */
+  city: string;
+  activityLevel: FitnessTier;
+}
+
+export interface UserBaseline {
+  displayName: string;
+  city: string;
+  activityLevel: FitnessTier;
+  completedAt: string;
+}
+
+export interface TakeoverAlert {
+  h3Index: string;
+  happenedAt: string;
 }
 
 export interface UserStatsResult {
   userId: string;
   displayName: string;
+  baseline: UserBaseline | null;
   totals: UserStatsTotals;
   /** @maxItems 5 */
   recentRuns: RecentRun[];
+  /** @maxItems 3 */
+  takeoverAlerts: TakeoverAlert[];
 }
 
 export interface ApiError {
@@ -219,4 +288,6 @@ export interface ApiError {
 
 export type GetLeaderboardParams = {
 currentUserId?: UserId;
+scope?: LeaderboardScope;
 };
+

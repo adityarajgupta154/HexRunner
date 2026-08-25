@@ -48,7 +48,10 @@ export default function ProfileScreen() {
 
   const fitnessProfile = useMemo(() => {
     if (!data?.recentRuns) return predictFitnessProfile([]);
-    return predictFitnessProfile(data.recentRuns, 'casual');
+    return predictFitnessProfile(
+      data.recentRuns,
+      data.baseline?.activityLevel ?? 'casual',
+    );
   }, [data]);
 
   const onRetry = useCallback(() => {
@@ -139,7 +142,7 @@ export default function ProfileScreen() {
               >
                 <Feather name="target" size={16} color={colors.primary} />
                 <Text style={[styles.tierTargetText, { color: colors.primary }]}>
-                  {fitnessProfile.budget} Hex Target
+                  {totals?.dailyBudget ?? 10} Hex Target
                 </Text>
               </View>
             </View>
@@ -166,6 +169,25 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
+
+            <View style={[styles.streakCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
+              <Feather name="zap" size={18} color={colors.primary} />
+              <Text style={[styles.streakText, { color: colors.accentForeground }]}>
+                {totals?.currentStreak ?? 0}-day consecutive-run streak
+              </Text>
+            </View>
+
+            {(data?.takeoverAlerts.length ?? 0) > 0 ? (
+              <View style={[styles.alertCard, { backgroundColor: colors.card, borderColor: colors.destructive }]}>
+                <Feather name="alert-circle" size={17} color={colors.destructive} />
+                <View style={styles.alertCopy}>
+                  <Text style={[styles.alertTitle, { color: colors.foreground }]}>Territory takeover</Text>
+                  <Text style={[styles.alertText, { color: colors.mutedForeground }]}>
+                    A rival reclaimed {data?.takeoverAlerts.length} of your recent cells. Head out to take it back.
+                  </Text>
+                </View>
+              </View>
+            ) : null}
 
             <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Recent Runs</Text>
           </>
@@ -316,6 +338,32 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 32,
   },
+  streakCard: {
+    marginHorizontal: 20,
+    marginBottom: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  streakText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+  },
+  alertCard: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  alertCopy: { flex: 1 },
+  alertTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
+  alertText: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18, marginTop: 3 },
   statBox: {
     width: '47%',
     borderWidth: 1,

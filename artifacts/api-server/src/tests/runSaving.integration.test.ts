@@ -189,6 +189,13 @@ function runPayload({
       {
         lat,
         lng,
+        timestamp: pointTimestamp - 6_000,
+        accuracyMeters: 8,
+        speedMetersPerSecond: 2,
+      },
+      {
+        lat,
+        lng,
         timestamp: pointTimestamp,
         accuracyMeters: 8,
         speedMetersPerSecond: 2,
@@ -276,10 +283,10 @@ describe("run-saving integration", { concurrency: false }, () => {
       .from(hexrunnerRunPointsTable)
       .where(eq(hexrunnerRunPointsTable.runId, TEST_RUNS.success));
     assert.equal(user?.totalHexesOwned, 1);
-    assert.equal(points.length, 1);
+    assert.equal(points.length, 2);
   });
 
-  test("rolls back user totals, run, points, and ownership on a database failure", async () => {
+  test("rejects out-of-window GPS timestamps before persistence", async () => {
     const credential = await enroll(TEST_USERS.rollback);
     const point = await unusedPoint(2);
     const endedAt = new Date(Date.now() - 60_000);
@@ -297,7 +304,7 @@ describe("run-saving integration", { concurrency: false }, () => {
       payload,
       credential,
     );
-    assert.equal(response.status, 500);
+    assert.equal(response.status, 400);
 
     const [run] = await db
       .select()
@@ -451,7 +458,7 @@ describe("run-saving integration", { concurrency: false }, () => {
       .select({ totalHexesOwned: hexrunnerUsersTable.totalHexesOwned })
       .from(hexrunnerUsersTable)
       .where(eq(hexrunnerUsersTable.id, TEST_USERS.older));
-    assert.equal(olderUser?.totalHexesOwned, 1);
+    assert.equal(olderUser?.totalHexesOwned, 0);
 
     const [ownership] = await db
       .select({

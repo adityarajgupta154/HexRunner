@@ -1,20 +1,33 @@
 import { Router, type IRouter } from "express";
 import { SaveRunBody, SaveRunResponse } from "@workspace/api-zod";
-import { eq, inArray, sql } from "drizzle-orm";
-import { latLngToCell } from "h3-js";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import {
   db,
   hexrunnerHexOwnershipTable,
   hexrunnerRunPointsTable,
   hexrunnerRunsTable,
+  hexrunnerTakeoverEventsTable,
   hexrunnerUsersTable,
 } from "@workspace/db";
 import { verifyAnonymousCredential } from "../lib/anonymousCredential";
+import { getClaimQualitySnapshot } from "../lib/claimQuality";
+import { dailyBudgetForActivity } from "../lib/fitnessBudget";
+import { calculateRunStreak } from "../lib/runStreak";
 
 const router: IRouter = Router();
 const RUN_POINT_INSERT_BATCH_SIZE = 5_000;
-const H3_RESOLUTION = 9;
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1_000;
+const fitnessTiers = ["beginner", "casual", "regular", "trained"] as const;
+
+function isFitnessTier(value: string | null): value is (typeof fitnessTiers)[number] {
+  return value !== null && fitnessTiers.includes(value as (typeof fitnessTiers)[number]);
+}
+
+function startOfUtcDay(value: Date): Date {
+  return new Date(
+    Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
+  );
+}
 
 router.post("/runs", async (req, res): Promise<void> => {
   const authorization = req.get("authorization");
@@ -40,20 +53,34 @@ router.post("/runs", async (req, res): Promise<void> => {
 
   const run = parsed.data;
   const uniqueClaimedHexes = new Set(run.claimedHexes);
-  const pathHexes = new Set(
-    run.points.map((point) =>
-      latLngToCell(point.lat, point.lng, H3_RESOLUTION),
-    ),
+  const quality = getClaimQualitySnapshot(run.points);
+  const eligibleClaimedHexes = new Set(quality.eligibleHexes);
+  const claimedHexesMatchQuality =
+    eligibleClaimedHexes.size === uniqueClaimedHexes.size &&
+    [...eligibleClaimedHexes].every((h3Index) =>
+      uniqueClaimedHexes.has(h3Index),
+    );
+  const runWindowMs = run.endedAt.getTime() - run.startedAt.getTime();
+  const durationMatchesWindow =
+    Math.abs(runWindowMs - run.elapsedSeconds * 1_000) <= 5_000;
+  const pointsAreChronological = run.points.every(
+    (point, index) =>
+      index === 0 || point.timestamp >= run.points[index - 1]!.timestamp,
   );
-  const claimedHexesMatchPath =
-    pathHexes.size === uniqueClaimedHexes.size &&
-    [...pathHexes].every((h3Index) => uniqueClaimedHexes.has(h3Index));
+  const pointsFallWithinRunWindow = run.points.every(
+    (point) =>
+      point.timestamp >= run.startedAt.getTime() &&
+      point.timestamp <= run.endedAt.getTime(),
+  );
 
   if (
-    run.endedAt.getTime() < run.startedAt.getTime() ||
+    runWindowMs < 0 ||
     run.endedAt.getTime() > Date.now() + MAX_CLOCK_SKEW_MS ||
+    !durationMatchesWindow ||
+    !pointsAreChronological ||
+    !pointsFallWithinRunWindow ||
     uniqueClaimedHexes.size !== run.claimedHexes.length ||
-    !claimedHexesMatchPath
+    !claimedHexesMatchQuality
   ) {
     res.status(400).json({ error: "Invalid run data." });
     return;
@@ -92,6 +119,42 @@ router.post("/runs", async (req, res): Promise<void> => {
           target: hexrunnerUsersTable.id,
           set: { lastSeenAt: now },
         });
+
+      const [runner] = await tx
+        .select({ activityLevel: hexrunnerUsersTable.activityLevel })
+        .from(hexrunnerUsersTable)
+        .where(eq(hexrunnerUsersTable.id, userId))
+        .limit(1);
+      const savedActivityLevel = runner?.activityLevel ?? null;
+      const activityLevel: (typeof fitnessTiers)[number] = isFitnessTier(
+        savedActivityLevel,
+      )
+        ? savedActivityLevel
+        : "casual";
+      const dailyBudget = dailyBudgetForActivity(activityLevel);
+      const utcDayStart = startOfUtcDay(run.endedAt);
+      const utcDayEnd = new Date(utcDayStart.getTime() + 86_400_000);
+      const dailyBudgetLockKey = `hexrunner-budget:${userId}:${utcDayStart
+        .toISOString()
+        .slice(0, 10)}`;
+      // Separate cells can be claimed concurrently, but the daily allowance
+      // must have one serialized reader/writer for each runner and UTC day.
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${dailyBudgetLockKey}, 0))`,
+      );
+      const [dailyUsage] = await tx
+        .select({
+          claimed: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)`,
+        })
+        .from(hexrunnerRunsTable)
+        .where(
+          and(
+            eq(hexrunnerRunsTable.userId, userId),
+            gte(hexrunnerRunsTable.endedAt, utcDayStart),
+            lt(hexrunnerRunsTable.endedAt, utcDayEnd),
+          ),
+        );
+      const claimedEarlierToday = Number(dailyUsage?.claimed ?? 0);
 
       const existingOwnership =
         run.claimedHexes.length === 0
@@ -146,12 +209,18 @@ router.post("/runs", async (req, res): Promise<void> => {
           run.endedAt.getTime() > currentClaimEndedAt.getTime()
         );
       });
-      const newHexCount = claimableHexes.reduce(
+      const allowedClaimableHexes = claimableHexes.slice(
+        0,
+        Math.max(0, dailyBudget - claimedEarlierToday),
+      );
+      const budgetSkippedHexCount =
+        claimableHexes.length - allowedClaimableHexes.length;
+      const newHexCount = allowedClaimableHexes.reduce(
         (count, h3Index) =>
           count + (existingOwnershipByHex.has(h3Index) ? 0 : 1),
         0,
       );
-      const stolenHexCount = claimableHexes.reduce(
+      const stolenHexCount = allowedClaimableHexes.reduce(
         (count, h3Index) => {
           const ownerId = existingOwnershipByHex.get(h3Index)?.ownerId;
           return count + (ownerId && ownerId !== userId ? 1 : 0);
@@ -185,10 +254,12 @@ router.post("/runs", async (req, res): Promise<void> => {
               ? run.elapsedSeconds / 60 / run.distanceKm
               : null,
           pointCount: run.points.length,
-          hexCount: run.claimedHexes.length,
-          claimedHexes: run.claimedHexes,
+          hexCount: allowedClaimableHexes.length,
+          claimedHexes: allowedClaimableHexes,
           newHexCount,
           stolenHexCount,
+          budgetSkippedHexCount,
+          dailyBudget,
           flaggedSuspicious:
             run.antiSpoof?.flaggedSuspicious ?? false,
           suspiciousReason: run.antiSpoof?.reason ?? null,
@@ -211,9 +282,12 @@ router.post("/runs", async (req, res): Promise<void> => {
       if (insertedRuns.length === 0) {
         const [existingRun] = await tx
           .select({
+            userId: hexrunnerRunsTable.userId,
             newHexCount: hexrunnerRunsTable.newHexCount,
             stolenHexCount: hexrunnerRunsTable.stolenHexCount,
             hexCount: hexrunnerRunsTable.hexCount,
+            budgetSkippedHexCount: hexrunnerRunsTable.budgetSkippedHexCount,
+            dailyBudget: hexrunnerRunsTable.dailyBudget,
             flaggedSuspicious: hexrunnerRunsTable.flaggedSuspicious,
             suspiciousReason: hexrunnerRunsTable.suspiciousReason,
             mockLocationDetected:
@@ -230,8 +304,33 @@ router.post("/runs", async (req, res): Promise<void> => {
         if (!existingRun) {
           throw new Error("Conflicting run could not be loaded.");
         }
+        if (existingRun.userId !== userId) {
+          throw new Error("A run with this client ID belongs to another runner.");
+        }
 
-        return { idempotent: true, ...existingRun };
+        const [currentDailyUsage] = await tx
+          .select({
+            claimed: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)`,
+          })
+          .from(hexrunnerRunsTable)
+          .where(
+            and(
+              eq(hexrunnerRunsTable.userId, userId),
+              gte(hexrunnerRunsTable.endedAt, utcDayStart),
+              lt(hexrunnerRunsTable.endedAt, utcDayEnd),
+            ),
+          );
+        const runDates = await tx
+          .select({ endedAt: hexrunnerRunsTable.endedAt })
+          .from(hexrunnerRunsTable)
+          .where(eq(hexrunnerRunsTable.userId, userId));
+
+        return {
+          idempotent: true,
+          ...existingRun,
+          dailyClaimedHexes: Number(currentDailyUsage?.claimed ?? 0),
+          currentStreak: calculateRunStreak(runDates.map((saved) => saved.endedAt)),
+        };
       }
 
       for (
@@ -255,11 +354,31 @@ router.post("/runs", async (req, res): Promise<void> => {
         );
       }
 
-      if (claimableHexes.length > 0) {
+      const takeoverEvents = allowedClaimableHexes.flatMap((h3Index) => {
+        const previousOwnerId =
+          existingOwnershipByHex.get(h3Index)?.ownerId ?? null;
+        return previousOwnerId && previousOwnerId !== userId
+          ? [
+              {
+                runId: run.clientRunId,
+                h3Index,
+                previousOwnerId,
+                newOwnerId: userId,
+                occurredAt: now,
+              },
+            ]
+          : [];
+      });
+
+      if (takeoverEvents.length > 0) {
+        await tx.insert(hexrunnerTakeoverEventsTable).values(takeoverEvents);
+      }
+
+      if (allowedClaimableHexes.length > 0) {
         await tx
           .insert(hexrunnerHexOwnershipTable)
           .values(
-            claimableHexes.map((h3Index) => ({
+            allowedClaimableHexes.map((h3Index) => ({
               h3Index,
               ownerId: userId,
               lastRunId: run.clientRunId,
@@ -276,22 +395,31 @@ router.post("/runs", async (req, res): Promise<void> => {
           });
       }
 
-      if (run.claimedHexes.length > 0) {
+      if (allowedClaimableHexes.length > 0) {
         await tx
           .update(hexrunnerUsersTable)
           .set({
             // Product contract: this is a cumulative submitted-claims metric,
             // incremented once per unique run, not a live ownership count.
-            totalHexesOwned: sql`${hexrunnerUsersTable.totalHexesOwned} + ${run.claimedHexes.length}`,
+            totalHexesOwned: sql`${hexrunnerUsersTable.totalHexesOwned} + ${allowedClaimableHexes.length}`,
           })
           .where(eq(hexrunnerUsersTable.id, userId));
       }
+
+      const runDates = await tx
+        .select({ endedAt: hexrunnerRunsTable.endedAt })
+        .from(hexrunnerRunsTable)
+        .where(eq(hexrunnerRunsTable.userId, userId));
 
       return {
         idempotent: false,
         newHexCount,
         stolenHexCount,
-        hexCount: run.claimedHexes.length,
+        hexCount: allowedClaimableHexes.length,
+        budgetSkippedHexCount,
+        dailyBudget,
+        dailyClaimedHexes: claimedEarlierToday + allowedClaimableHexes.length,
+        currentStreak: calculateRunStreak(runDates.map((saved) => saved.endedAt)),
         flaggedSuspicious: run.antiSpoof?.flaggedSuspicious ?? false,
         suspiciousReason: run.antiSpoof?.reason ?? null,
         mockLocationDetected:
@@ -316,6 +444,10 @@ router.post("/runs", async (req, res): Promise<void> => {
       newHexes: result.newHexCount,
       stolenHexes: result.stolenHexCount,
       claimedHexes: result.hexCount,
+      budgetSkippedHexes: result.budgetSkippedHexCount,
+      dailyClaimedHexes: result.dailyClaimedHexes,
+      dailyBudget: result.dailyBudget,
+      currentStreak: result.currentStreak,
       antiSpoof: {
         flaggedSuspicious: result.flaggedSuspicious,
         reason: result.suspiciousReason,

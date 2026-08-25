@@ -7,6 +7,13 @@ import { inArray } from "drizzle-orm";
 import { db, hexrunnerHexOwnershipTable } from "@workspace/db";
 
 const router: IRouter = Router();
+const FRESHNESS_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
+
+function calculateFreshnessScore(claimedAt: Date | null): number | null {
+  if (!claimedAt) return null;
+  const age = Math.max(0, Date.now() - claimedAt.getTime());
+  return Math.max(0, Math.round(100 * (1 - age / FRESHNESS_WINDOW_MS)));
+}
 
 router.post("/hex-ownership/lookup", async (req, res) => {
   const parsed = LookupHexOwnershipBody.safeParse(req.body);
@@ -40,6 +47,7 @@ router.post("/hex-ownership/lookup", async (req, res) => {
           h3Index,
           ownerId: ownership?.ownerId ?? null,
           claimedAt: ownership?.claimedAt ?? null,
+          freshnessScore: calculateFreshnessScore(ownership?.claimedAt ?? null),
         };
       }),
     });

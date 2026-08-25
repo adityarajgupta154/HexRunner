@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -21,9 +21,10 @@ export default function LeaderboardScreen() {
     loading: identityLoading,
     error: identityError,
   } = useAuth();
+  const [scope, setScope] = useState<'global' | 'city' | 'friends'>('global');
   const leaderboardParams = useMemo(
-    () => ({ currentUserId: uid ?? undefined }),
-    [uid],
+    () => ({ currentUserId: uid ?? undefined, scope }),
+    [scope, uid],
   );
 
   const {
@@ -93,6 +94,29 @@ export default function LeaderboardScreen() {
         <Text style={[styles.eyebrow, { color: colors.primary }]}>TERRITORY CONTROL</Text>
         <Text style={[styles.title, { color: colors.foreground }]}>Leaderboard</Text>
       </View>
+      <View style={styles.scopeRow}>
+        {[
+          ['global', 'Global'],
+          ['city', 'City'],
+          ['friends', 'Rivals'],
+        ].map(([value, label]) => (
+          <Pressable
+            key={value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: scope === value }}
+            onPress={() => setScope(value as typeof scope)}
+            style={[
+              styles.scopeButton,
+              {
+                backgroundColor: scope === value ? colors.primary : colors.card,
+                borderColor: scope === value ? colors.primary : colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.scopeText, { color: scope === value ? colors.primaryForeground : colors.foreground }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       {isError && data ? (
         <View style={[styles.staleBanner, { backgroundColor: colors.card, borderColor: colors.destructive }]}>
@@ -119,7 +143,11 @@ export default function LeaderboardScreen() {
             <Feather name="award" size={48} color={colors.mutedForeground} style={{ marginBottom: 16 }} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No leaderboard data yet</Text>
             <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
-              This is a fresh arena. Complete the first run to claim the top spot.
+              {scope === 'friends'
+                ? 'Claim a rival cell or defend yours to build your rival circle.'
+                : scope === 'city'
+                  ? 'Finish your baseline to join city standings, then complete a run.'
+                  : 'This is a fresh arena. Complete the first run to claim the top spot.'}
             </Text>
           </View>
         }
@@ -195,6 +223,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 16,
+  },
+  scopeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  scopeButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  scopeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
   },
   eyebrow: {
     fontFamily: 'Inter_700Bold',

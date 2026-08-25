@@ -12,4 +12,10 @@ export interface HexOwnership {
   ownerId: string | null;
   /** @nullable */
   claimedAt: Date | null;
+  /**
+     * @minimum 0
+     * @maximum 100
+     * @nullable
+     */
+  freshnessScore: number | null;
 }

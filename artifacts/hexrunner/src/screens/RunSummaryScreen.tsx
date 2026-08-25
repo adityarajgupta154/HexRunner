@@ -76,7 +76,10 @@ export default function RunSummaryScreen() {
 
   const fitnessProfile = React.useMemo(() => {
     if (!userStats?.recentRuns) return predictFitnessProfile([]);
-    return predictFitnessProfile(userStats.recentRuns, 'casual');
+    return predictFitnessProfile(
+      userStats.recentRuns,
+      userStats.baseline?.activityLevel ?? 'casual',
+    );
   }, [userStats]);
 
   const params = useLocalSearchParams<{
@@ -196,7 +199,7 @@ export default function RunSummaryScreen() {
               <View style={styles.progressHeader}>
                 <Text style={[styles.progressLabel, { color: colors.mutedForeground }]}>DAILY TARGET</Text>
                 <Text style={[styles.progressValues, { color: colors.foreground }]}>
-                  {saveResult.claimedHexes} / {fitnessProfile.budget}
+                  {saveResult.dailyClaimedHexes} / {saveResult.dailyBudget}
                 </Text>
               </View>
               <View style={[styles.progressBarBg, { backgroundColor: colors.muted }]}>
@@ -204,13 +207,28 @@ export default function RunSummaryScreen() {
                   style={[
                     styles.progressBarFill,
                     {
-                      backgroundColor: saveResult.claimedHexes >= fitnessProfile.budget ? colors.accentForeground : colors.primary,
-                      width: `${Math.min(100, (saveResult.claimedHexes / Math.max(1, fitnessProfile.budget)) * 100)}%`
+                       backgroundColor: saveResult.dailyClaimedHexes >= saveResult.dailyBudget ? colors.accentForeground : colors.primary,
+                       width: `${Math.min(100, (saveResult.dailyClaimedHexes / Math.max(1, saveResult.dailyBudget)) * 100)}%`
                     }
                   ]}
                 />
               </View>
             </View>
+
+            <View style={[styles.streakLine, { borderTopColor: colors.border }]}>
+              <Feather name="zap" size={15} color={colors.primary} />
+              <Text style={[styles.streakText, { color: colors.foreground }]}>
+                {saveResult.currentStreak}-day consecutive-run streak
+              </Text>
+            </View>
+            {saveResult.budgetSkippedHexes > 0 ? (
+              <View style={[styles.warningBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                <Feather name="clock" size={14} color={colors.primary} />
+                <Text style={[styles.warningText, { color: colors.foreground }]}>
+                  {saveResult.budgetSkippedHexes} claim{saveResult.budgetSkippedHexes === 1 ? '' : 's'} held for tomorrow so your daily target stays balanced.
+                </Text>
+              </View>
+            ) : null}
 
             {saveResult.antiSpoof.flaggedSuspicious ||
             saveResult.antiSpoof.mockLocationDetected ? (
@@ -439,6 +457,18 @@ const styles = StyleSheet.create({
   progressContainer: {
     paddingTop: 12,
     borderTopWidth: 1,
+  },
+  streakLine: {
+    borderTopWidth: 1,
+    paddingTop: 14,
+    marginTop: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  streakText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
   },
   progressHeader: {
     flexDirection: 'row',

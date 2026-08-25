@@ -30,6 +30,8 @@ import type {
   LeaderboardResult,
   SaveRunRequest,
   SaveRunResult,
+  UserBaseline,
+  UserBaselineUpdate,
   UserId,
   UserStatsResult
 } from './api.schemas';
@@ -132,6 +134,13 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getRegisterAnonymousIdentityUrl = () => {
 
 
@@ -364,7 +373,7 @@ export const getGetLeaderboardUrl = (params?: GetLeaderboardParams,) => {
 }
 
 /**
- * Returns at most 20 runners ordered by live owned hexes, total distance, run count, and user ID.
+ * Returns at most 20 runners ordered by totalHexesOwned descending, then total distance, run count, and user ID.
  * @summary Get the territory leaderboard
  */
 export const getLeaderboard = async (params?: GetLeaderboardParams, options?: Parameters<typeof customFetch>[1]): Promise<LeaderboardResult> => {
@@ -431,6 +440,79 @@ export function useGetLeaderboard<TData = Awaited<ReturnType<typeof getLeaderboa
 
 
 
+
+
+export const getUpdateUserBaselineUrl = (userId: UserId,) => {
+
+
+
+
+  return `/api/users/${userId}/baseline`
+}
+
+/**
+ * @summary Save a runner's initial fitness baseline
+ */
+export const updateUserBaseline = async (userId: UserId,
+    userBaselineUpdate: UserBaselineUpdate, options?: Parameters<typeof customFetch>[1]): Promise<UserBaseline> => {
+
+  return customFetch<UserBaseline>(getUpdateUserBaselineUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(userBaselineUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateUserBaselineMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserBaseline>>, TError,{userId: UserId;data: BodyType<UserBaselineUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateUserBaseline>>, TError,{userId: UserId;data: BodyType<UserBaselineUpdate>}, TContext> => {
+
+const mutationKey = ['updateUserBaseline'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateUserBaseline>>, {userId: UserId;data: BodyType<UserBaselineUpdate>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  updateUserBaseline(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateUserBaselineMutationResult = NonNullable<Awaited<ReturnType<typeof updateUserBaseline>>>
+    export type UpdateUserBaselineMutationBody = BodyType<UserBaselineUpdate>
+    export type UpdateUserBaselineMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Save a runner's initial fitness baseline
+ */
+export const useUpdateUserBaseline = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserBaseline>>, TError,{userId: UserId;data: BodyType<UserBaselineUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateUserBaseline>>,
+        TError,
+        {userId: UserId;data: BodyType<UserBaselineUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateUserBaselineMutationOptions(options));
+    }
 
 export const getGetUserStatsUrl = (userId: UserId,) => {
 
@@ -502,3 +584,10 @@ export function useGetUserStats<TData = Awaited<ReturnType<typeof getUserStats>>
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+

@@ -59,6 +59,10 @@ function savedResult(clientRunId: string): SaveRunResult {
     newHexes: 1,
     stolenHexes: 0,
     claimedHexes: 1,
+    budgetSkippedHexes: 0,
+    dailyClaimedHexes: 1,
+    dailyBudget: 10,
+    currentStreak: 1,
     antiSpoof: {
       flaggedSuspicious: false,
       reason: null,

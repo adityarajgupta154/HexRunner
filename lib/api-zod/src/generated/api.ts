@@ -131,6 +131,17 @@ export const saveRunResponseStolenHexesMultipleOf = 1;
 export const saveRunResponseClaimedHexesMin = 0;
 export const saveRunResponseClaimedHexesMultipleOf = 1;
 
+export const saveRunResponseBudgetSkippedHexesMin = 0;
+export const saveRunResponseBudgetSkippedHexesMultipleOf = 1;
+
+export const saveRunResponseDailyClaimedHexesMin = 0;
+export const saveRunResponseDailyClaimedHexesMultipleOf = 1;
+
+export const saveRunResponseDailyBudgetMultipleOf = 1;
+
+export const saveRunResponseCurrentStreakMin = 0;
+export const saveRunResponseCurrentStreakMultipleOf = 1;
+
 
 
 export const SaveRunResponse = zod.object({
@@ -140,6 +151,10 @@ export const SaveRunResponse = zod.object({
   "newHexes": zod.number().min(saveRunResponseNewHexesMin).multipleOf(saveRunResponseNewHexesMultipleOf),
   "stolenHexes": zod.number().min(saveRunResponseStolenHexesMin).multipleOf(saveRunResponseStolenHexesMultipleOf),
   "claimedHexes": zod.number().min(saveRunResponseClaimedHexesMin).multipleOf(saveRunResponseClaimedHexesMultipleOf),
+  "budgetSkippedHexes": zod.number().min(saveRunResponseBudgetSkippedHexesMin).multipleOf(saveRunResponseBudgetSkippedHexesMultipleOf),
+  "dailyClaimedHexes": zod.number().min(saveRunResponseDailyClaimedHexesMin).multipleOf(saveRunResponseDailyClaimedHexesMultipleOf),
+  "dailyBudget": zod.number().min(1).multipleOf(saveRunResponseDailyBudgetMultipleOf),
+  "currentStreak": zod.number().min(saveRunResponseCurrentStreakMin).multipleOf(saveRunResponseCurrentStreakMultipleOf),
   "antiSpoof": zod.object({
   "flaggedSuspicious": zod.boolean(),
   "reason": zod.string().nullable(),
@@ -167,6 +182,9 @@ export const LookupHexOwnershipBody = zod.object({
   "h3Indexes": zod.array(zod.string().min(lookupHexOwnershipBodyH3IndexesItemMin).max(lookupHexOwnershipBodyH3IndexesItemMax).regex(lookupHexOwnershipBodyH3IndexesItemRegExp)).min(1).max(lookupHexOwnershipBodyH3IndexesMax)
 })
 
+export const lookupHexOwnershipResponseOwnershipItemFreshnessScoreMin = 0;
+export const lookupHexOwnershipResponseOwnershipItemFreshnessScoreMax = 100;
+
 export const lookupHexOwnershipResponseOwnershipMax = 1000;
 
 
@@ -175,13 +193,14 @@ export const LookupHexOwnershipResponse = zod.object({
   "ownership": zod.array(zod.object({
   "h3Index": zod.string(),
   "ownerId": zod.string().nullable(),
-  "claimedAt": zod.coerce.date().nullable()
+  "claimedAt": zod.coerce.date().nullable(),
+  "freshnessScore": zod.number().min(lookupHexOwnershipResponseOwnershipItemFreshnessScoreMin).max(lookupHexOwnershipResponseOwnershipItemFreshnessScoreMax).nullable()
 })).max(lookupHexOwnershipResponseOwnershipMax)
 })
 
 
 /**
- * Returns at most 20 runners ordered by live owned hexes, total distance, run count, and user ID.
+ * Returns at most 20 runners ordered by totalHexesOwned descending, then total distance, run count, and user ID.
  * @summary Get the territory leaderboard
  */
 export const getLeaderboardQueryCurrentUserIdMin = 8;
@@ -192,7 +211,8 @@ export const getLeaderboardQueryCurrentUserIdRegExp = new RegExp('^[A-Za-z0-9_-]
 
 
 export const GetLeaderboardQueryParams = zod.object({
-  "currentUserId": zod.coerce.string().min(getLeaderboardQueryCurrentUserIdMin).max(getLeaderboardQueryCurrentUserIdMax).regex(getLeaderboardQueryCurrentUserIdRegExp).optional()
+  "currentUserId": zod.coerce.string().min(getLeaderboardQueryCurrentUserIdMin).max(getLeaderboardQueryCurrentUserIdMax).regex(getLeaderboardQueryCurrentUserIdRegExp).optional(),
+  "scope": zod.enum(['global', 'city', 'friends']).optional()
 })
 
 export const getLeaderboardResponseUsersItemRankMultipleOf = 1;
@@ -210,6 +230,7 @@ export const getLeaderboardResponseUsersMax = 20;
 
 
 export const GetLeaderboardResponse = zod.object({
+  "scope": zod.enum(['global', 'city', 'friends']),
   "users": zod.array(zod.object({
   "rank": zod.number().min(1).multipleOf(getLeaderboardResponseUsersItemRankMultipleOf),
   "displayName": zod.string(),
@@ -218,6 +239,40 @@ export const GetLeaderboardResponse = zod.object({
   "totalDistanceKm": zod.number().min(getLeaderboardResponseUsersItemTotalDistanceKmMin),
   "isCurrentUser": zod.boolean()
 })).max(getLeaderboardResponseUsersMax)
+})
+
+
+/**
+ * @summary Save a runner's initial fitness baseline
+ */
+export const updateUserBaselinePathUserIdMin = 8;
+export const updateUserBaselinePathUserIdMax = 120;
+
+
+export const updateUserBaselinePathUserIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const UpdateUserBaselineParams = zod.object({
+  "userId": zod.coerce.string().min(updateUserBaselinePathUserIdMin).max(updateUserBaselinePathUserIdMax).regex(updateUserBaselinePathUserIdRegExp)
+})
+
+export const updateUserBaselineBodyDisplayNameMax = 40;
+
+export const updateUserBaselineBodyCityMax = 60;
+
+
+
+export const UpdateUserBaselineBody = zod.object({
+  "displayName": zod.string().min(1).max(updateUserBaselineBodyDisplayNameMax).optional(),
+  "city": zod.string().min(1).max(updateUserBaselineBodyCityMax),
+  "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained'])
+})
+
+export const UpdateUserBaselineResponse = zod.object({
+  "displayName": zod.string(),
+  "city": zod.string(),
+  "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained']),
+  "completedAt": zod.coerce.date()
 })
 
 
@@ -255,6 +310,14 @@ export const getUserStatsResponseTotalsTotalNewHexesMultipleOf = 1;
 export const getUserStatsResponseTotalsTotalStolenHexesMin = 0;
 export const getUserStatsResponseTotalsTotalStolenHexesMultipleOf = 1;
 
+export const getUserStatsResponseTotalsCurrentStreakMin = 0;
+export const getUserStatsResponseTotalsCurrentStreakMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTodayClaimedHexesMin = 0;
+export const getUserStatsResponseTotalsTodayClaimedHexesMultipleOf = 1;
+
+export const getUserStatsResponseTotalsDailyBudgetMultipleOf = 1;
+
 export const getUserStatsResponseRecentRunsItemClaimedHexesMin = 0;
 export const getUserStatsResponseRecentRunsItemClaimedHexesMultipleOf = 1;
 
@@ -266,11 +329,19 @@ export const getUserStatsResponseRecentRunsItemStolenHexesMultipleOf = 1;
 
 export const getUserStatsResponseRecentRunsMax = 5;
 
+export const getUserStatsResponseTakeoverAlertsMax = 3;
+
 
 
 export const GetUserStatsResponse = zod.object({
   "userId": zod.string(),
   "displayName": zod.string(),
+  "baseline": zod.union([zod.object({
+  "displayName": zod.string(),
+  "city": zod.string(),
+  "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained']),
+  "completedAt": zod.coerce.date()
+}),zod.null()]),
   "totals": zod.object({
   "totalRuns": zod.number().min(getUserStatsResponseTotalsTotalRunsMin).multipleOf(getUserStatsResponseTotalsTotalRunsMultipleOf),
   "totalDistanceKm": zod.number().min(getUserStatsResponseTotalsTotalDistanceKmMin),
@@ -279,7 +350,10 @@ export const GetUserStatsResponse = zod.object({
   "totalHexesOwned": zod.number().min(getUserStatsResponseTotalsTotalHexesOwnedMin).multipleOf(getUserStatsResponseTotalsTotalHexesOwnedMultipleOf),
   "totalClaimedHexes": zod.number().min(getUserStatsResponseTotalsTotalClaimedHexesMin).multipleOf(getUserStatsResponseTotalsTotalClaimedHexesMultipleOf),
   "totalNewHexes": zod.number().min(getUserStatsResponseTotalsTotalNewHexesMin).multipleOf(getUserStatsResponseTotalsTotalNewHexesMultipleOf),
-  "totalStolenHexes": zod.number().min(getUserStatsResponseTotalsTotalStolenHexesMin).multipleOf(getUserStatsResponseTotalsTotalStolenHexesMultipleOf)
+  "totalStolenHexes": zod.number().min(getUserStatsResponseTotalsTotalStolenHexesMin).multipleOf(getUserStatsResponseTotalsTotalStolenHexesMultipleOf),
+  "currentStreak": zod.number().min(getUserStatsResponseTotalsCurrentStreakMin).multipleOf(getUserStatsResponseTotalsCurrentStreakMultipleOf),
+  "todayClaimedHexes": zod.number().min(getUserStatsResponseTotalsTodayClaimedHexesMin).multipleOf(getUserStatsResponseTotalsTodayClaimedHexesMultipleOf),
+  "dailyBudget": zod.number().min(1).multipleOf(getUserStatsResponseTotalsDailyBudgetMultipleOf)
 }),
   "recentRuns": zod.array(zod.object({
   "runId": zod.string(),
@@ -290,5 +364,11 @@ export const GetUserStatsResponse = zod.object({
   "claimedHexes": zod.number().min(getUserStatsResponseRecentRunsItemClaimedHexesMin).multipleOf(getUserStatsResponseRecentRunsItemClaimedHexesMultipleOf),
   "newHexes": zod.number().min(getUserStatsResponseRecentRunsItemNewHexesMin).multipleOf(getUserStatsResponseRecentRunsItemNewHexesMultipleOf),
   "stolenHexes": zod.number().min(getUserStatsResponseRecentRunsItemStolenHexesMin).multipleOf(getUserStatsResponseRecentRunsItemStolenHexesMultipleOf)
-})).max(getUserStatsResponseRecentRunsMax)
+})).max(getUserStatsResponseRecentRunsMax),
+  "takeoverAlerts": zod.array(zod.object({
+  "h3Index": zod.string(),
+  "happenedAt": zod.coerce.date()
+})).max(getUserStatsResponseTakeoverAlertsMax)
 })
+
+

@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RunMap from '@/src/components/RunMap';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/src/context/AuthContext';
-import { hexesFromPath } from '@/src/services/hexEngine';
+import { getClaimQualitySnapshot } from '@/src/services/claimQuality';
 import {
   startWatching,
   stopWatching,
@@ -23,6 +23,7 @@ import {
   queueRunForSave,
 } from '@/src/services/runStorage';
 import { checkSession } from '@/src/services/antiSpoof';
+import { useLookupHexOwnership } from '@workspace/api-client-react';
 
 type RunPoint = {
   lat: number;
@@ -99,10 +100,14 @@ export default function RunSessionScreen() {
   const [distanceKm, setDistanceKm] = useState(0);
   const [pathPoints, setPathPoints] = useState<RunPoint[]>([]);
   const [claimedHexes, setClaimedHexes] = useState<Set<string>>(new Set());
+  const [pendingCoverageHexes, setPendingCoverageHexes] = useState(0);
+  const [poorAccuracyHexes, setPoorAccuracyHexes] = useState(0);
+  const [contestedHexes, setContestedHexes] = useState<Set<string>>(new Set());
   const [runAwaitingCache, setRunAwaitingCache] =
     useState<PendingRun | null>(null);
   const [isCachingRun, setIsCachingRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ownershipLookup = useLookupHexOwnership();
 
   useEffect(() => {
     if (!isRunning) return;
@@ -140,6 +145,9 @@ export default function RunSessionScreen() {
     setDistanceKm(0);
     setPathPoints([]);
     setClaimedHexes(new Set());
+    setPendingCoverageHexes(0);
+    setPoorAccuracyHexes(0);
+    setContestedHexes(new Set());
     distanceKmRef.current = 0;
     lastPointRef.current = null;
 
@@ -172,7 +180,28 @@ export default function RunSessionScreen() {
             nextPath.length % CLAIM_RECALCULATION_INTERVAL === 0
           ) {
             try {
-              setClaimedHexes(new Set(hexesFromPath(nextPath)));
+              const quality = getClaimQualitySnapshot(nextPath);
+              setClaimedHexes(new Set(quality.eligibleHexes));
+              setPendingCoverageHexes(quality.pendingHexes.length);
+              setPoorAccuracyHexes(quality.rejectedAccuracyHexes.length);
+              if (quality.eligibleHexes.length > 0) {
+                ownershipLookup.mutate(
+                  { data: { h3Indexes: quality.eligibleHexes } },
+                  {
+                    onSuccess: (result) => {
+                      setContestedHexes(
+                        new Set(
+                          result.ownership
+                            .filter((hex) => hex.ownerId && hex.ownerId !== uid)
+                            .map((hex) => hex.h3Index),
+                        ),
+                      );
+                    },
+                  },
+                );
+              } else {
+                setContestedHexes(new Set());
+              }
             } catch (hexError) {
               console.error(
                 '[HexRunner] Unable to update claimed hexes during the run.',
@@ -200,7 +229,7 @@ export default function RunSessionScreen() {
     } finally {
       setIsStarting(false);
     }
-  }, [identityError, runAwaitingCache, uid]);
+  }, [identityError, ownershipLookup, runAwaitingCache, uid]);
 
   const cacheRunAndOpenSummary = useCallback(
     async (run: PendingRun) => {
@@ -249,7 +278,7 @@ export default function RunSessionScreen() {
     const finalDistanceKm = distanceKmRef.current;
     let finalClaimedHexes: string[];
     try {
-      finalClaimedHexes = [...new Set(hexesFromPath(pathPoints))];
+      finalClaimedHexes = getClaimQualitySnapshot(pathPoints).eligibleHexes;
     } catch (hexError) {
       console.error(
         '[HexRunner] Unable to finalize claimed hexes for this run.',
@@ -375,16 +404,28 @@ export default function RunSessionScreen() {
             </View>
             <View style={styles.claimedTextBlock}>
               <Text style={[styles.claimedText, { color: colors.foreground }]}>
-                Hexes claimed this run: {claimedHexes.size}
+                Claim-ready hexes: {claimedHexes.size}
               </Text>
               <Text
                 style={[styles.claimedMeta, { color: colors.mutedForeground }]}
               >
-                {pathPoints.length} location{' '}
-                {pathPoints.length === 1 ? 'point' : 'points'} captured
+                {pendingCoverageHexes > 0
+                  ? `${pendingCoverageHexes} cell${pendingCoverageHexes === 1 ? '' : 's'} need 6s of coverage`
+                  : poorAccuracyHexes > 0
+                    ? `${poorAccuracyHexes} cell${poorAccuracyHexes === 1 ? '' : 's'} skipped for poor GPS accuracy`
+                    : `${pathPoints.length} location ${pathPoints.length === 1 ? 'point' : 'points'} captured`}
               </Text>
             </View>
           </View>
+
+          {contestedHexes.size > 0 ? (
+            <View style={[styles.contestCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
+              <Feather name="crosshair" size={17} color={colors.primary} />
+              <Text style={[styles.contestText, { color: colors.accentForeground }]}>
+                Contesting {contestedHexes.size} rival {contestedHexes.size === 1 ? 'cell' : 'cells'} — finish your coverage to take them over.
+              </Text>
+            </View>
+          ) : null}
 
           <Pressable
             accessibilityRole="button"
@@ -733,6 +774,20 @@ const styles = StyleSheet.create({
   claimedMeta: {
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
+  },
+  contestCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+  },
+  contestText: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    lineHeight: 18,
   },
   stopButton: {
     minHeight: 54,

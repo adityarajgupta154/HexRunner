@@ -163,6 +163,11 @@ paths:
           required: false
           schema:
             $ref: "#/components/schemas/UserId"
+        - name: scope
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/LeaderboardScope"
       responses:
         "200":
           description: Territory leaderboard
@@ -172,6 +177,50 @@ paths:
                 $ref: "#/components/schemas/LeaderboardResult"
         "500":
           description: Leaderboard could not be loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /users/{userId}/baseline:
+    patch:
+      operationId: updateUserBaseline
+      tags: [users]
+      summary: Save a runner's initial fitness baseline
+      security:
+        - anonymousDeviceCredential: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserBaselineUpdate"
+      responses:
+        "200":
+          description: Baseline saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserBaseline"
+        "400":
+          description: Invalid baseline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Missing or invalid anonymous device credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Device credential does not match the runner
           content:
             application/json:
               schema:
@@ -373,9 +422,25 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
+        budgetSkippedHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        dailyClaimedHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        dailyBudget:
+          type: number
+          multipleOf: 1
+          minimum: 1
+        currentStreak:
+          type: number
+          multipleOf: 1
+          minimum: 0
         antiSpoof:
           $ref: "#/components/schemas/RunAntiSpoofResult"
-      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, antiSpoof]
+      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, budgetSkippedHexes, dailyClaimedHexes, dailyBudget, currentStreak, antiSpoof]
     HexOwnershipLookupRequest:
       type: object
       properties:
@@ -400,7 +465,11 @@ components:
         claimedAt:
           type: [string, "null"]
           format: date-time
-      required: [h3Index, ownerId, claimedAt]
+        freshnessScore:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 100
+      required: [h3Index, ownerId, claimedAt, freshnessScore]
     HexOwnershipLookupResult:
       type: object
       properties:
@@ -436,12 +505,14 @@ components:
     LeaderboardResult:
       type: object
       properties:
+        scope:
+          $ref: "#/components/schemas/LeaderboardScope"
         users:
           type: array
           maxItems: 20
           items:
             $ref: "#/components/schemas/LeaderboardEntry"
-      required: [users]
+      required: [scope, users]
     RecentRun:
       type: object
       properties:
@@ -502,7 +573,61 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
-      required: [totalRuns, totalDistanceKm, totalElapsedSeconds, averagePaceMinPerKm, totalHexesOwned, totalClaimedHexes, totalNewHexes, totalStolenHexes]
+        currentStreak:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        todayClaimedHexes:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        dailyBudget:
+          type: number
+          multipleOf: 1
+          minimum: 1
+      required: [totalRuns, totalDistanceKm, totalElapsedSeconds, averagePaceMinPerKm, totalHexesOwned, totalClaimedHexes, totalNewHexes, totalStolenHexes, currentStreak, todayClaimedHexes, dailyBudget]
+    FitnessTier:
+      type: string
+      enum: [beginner, casual, regular, trained]
+    LeaderboardScope:
+      type: string
+      enum: [global, city, friends]
+    UserBaselineUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 40
+        city:
+          type: string
+          minLength: 1
+          maxLength: 60
+        activityLevel:
+          $ref: "#/components/schemas/FitnessTier"
+      required: [city, activityLevel]
+    UserBaseline:
+      type: object
+      properties:
+        displayName:
+          type: string
+        city:
+          type: string
+        activityLevel:
+          $ref: "#/components/schemas/FitnessTier"
+        completedAt:
+          type: string
+          format: date-time
+      required: [displayName, city, activityLevel, completedAt]
+    TakeoverAlert:
+      type: object
+      properties:
+        h3Index:
+          type: string
+        happenedAt:
+          type: string
+          format: date-time
+      required: [h3Index, happenedAt]
     UserStatsResult:
       type: object
       properties:
@@ -510,6 +635,10 @@ components:
           type: string
         displayName:
           type: string
+        baseline:
+          oneOf:
+            - $ref: "#/components/schemas/UserBaseline"
+            - type: "null"
         totals:
           $ref: "#/components/schemas/UserStatsTotals"
         recentRuns:
@@ -517,7 +646,12 @@ components:
           maxItems: 5
           items:
             $ref: "#/components/schemas/RecentRun"
-      required: [userId, displayName, totals, recentRuns]
+        takeoverAlerts:
+          type: array
+          maxItems: 3
+          items:
+            $ref: "#/components/schemas/TakeoverAlert"
+      required: [userId, displayName, baseline, totals, recentRuns, takeoverAlerts]
     ApiError:
       type: object
       properties:

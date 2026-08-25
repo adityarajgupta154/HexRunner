@@ -17,5 +17,13 @@ export interface SaveRunResult {
   stolenHexes: number;
   /** @minimum 0 */
   claimedHexes: number;
+  /** @minimum 0 */
+  budgetSkippedHexes: number;
+  /** @minimum 0 */
+  dailyClaimedHexes: number;
+  /** @minimum 1 */
+  dailyBudget: number;
+  /** @minimum 0 */
+  currentStreak: number;
   antiSpoof: RunAntiSpoofResult;
 }

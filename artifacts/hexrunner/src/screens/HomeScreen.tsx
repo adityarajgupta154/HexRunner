@@ -21,6 +21,7 @@ import { startWatching, stopWatching } from '@/src/services/locationTracker';
 import { useAuth } from '@/src/context/AuthContext';
 import { useLookupHexOwnership, useGetUserStats, getGetUserStatsQueryKey } from '@workspace/api-client-react';
 import { predictFitnessProfile } from '@/src/services/fitnessModel';
+import BaselineOnboarding from '@/src/components/BaselineOnboarding';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -105,6 +106,7 @@ function LiveMap() {
 
   const [myHexes, setMyHexes] = useState<Set<string>>(new Set());
   const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
+  const [territoryFreshness, setTerritoryFreshness] = useState<number | null>(null);
 
   const lookupMutation = useLookupHexOwnership();
 
@@ -119,7 +121,10 @@ function LiveMap() {
 
   const fitnessProfile = useMemo(() => {
     if (!userStats?.recentRuns) return predictFitnessProfile([]);
-    return predictFitnessProfile(userStats.recentRuns, 'casual');
+    return predictFitnessProfile(
+      userStats.recentRuns,
+      userStats.baseline?.activityLevel ?? 'casual',
+    );
   }, [userStats]);
 
   const refreshHexes = useCallback((hexes: string[]) => {
@@ -131,6 +136,7 @@ function LiveMap() {
         onSuccess: (res) => {
           const newMyHexes = new Set<string>();
           const newOtherHexes = new Set<string>();
+          const freshnessScores: number[] = [];
 
           if (!Array.isArray(res.ownership)) {
             console.error(
@@ -145,6 +151,7 @@ function LiveMap() {
             if (!hex.ownerId) return;
             if (hex.ownerId === uid) {
               newMyHexes.add(hex.h3Index);
+              if (hex.freshnessScore !== null) freshnessScores.push(hex.freshnessScore);
             } else {
               newOtherHexes.add(hex.h3Index);
             }
@@ -152,6 +159,11 @@ function LiveMap() {
 
           setMyHexes(newMyHexes);
           setOtherHexes(newOtherHexes);
+          setTerritoryFreshness(
+            freshnessScores.length
+              ? Math.round(freshnessScores.reduce((sum, score) => sum + score, 0) / freshnessScores.length)
+              : null,
+          );
           setHasLoadedOwnership(true);
         },
       }
@@ -314,15 +326,34 @@ function LiveMap() {
         </View>
 
         <View
-          accessibilityLabel={`Today's target: ${fitnessProfile.budget} hexes`}
+          accessibilityLabel={`Today's target: ${userStats?.totals.todayClaimedHexes ?? 0} of ${userStats?.totals.dailyBudget ?? 10} hexes`}
           style={[styles.tierBadge, { backgroundColor: colors.card, borderColor: colors.border }]}
         >
           <Feather name="target" size={14} color={colors.primary} />
           <Text style={[styles.tierText, { color: colors.foreground }]}>
-            Today&apos;s target: {fitnessProfile.budget} hexes
+            {userStats?.totals.todayClaimedHexes ?? 0}/{userStats?.totals.dailyBudget ?? 10} today
           </Text>
         </View>
       </View>
+
+      {territoryFreshness !== null ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.freshnessBadge,
+            {
+              top: insets.top + 108,
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Feather name="clock" size={14} color={colors.primary} />
+          <Text style={[styles.freshnessText, { color: colors.foreground }]}>
+            Territory freshness {territoryFreshness}%
+          </Text>
+        </View>
+      ) : null}
 
       {territoryIsLoading ? (
         <View
@@ -413,6 +444,7 @@ function LiveMap() {
         <Feather name="crosshair" size={22} color={colors.primary} />
         <Text style={[styles.recenterText, { color: colors.foreground }]}>Recenter</Text>
       </Pressable>
+      {userStats && !userStats.baseline ? <BaselineOnboarding /> : null}
     </View>
   );
 }
@@ -518,6 +550,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 9,
+  },
+  freshnessBadge: {
+    position: 'absolute',
+    right: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  freshnessText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
   },
   territoryNoticeCopy: {
     flex: 1,

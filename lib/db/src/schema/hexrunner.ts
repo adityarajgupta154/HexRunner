@@ -14,6 +14,11 @@ import { z } from "zod/v4";
 export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   id: text("id").primaryKey(),
   displayName: text("display_name"),
+  activityLevel: text("activity_level"),
+  city: text("city"),
+  baselineCompletedAt: timestamp("baseline_completed_at", {
+    withTimezone: true,
+  }),
   totalHexesOwned: integer("total_hexes_owned").default(0).notNull(),
   enrollmentSecretHash: text("enrollment_secret_hash"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -42,6 +47,10 @@ export const hexrunnerRunsTable = pgTable(
     claimedHexes: text("claimed_hexes").array().notNull(),
     newHexCount: integer("new_hex_count").default(0).notNull(),
     stolenHexCount: integer("stolen_hex_count").default(0).notNull(),
+    budgetSkippedHexCount: integer("budget_skipped_hex_count")
+      .default(0)
+      .notNull(),
+    dailyBudget: integer("daily_budget").default(10).notNull(),
     flaggedSuspicious: boolean("flagged_suspicious").default(false).notNull(),
     suspiciousReason: text("suspicious_reason"),
     mockLocationDetected: boolean("mock_location_detected"),
@@ -88,6 +97,32 @@ export const hexrunnerHexOwnershipTable = pgTable(
   ],
 );
 
+export const hexrunnerTakeoverEventsTable = pgTable(
+  "hexrunner_takeover_events",
+  {
+    runId: text("run_id")
+      .notNull()
+      .references(() => hexrunnerRunsTable.id, { onDelete: "cascade" }),
+    h3Index: text("h3_index").notNull(),
+    previousOwnerId: text("previous_owner_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    newOwnerId: text("new_owner_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runId, table.h3Index] }),
+    index("hexrunner_takeover_events_previous_owner_idx").on(
+      table.previousOwnerId,
+    ),
+    index("hexrunner_takeover_events_new_owner_idx").on(table.newOwnerId),
+  ],
+);
+
 export const insertHexrunnerUserSchema =
   createInsertSchema(hexrunnerUsersTable);
 export const insertHexrunnerRunSchema = createInsertSchema(hexrunnerRunsTable);
@@ -96,6 +131,9 @@ export const insertHexrunnerRunPointSchema = createInsertSchema(
 );
 export const insertHexrunnerHexOwnershipSchema = createInsertSchema(
   hexrunnerHexOwnershipTable,
+);
+export const insertHexrunnerTakeoverEventSchema = createInsertSchema(
+  hexrunnerTakeoverEventsTable,
 );
 
 export type HexrunnerUser = typeof hexrunnerUsersTable.$inferSelect;
@@ -110,4 +148,9 @@ export type HexrunnerHexOwnership =
   typeof hexrunnerHexOwnershipTable.$inferSelect;
 export type InsertHexrunnerHexOwnership = z.infer<
   typeof insertHexrunnerHexOwnershipSchema
+>;
+export type HexrunnerTakeoverEvent =
+  typeof hexrunnerTakeoverEventsTable.$inferSelect;
+export type InsertHexrunnerTakeoverEvent = z.infer<
+  typeof insertHexrunnerTakeoverEventSchema
 >;

@@ -6,12 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { RecentRun } from './recentRun';
+import type { TakeoverAlert } from './takeoverAlert';
+import type { UserBaseline } from './userBaseline';
 import type { UserStatsTotals } from './userStatsTotals';
 
 export interface UserStatsResult {
   userId: string;
   displayName: string;
+  baseline: UserBaseline | null;
   totals: UserStatsTotals;
   /** @maxItems 5 */
   recentRuns: RecentRun[];
+  /** @maxItems 3 */
+  takeoverAlerts: TakeoverAlert[];
 }

@@ -5,8 +5,10 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LeaderboardScope } from './leaderboardScope';
 import type { UserId } from './userId';
 
 export type GetLeaderboardParams = {
 currentUserId?: UserId;
+scope?: LeaderboardScope;
 };

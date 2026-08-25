@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LeaderboardEntry } from './leaderboardEntry';
+import type { LeaderboardScope } from './leaderboardScope';
 
 export interface LeaderboardResult {
+  scope: LeaderboardScope;
   /** @maxItems 20 */
   users: LeaderboardEntry[];
 }
