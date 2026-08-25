@@ -343,7 +343,7 @@ export default function RunSessionScreen() {
             HEXRUNNER
           </Text>
           <Text style={[styles.title, { color: colors.foreground }]}>
-            Run Session
+            MAKE A MARK
           </Text>
         </View>
         <View
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   title: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'PermanentMarker_400Regular',
     fontSize: 29,
     letterSpacing: -0.5,
   },
@@ -697,13 +697,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    borderRadius: 88,
+    borderRadius: 8,
     borderWidth: 4,
-    shadowColor: '#2DE0B0',
-    shadowOpacity: 0.28,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
+    transform: [{ rotate: '-2deg' }],
   },
   playIcon: {
     marginLeft: 5,
@@ -825,7 +821,7 @@ const styles = StyleSheet.create({
     width: 15,
     height: 15,
     borderRadius: 3,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F2E8D5',
   },
   stopButtonText: {
     fontFamily: 'Inter_700Bold',

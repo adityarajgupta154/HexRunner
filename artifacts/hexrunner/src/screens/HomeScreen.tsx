@@ -69,18 +69,18 @@ function hexesForRegion(region: Region): string[] {
 }
 
 const DARK_MAP_STYLE: MapStyleElement[] = [
-  { elementType: 'geometry', stylers: [{ color: '#14212B' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#9FB4C0' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0A0F14' }] },
-  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#31424F' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#182832' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#12332C' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#283A47' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#101A22' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#39505E' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#20323E' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#071D2B' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#6B92A8' }] },
+  { elementType: 'geometry', stylers: [{ color: '#24201e' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#d6c8b8' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#151414' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#554944' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#2d2825' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#342d29' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#443a35' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1c1918' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#634139' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#39312e' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#211c1b' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#b8aca0' }] },
 ];
 
 export default function HomeScreen() {
@@ -421,7 +421,7 @@ function LiveMap() {
       <View pointerEvents="none" style={[styles.topBar, { top: insets.top + 14 }]}>
         <View style={[styles.liveBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
-          <Text style={[styles.liveText, { color: colors.foreground }]}>LIVE GPS</Text>
+          <Text style={[styles.liveText, { color: colors.foreground }]}>CITY / LIVE</Text>
         </View>
 
         <View
@@ -430,7 +430,7 @@ function LiveMap() {
         >
           <Feather name="target" size={14} color={colors.primary} />
           <Text style={[styles.tierText, { color: colors.foreground }]}>
-            {userStats?.totals.todayClaimedHexes ?? 0}/{userStats?.totals.dailyBudget ?? 10} today
+            {userStats?.totals.todayClaimedHexes ?? 0}/{userStats?.totals.dailyBudget ?? 10} MARKS
           </Text>
         </View>
       </View>
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
     gap: 7,
     padding: 6,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 3,
   },
   communityAction: {
     minHeight: 34,
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
     gap: 9,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 3,
   },
   safetyAdvisoryCopy: { flex: 1 },
   safetyAdvisoryTitle: { fontFamily: 'Inter_700Bold', fontSize: 12 },
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 19,
+    borderRadius: 3,
     borderWidth: 1,
     paddingHorizontal: 14,
   },
@@ -818,7 +818,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderRadius: 19,
+    borderRadius: 3,
     borderWidth: 1,
     paddingHorizontal: 14,
   },
@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    borderRadius: 16,
+    borderRadius: 3,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 9,

@@ -197,7 +197,7 @@ export default function RunSummaryScreen() {
             <Feather name="check" size={38} color={colors.primary} />
           </View>
           <Text style={[styles.eyebrow, { color: colors.primary }]}>RUN COMPLETE</Text>
-          <Text style={[styles.title, { color: colors.foreground }]}>Session Summary</Text>
+           <Text style={[styles.title, { color: colors.foreground }]}>MARK MADE.</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             {saveStatus === 'saved'
               ? 'Your route and claimed territory are stored in Replit.'
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     height: 78,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 25,
+    borderRadius: 4,
     borderWidth: 1,
     marginTop: 16,
     marginBottom: 22,
@@ -501,9 +501,9 @@ const styles = StyleSheet.create({
     letterSpacing: 1.8,
   },
   title: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 31,
-    letterSpacing: -0.7,
+    fontFamily: 'PermanentMarker_400Regular',
+    fontSize: 36,
+    letterSpacing: -1.8,
     marginTop: 6,
   },
   subtitle: {
@@ -524,7 +524,7 @@ const styles = StyleSheet.create({
     minHeight: 126,
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 3,
     padding: 18,
   },
   smallCardRow: {
@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 9,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 3,
   },
   pointsText: {
     fontFamily: 'Inter_600SemiBold',
@@ -579,7 +579,7 @@ const styles = StyleSheet.create({
   hexResultCard: {
     marginTop: 12,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 3,
     padding: 16,
     gap: 12,
   },
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    borderRadius: 18,
+    borderRadius: 3,
   },
   doneButtonText: {
     fontFamily: 'Inter_700Bold',

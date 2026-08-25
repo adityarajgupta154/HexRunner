@@ -92,7 +92,7 @@ export default function LeaderboardScreen() {
     <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: colors.primary }]}>TERRITORY CONTROL</Text>
-        <Text style={[styles.title, { color: colors.foreground }]}>Leaderboard</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>WHO OWNS{'\n'}THE BLOCK?</Text>
       </View>
       <View style={styles.scopeRow}>
         {[
@@ -247,9 +247,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1.8,
   },
   title: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 31,
-    letterSpacing: -0.7,
+    fontFamily: 'PermanentMarker_400Regular',
+    fontSize: 33,
+    lineHeight: 31,
+    letterSpacing: -1.5,
     marginTop: 6,
   },
   errorText: {
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 3,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -316,7 +317,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 3,
   },
   rankContainer: {
     width: 32,

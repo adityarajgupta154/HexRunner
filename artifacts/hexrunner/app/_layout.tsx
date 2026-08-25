@@ -13,10 +13,12 @@ import {
   Inter_700Bold,
   useFonts,
 } from '@expo-google-fonts/inter';
+import { PermanentMarker_400Regular } from '@expo-google-fonts/permanent-marker';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { setBaseUrl } from '@workspace/api-client-react';
+import FirstLaunchGate from '@/src/components/FirstLaunchGate';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -59,6 +61,7 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    PermanentMarker_400Regular,
   });
 
   useEffect(() => {
@@ -77,7 +80,9 @@ export default function RootLayout() {
             <PendingRunRecovery />
             <GestureHandlerRootView>
               <KeyboardProvider>
+              <FirstLaunchGate>
                 <RootLayoutNav />
+              </FirstLaunchGate>
               </KeyboardProvider>
             </GestureHandlerRootView>
           </AuthProvider>

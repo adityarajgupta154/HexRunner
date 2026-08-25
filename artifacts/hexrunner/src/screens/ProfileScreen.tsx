@@ -113,8 +113,8 @@ export default function ProfileScreen() {
           <>
             <View style={styles.header}>
               <View>
-                <Text style={[styles.eyebrow, { color: colors.primary }]}>PROFILE</Text>
-                <Text style={[styles.title, { color: colors.foreground }]}>{data?.displayName || 'Runner'}</Text>
+                <Text style={[styles.eyebrow, { color: colors.primary }]}>RUNNER FILE / ACTIVE</Text>
+                <Text style={[styles.title, { color: colors.foreground }]}>{data?.displayName || 'UNTAGGED'}</Text>
               </View>
             </View>
 
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.8,
   },
   title: {
-    fontFamily: 'Inter_700Bold',
+    fontFamily: 'PermanentMarker_400Regular',
     fontSize: 31,
     letterSpacing: -0.7,
     marginTop: 6,
