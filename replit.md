@@ -8,6 +8,22 @@ A GPS territory-control fitness game (Expo React Native): runners claim hexagona
 - `pnpm --filter @workspace/hexrunner run typecheck` — typecheck the app
 - `pnpm run typecheck` — full typecheck across all packages
 - Shared API server (`artifacts/api-server`, port env-driven) exists but is not used yet
+- Firebase client config is read from Replit Secrets by `app.config.js`; restart the Expo workflow after adding or changing Firebase values
+
+## Firebase configuration
+
+Required Replit Secrets:
+
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_STORAGE_BUCKET`
+- `FIREBASE_MESSAGING_SENDER_ID`
+- `FIREBASE_APP_ID`
+
+Optional: `FIREBASE_MEASUREMENT_ID`
+
+Anonymous Authentication must also be enabled for the Firebase project. Until configuration exists, AuthContext intentionally exposes `uid: null` and a configuration error while allowing the app to keep running.
 
 ## Where things live
 

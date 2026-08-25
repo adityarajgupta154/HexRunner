@@ -46,6 +46,14 @@ Expo Location's web subscription cleanup can call a missing native emitter metho
 
 **How to apply:** keep browser previews on the browser geolocation fallback; use Expo Location's high-accuracy watcher on iOS/Android. Always test both watcher setup and cleanup.
 
+## Firebase environment bridge
+
+Expo does not inline arbitrary client-side `process.env` names; only its public-prefixed convention is automatic. HexRunner keeps the requested `FIREBASE_*` Replit Secret names and bridges them through dynamic Expo config.
+
+**Why:** direct `process.env.FIREBASE_*` reads can be undefined in the phone bundle even when the workflow process has the secrets. Firebase client configuration is public once bundled, regardless of being stored as Replit Secrets.
+
+**How to apply:** add/change Firebase values only through Replit Secrets, restart Expo afterward, and keep the config bridge aligned with the service. Missing config must yield a diagnosable null-auth state, not crash startup.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.
