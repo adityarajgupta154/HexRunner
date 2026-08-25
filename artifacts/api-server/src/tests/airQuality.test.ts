@@ -150,6 +150,82 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
     );
   });
 
+  test("uses a bounded retry cooldown while a stale snapshot is eligible", async () => {
+    let now = 1_000;
+    let calls = 0;
+    let refreshAttempts = 0;
+    const cache = new AirQualityAreaCache<{ sequence: number }>(100, {
+      staleIfErrorMs: 1_000,
+      retryCooldownMs: 200,
+      now: () => now,
+    });
+
+    await cache.getOrLoad("area", async () => ({ sequence: ++calls }));
+    now = 1_100;
+    const fallback = await cache.getOrLoad("area", async () => {
+      refreshAttempts += 1;
+      throw new Error("upstream unavailable");
+    });
+    now = 1_101;
+    const duringCooldown = await cache.getOrLoad("area", async () => ({
+      sequence: ++calls,
+    }));
+
+    assert.equal(fallback.isFallback, true);
+    assert.deepEqual(duringCooldown, fallback);
+    assert.equal(refreshAttempts, 1);
+    assert.equal(calls, 1);
+
+    now = 1_300;
+    const recovered = await cache.getOrLoad("area", async () => ({
+      sequence: ++calls,
+    }));
+    assert.deepEqual(recovered, {
+      value: { sequence: 2 },
+      isFallback: false,
+    });
+    assert.equal(calls, 2);
+  });
+
+  test("shares the failed refresh and cooldown fallback for concurrent callers", async () => {
+    let now = 1_000;
+    let calls = 0;
+    let refreshAttempts = 0;
+    let rejectLoad: ((error: Error) => void) | undefined;
+    const cache = new AirQualityAreaCache<{ sequence: number }>(100, {
+      staleIfErrorMs: 1_000,
+      retryCooldownMs: 200,
+      now: () => now,
+    });
+
+    await cache.getOrLoad("area", async () => ({ sequence: ++calls }));
+    now = 1_100;
+    const firstRequest = cache.getOrLoad(
+      "area",
+      () =>
+        new Promise<{ sequence: number }>((_, reject) => {
+          refreshAttempts += 1;
+          rejectLoad = reject;
+        }),
+    );
+    const secondRequest = cache.getOrLoad("area", async () => {
+      refreshAttempts += 1;
+      return { sequence: ++calls };
+    });
+
+    await Promise.resolve();
+    assert.equal(refreshAttempts, 1);
+    rejectLoad?.(new Error("upstream unavailable"));
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+    assert.deepEqual(first, {
+      value: { sequence: 1 },
+      isFallback: true,
+    });
+    assert.strictEqual(second, first);
+    assert.equal(calls, 1);
+  });
+
   test("replaces a fallback as soon as the upstream source recovers", async () => {
     let now = 1_000;
     let calls = 0;
@@ -166,6 +242,7 @@ describe("air-quality coarse-area cache", { concurrency: false }, () => {
       calls += 1;
       throw new Error("upstream unavailable");
     });
+    now = 1_300;
     const recovered = await cache.getOrLoad("area", async () => ({
       sequence: ++calls,
     }));

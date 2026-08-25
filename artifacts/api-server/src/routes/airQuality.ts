@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { GetAirQualityQueryParams } from "@workspace/api-zod";
 import {
   AIR_QUALITY_CACHE_TTL_MS,
+  AIR_QUALITY_RETRY_COOLDOWN_MS,
   AIR_QUALITY_STALE_IF_ERROR_MS,
   AirQualityAreaCache,
   buildAirQualityResponse,
@@ -14,7 +15,10 @@ const router: IRouter = Router();
 
 const sourceCache = new AirQualityAreaCache<AirQualitySnapshot>(
   AIR_QUALITY_CACHE_TTL_MS,
-  { staleIfErrorMs: AIR_QUALITY_STALE_IF_ERROR_MS },
+  {
+    staleIfErrorMs: AIR_QUALITY_STALE_IF_ERROR_MS,
+    retryCooldownMs: AIR_QUALITY_RETRY_COOLDOWN_MS,
+  },
 );
 
 class AirQualitySourceError extends Error {

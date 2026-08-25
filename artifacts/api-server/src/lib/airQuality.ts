@@ -3,6 +3,7 @@ import { GetAirQualityResponse } from "@workspace/api-zod";
 
 export const AIR_QUALITY_CACHE_TTL_MS = 10 * 60 * 1_000;
 export const AIR_QUALITY_STALE_IF_ERROR_MS = 30 * 60 * 1_000;
+export const AIR_QUALITY_RETRY_COOLDOWN_MS = 30 * 1_000;
 
 const AIR_QUALITY_AREA_RESOLUTION = 7;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1_000;
@@ -41,6 +42,7 @@ export type AirQualityCacheResult<T> = {
 
 type AirQualityAreaCacheOptions = {
   staleIfErrorMs?: number;
+  retryCooldownMs?: number;
   now?: () => number;
   maxEntries?: number;
 };
@@ -51,7 +53,9 @@ export class AirQualityAreaCache<T> {
     string,
     Promise<AirQualityCacheResult<T>>
   >();
+  private readonly retryAfter = new Map<string, number>();
   private readonly staleIfErrorMs: number;
+  private readonly retryCooldownMs: number;
   private readonly now: () => number;
   private readonly maxEntries: number;
 
@@ -60,11 +64,15 @@ export class AirQualityAreaCache<T> {
     options: AirQualityAreaCacheOptions = {},
   ) {
     this.staleIfErrorMs = options.staleIfErrorMs ?? 0;
+    this.retryCooldownMs = options.retryCooldownMs ?? 0;
     this.now = options.now ?? Date.now;
     this.maxEntries = options.maxEntries ?? 512;
     if (ttlMs <= 0) throw new Error("Cache TTL must be positive.");
     if (this.staleIfErrorMs < 0) {
       throw new Error("Cache stale-if-error period cannot be negative.");
+    }
+    if (this.retryCooldownMs < 0) {
+      throw new Error("Cache retry cooldown cannot be negative.");
     }
     if (this.maxEntries <= 0) {
       throw new Error("Cache capacity must be positive.");
@@ -77,6 +85,7 @@ export class AirQualityAreaCache<T> {
   ): Promise<AirQualityCacheResult<T>> {
     const now = this.now();
     this.pruneDiscarded(now);
+    this.pruneRetryCooldowns(now);
 
     const cached = this.values.get(key);
     if (cached && cached.expiresAt > now) {
@@ -86,16 +95,26 @@ export class AirQualityAreaCache<T> {
     const existingRequest = this.inFlight.get(key);
     if (existingRequest) return existingRequest;
 
+    const fallback = this.getEligibleFallback(key, now);
+    const retryAt = this.retryAfter.get(key);
+    if (fallback && retryAt !== undefined && retryAt > now) {
+      return Promise.resolve({ value: fallback.value, isFallback: true });
+    }
+
     let request: Promise<AirQualityCacheResult<T>>;
     request = Promise.resolve()
       .then(loader)
       .then((value) => {
         const loadedAt = this.now();
         this.pruneDiscarded(loadedAt);
+        this.retryAfter.delete(key);
         if (!this.values.has(key) && this.values.size >= this.maxEntries) {
           const oldestKey = this.values.keys().next().value as
             string | undefined;
-          if (oldestKey) this.values.delete(oldestKey);
+          if (oldestKey) {
+            this.values.delete(oldestKey);
+            this.retryAfter.delete(oldestKey);
+          }
         }
         const expiresAt = loadedAt + this.ttlMs;
         this.values.set(key, {
@@ -107,14 +126,23 @@ export class AirQualityAreaCache<T> {
       })
       .catch((error: unknown) => {
         const failedAt = this.now();
-        const fallback = this.values.get(key);
-        if (
-          fallback &&
-          fallback.expiresAt <= failedAt &&
-          fallback.discardAt > failedAt
-        ) {
+        const fallback = this.getEligibleFallback(key, failedAt);
+        if (fallback) {
+          if (this.retryCooldownMs > 0) {
+            if (
+              !this.retryAfter.has(key) &&
+              this.retryAfter.size >= this.maxEntries
+            ) {
+              const oldestRetryKey = this.retryAfter.keys().next().value as
+                | string
+                | undefined;
+              if (oldestRetryKey) this.retryAfter.delete(oldestRetryKey);
+            }
+            this.retryAfter.set(key, failedAt + this.retryCooldownMs);
+          }
           return { value: fallback.value, isFallback: true };
         }
+        this.retryAfter.delete(key);
         throw error;
       })
       .finally(() => {
@@ -131,6 +159,24 @@ export class AirQualityAreaCache<T> {
     for (const [key, entry] of this.values) {
       if (entry.discardAt <= now) this.values.delete(key);
     }
+  }
+
+  private pruneRetryCooldowns(now: number): void {
+    for (const [key, retryAt] of this.retryAfter) {
+      if (retryAt <= now || !this.values.has(key)) {
+        this.retryAfter.delete(key);
+      }
+    }
+  }
+
+  private getEligibleFallback(
+    key: string,
+    now: number,
+  ): CacheEntry<T> | undefined {
+    const entry = this.values.get(key);
+    return entry && entry.expiresAt <= now && entry.discardAt > now
+      ? entry
+      : undefined;
   }
 }
 
