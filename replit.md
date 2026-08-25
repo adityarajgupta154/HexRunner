@@ -1,45 +1,44 @@
-# [Project name]
+# HexRunner
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A GPS territory-control fitness game (Expo React Native): runners claim hexagonal map cells by moving through the real world, defend them from other players, and climb a leaderboard. Built phone-first for the iQOO Hackathon 2026 (Open Innovation track).
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Mobile app runs via workflow `artifacts/hexrunner: expo` — test on a phone by scanning the QR code with Expo Go (Android)
+- `pnpm --filter @workspace/hexrunner run typecheck` — typecheck the app
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
-
-## Stack
-
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Shared API server (`artifacts/api-server`, port env-driven) exists but is not used yet
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- Routes: `artifacts/hexrunner/app/(tabs)/` — thin re-exports of screen components (expo-router file-based routing)
+- Screens: `artifacts/hexrunner/src/screens/` (HomeScreen, RunScreen, LeaderboardScreen, ProfileScreen)
+- Shared UI: `artifacts/hexrunner/src/components/`
+- Reserved for upcoming checklist phases: `artifacts/hexrunner/src/services/`, `src/context/`, `src/models/`
+- Theme tokens: `artifacts/hexrunner/constants/colors.ts` (dark-only palette, teal primary = claimed-hex color)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Build strictly follows the user's task checklist (`attached_assets/HexRunner_Task_Checklist_*.docx`, 19 tasks, 8 phases) — one task per user message, verify each "✓ Done when" gate, never skip ahead
+- expo-router file-based routing; its `Tabs` navigator is backed by `@react-navigation/bottom-tabs` (fulfils the checklist's navigation requirement)
+- TypeScript instead of the checklist's JavaScript (scaffold default; file paths otherwise match the checklist)
+- Dark-only UI: both palette keys in `constants/colors.ts` hold the same dark palette; `userInterfaceStyle: "dark"` in app.json
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Phase 1 complete: 4-tab shell (Home, Run, Leaderboard, Profile) with branded placeholder screens and custom app icon
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- User pastes checklist tasks verbatim, one at a time — execute exactly that task, then report against its "✓ Done when" line
+- High-contrast dark interfaces; no faint labels; obvious next actions
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Checklist Phase 5 prescribes Firebase; the monorepo also offers the shared Express + Postgres backend — surface this choice to the user when Phase 5 starts, don't silently pick
+- `react-native-maps` (needed in Phase 2) must be pinned to exactly 1.18.0 for Expo Go, and must NOT be added to app.json plugins
 
 ## Pointers
 
 - See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Product context: `attached_assets/HexRunner_PRD_*.docx` and `attached_assets/HexRunner_Replit_Build_PRD_*.docx`

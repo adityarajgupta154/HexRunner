@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/"
+title = "HexRunner"
+description = "A GPS territory-control fitness game for Android (Expo React Native). Runners claim hexagonal map cells by moving through the real world, defend them from other players, and climb a leaderboard. Built phone-first for the iQOO Hackathon 2026 with an on-device fitness-tier AI model."
+version = "1.0.0"
+id = "artifacts/hexrunner"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/" ]
+localPort = 19292
+
+[services.development]
+run = "pnpm --filter @workspace/hexrunner run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hexrunner", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/hexrunner", "run", "serve" ]
+
+[services.env]
+PORT = "19292"
+BASE_PATH = "/"
