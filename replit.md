@@ -36,7 +36,7 @@ A GPS territory-control fitness game (Expo React Native): runners claim hexagona
 ## Gotchas
 
 - Checklist Phase 5 prescribes Firebase; the monorepo also offers the shared Express + Postgres backend — surface this choice to the user when Phase 5 starts, don't silently pick
-- `react-native-maps` (needed in Phase 2) must be pinned to exactly 1.18.0 for Expo Go, and must NOT be added to app.json plugins
+- Expo SDK 54 currently expects `react-native-maps` 1.20.1; keep it aligned with Metro's compatibility check and do NOT add it to app.json plugins
 
 ## Pointers
 

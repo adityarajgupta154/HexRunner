@@ -26,6 +26,14 @@ Dark-only by design (user preference: high-contrast dark, no faint labels): both
 
 Checklist Phase 5 prescribes Firebase (Firestore + anonymous auth). The monorepo's shared Express + Postgres api-server is a viable alternative. **Raise this choice with the user when Phase 5 starts; do not silently swap.**
 
+## Expo package compatibility
+
+For this Expo SDK 54 scaffold, Metro's live compatibility check expects `react-native-maps` 1.20.1. Older guidance naming 1.18.0 is stale for this project.
+
+**Why:** installing 1.18.0 produced an explicit Expo compatibility warning; 1.20.1 removed it and Metro booted cleanly.
+
+**How to apply:** keep maps at Expo's currently expected version and never add it to the app.json plugins array.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.
