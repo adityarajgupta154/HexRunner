@@ -45,11 +45,11 @@ Full-screen raster slides inside a horizontal React Native Web list must use the
 
 ## Territory presentation boundary
 
-Keep H3 authoritative but visually hidden; render organic paint from H3 ownership and live GPS paths instead of exposing the cell lattice.
+Keep H3 authoritative and show the resolution-9 territory lattice on the Home map: neutral cells use subtle outlines, owned cells are orange, and rival cells are red.
 
-**Why:** stable cell IDs are required for transactional ownership, takeovers, budgets, and anti-abuse checks, while visible hex grids make the product feel like a board game rather than a personal running experience.
+**Why:** after trying an organic paint-only map, the user explicitly asked to restore the earlier visible grid because it makes territory boundaries and ownership clearer.
 
-**How to apply:** map and animation work may derive circles, ribbons, or merged display shapes from H3, but must not replace the persisted ownership model or submit display polygons as claim authority.
+**How to apply:** Home ownership uses real H3 polygons; route and run-session effects may still use paint circles or ribbons. Never replace the persisted ownership model or submit display polygons as claim authority.
 
 ## Crowdsourced safety boundary
 

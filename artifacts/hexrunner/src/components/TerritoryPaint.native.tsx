@@ -17,6 +17,7 @@ export type TerritoryPaintProps = {
   claimedHexIndexes?: ReadonlySet<string>;
   otherHexIndexes?: ReadonlySet<string>;
   claimReadyHexIndexes?: ReadonlySet<string>;
+  showOwnershipPaint?: boolean;
   routePoints?: readonly TerritoryRoutePoint[];
   safetyAreas?: readonly SafetyAreaSignal[];
   civicAreas?: readonly CivicAreaSignal[];
@@ -41,6 +42,7 @@ export default function TerritoryPaint({
   claimedHexIndexes,
   otherHexIndexes,
   claimReadyHexIndexes,
+  showOwnershipPaint = true,
   routePoints = [],
   safetyAreas = [],
   civicAreas = [],
@@ -49,12 +51,14 @@ export default function TerritoryPaint({
   const colors = useColors();
   const spots = useMemo(
     () =>
-      buildTerritoryPaintSpots(
-        claimedHexIndexes,
-        otherHexIndexes,
-        claimReadyHexIndexes,
-      ),
-    [claimReadyHexIndexes, claimedHexIndexes, otherHexIndexes],
+      showOwnershipPaint
+        ? buildTerritoryPaintSpots(
+            claimedHexIndexes,
+            otherHexIndexes,
+            claimReadyHexIndexes,
+          )
+        : [],
+    [claimReadyHexIndexes, claimedHexIndexes, otherHexIndexes, showOwnershipPaint],
   );
   const routeCoordinates = useMemo(
     () => routeToMapCoordinates(routePoints),

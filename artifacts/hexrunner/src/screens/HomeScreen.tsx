@@ -13,6 +13,7 @@ import type { MapStyleElement, Region } from 'react-native-maps';
 import MapView from 'react-native-maps/lib/MapView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import HexGrid from '@/src/components/HexGrid';
 import TerritoryPaint from '@/src/components/TerritoryPaint';
 import { useColors } from '@/hooks/useColors';
 import { hexesFromBoundingBox, hexToParent } from '@/src/services/hexEngine';
@@ -384,11 +385,18 @@ function LiveMap() {
             center={coordinate}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            showOwnershipPaint={false}
             safetyAreas={safetyAreas}
             civicAreas={showCivicLayer ? civicAreas : []}
             caretakerH3Indexes={
               showCivicLayer ? caretakerHexes : undefined
             }
+          />
+          <HexGrid
+            center={coordinate}
+            hexIndexes={visibleHexes}
+            claimedHexIndexes={myHexes}
+            otherHexIndexes={otherHexes}
           />
         </View>
       ) : (
@@ -405,10 +413,17 @@ function LiveMap() {
           showsUserLocation
           toolbarEnabled={false}
         >
+          <HexGrid
+            center={coordinate}
+            hexIndexes={visibleHexes}
+            claimedHexIndexes={myHexes}
+            otherHexIndexes={otherHexes}
+          />
           <TerritoryPaint
             center={coordinate}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            showOwnershipPaint={false}
             safetyAreas={safetyAreas}
             civicAreas={showCivicLayer ? civicAreas : []}
             caretakerH3Indexes={
