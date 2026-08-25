@@ -5,6 +5,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AuthProvider } from '@/src/context/AuthContext';
+import PendingRunRecovery from '@/src/components/PendingRunRecovery';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -57,6 +58,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
+            <PendingRunRecovery />
             <GestureHandlerRootView>
               <KeyboardProvider>
                 <RootLayoutNav />

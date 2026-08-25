@@ -7,23 +7,16 @@ A GPS territory-control fitness game (Expo React Native): runners claim hexagona
 - Mobile app runs via workflow `artifacts/hexrunner: expo` — test on a phone by scanning the QR code with Expo Go (Android)
 - `pnpm --filter @workspace/hexrunner run typecheck` — typecheck the app
 - `pnpm run typecheck` — full typecheck across all packages
-- Shared API server (`artifacts/api-server`, port env-driven) exists but is not used yet
-- Firebase client config is read from Replit Secrets by `app.config.js`; restart the Expo workflow after adding or changing Firebase values
+- Shared API server (`artifacts/api-server`, port env-driven) persists completed runs to Replit PostgreSQL
+- `pnpm --filter @workspace/db run push` — apply development schema changes
+- Restart both the API and Expo workflows after changing the run persistence contract
 
-## Firebase configuration
+## Replit data storage
 
-Required Replit Secrets:
-
-- `FIREBASE_API_KEY`
-- `FIREBASE_AUTH_DOMAIN`
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_STORAGE_BUCKET`
-- `FIREBASE_MESSAGING_SENDER_ID`
-- `FIREBASE_APP_ID`
-
-Optional: `FIREBASE_MEASUREMENT_ID`
-
-Anonymous Authentication must also be enabled for the Firebase project. Until configuration exists, AuthContext intentionally exposes `uid: null` and a configuration error while allowing the app to keep running.
+- Anonymous device identity is stored locally with AsyncStorage; no external auth configuration is required
+- Completed runs, ordered GPS points, and current H3 ownership are saved through `POST /api/runs`
+- Mobile code must use the shared API client and must never connect directly to PostgreSQL
+- Run IDs are client-generated idempotency keys so summary-screen retries cannot duplicate a run
 
 ## Where things live
 
@@ -51,7 +44,7 @@ Anonymous Authentication must also be enabled for the Firebase project. Until co
 
 ## Gotchas
 
-- Checklist Phase 5 prescribes Firebase; the monorepo also offers the shared Express + Postgres backend — surface this choice to the user when Phase 5 starts, don't silently pick
+- The user chose Replit Express + PostgreSQL instead of the checklist's external backend; keep all HexRunner persistence in Replit unless they explicitly change direction
 - Expo SDK 54 currently expects `react-native-maps` 1.20.1; keep it aligned with Metro's compatibility check and do NOT add it to app.json plugins
 
 ## Pointers

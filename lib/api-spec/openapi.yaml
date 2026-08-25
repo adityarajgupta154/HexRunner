@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: runs
+    description: HexRunner run persistence
 paths:
   /healthz:
     get:
@@ -24,6 +26,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /runs:
+    post:
+      operationId: saveRun
+      tags: [runs]
+      summary: Save a completed run
+      description: Atomically saves a completed run, ordered GPS points, and claimed H3 cells.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveRunRequest"
+      responses:
+        "200":
+          description: Run already existed and was returned without duplication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveRunResult"
+        "201":
+          description: Run saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SaveRunResult"
+        "400":
+          description: Invalid run payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Run could not be saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +72,85 @@ components:
           type: string
       required:
         - status
+    RunPoint:
+      type: object
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        timestamp:
+          type: number
+          multipleOf: 1
+          minimum: 0
+      required: [lat, lng, timestamp]
+    SaveRunRequest:
+      type: object
+      properties:
+        clientRunId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        userId:
+          type: string
+          minLength: 8
+          maxLength: 120
+          pattern: "^[A-Za-z0-9_-]+$"
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        elapsedSeconds:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        distanceKm:
+          type: number
+          minimum: 0
+        points:
+          type: array
+          maxItems: 20000
+          items:
+            $ref: "#/components/schemas/RunPoint"
+        claimedHexes:
+          type: array
+          maxItems: 10000
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 15
+            maxLength: 16
+            pattern: "^89[0-9a-f]{13}$"
+      required:
+        - clientRunId
+        - userId
+        - startedAt
+        - endedAt
+        - elapsedSeconds
+        - distanceKm
+        - points
+        - claimedHexes
+    SaveRunResult:
+      type: object
+      properties:
+        runId:
+          type: string
+        saved:
+          type: boolean
+        idempotent:
+          type: boolean
+      required: [runId, saved, idempotent]
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
 

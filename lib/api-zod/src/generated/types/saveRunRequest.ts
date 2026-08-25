@@ -5,24 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export interface RunPoint {
-  /**
-     * @minimum -90
-     * @maximum 90
-     */
-  lat: number;
-  /**
-     * @minimum -180
-     * @maximum 180
-     */
-  lng: number;
-  /** @minimum 0 */
-  timestamp: number;
-}
+import type { RunPoint } from './runPoint';
 
 export interface SaveRunRequest {
   /**
@@ -37,8 +20,8 @@ export interface SaveRunRequest {
      * @pattern ^[A-Za-z0-9_-]+$
      */
   userId: string;
-  startedAt: string;
-  endedAt: string;
+  startedAt: Date;
+  endedAt: Date;
   /** @minimum 0 */
   elapsedSeconds: number;
   /** @minimum 0 */
@@ -52,14 +35,4 @@ export interface SaveRunRequest {
      * @items.pattern ^89[0-9a-f]{13}$
      */
   claimedHexes: string[];
-}
-
-export interface SaveRunResult {
-  runId: string;
-  saved: boolean;
-  idempotent: boolean;
-}
-
-export interface ApiError {
-  error: string;
 }

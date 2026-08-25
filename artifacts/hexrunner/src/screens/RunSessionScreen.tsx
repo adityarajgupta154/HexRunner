@@ -11,11 +11,17 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RunMap from '@/src/components/RunMap';
 import { useColors } from '@/hooks/useColors';
+import { useAuth } from '@/src/context/AuthContext';
 import { hexesFromPath } from '@/src/services/hexEngine';
 import {
   startWatching,
   stopWatching,
 } from '@/src/services/locationTracker';
+import {
+  createClientRunId,
+  type PendingRun,
+  queueRunForSave,
+} from '@/src/services/runStorage';
 
 type RunPoint = {
   lat: number;
@@ -73,6 +79,7 @@ export default function RunSessionScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { uid, loading: identityLoading, error: identityError } = useAuth();
   const startTimeRef = useRef<number | null>(null);
   const lastPointRef = useRef<RunPoint | null>(null);
   const distanceKmRef = useRef(0);
@@ -82,6 +89,9 @@ export default function RunSessionScreen() {
   const [distanceKm, setDistanceKm] = useState(0);
   const [pathPoints, setPathPoints] = useState<RunPoint[]>([]);
   const [claimedHexes, setClaimedHexes] = useState<Set<string>>(new Set());
+  const [runAwaitingCache, setRunAwaitingCache] =
+    useState<PendingRun | null>(null);
+  const [isCachingRun, setIsCachingRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,6 +112,18 @@ export default function RunSessionScreen() {
   useEffect(() => stopWatching, []);
 
   const startSession = useCallback(async () => {
+    if (runAwaitingCache) {
+      setError('Save the completed run before starting another one.');
+      return;
+    }
+
+    if (!uid) {
+      setError(
+        identityError ?? 'Your local HexRunner identity is not ready yet.',
+      );
+      return;
+    }
+
     setIsStarting(true);
     setError(null);
     setElapsedSeconds(0);
@@ -155,28 +177,73 @@ export default function RunSessionScreen() {
     } finally {
       setIsStarting(false);
     }
-  }, []);
+  }, [identityError, runAwaitingCache, uid]);
 
-  const stopSession = useCallback(() => {
+  const cacheRunAndOpenSummary = useCallback(
+    async (run: PendingRun) => {
+      setIsCachingRun(true);
+      setError(null);
+
+      try {
+        await queueRunForSave(run);
+        setRunAwaitingCache(null);
+        router.push({
+          pathname: '/run-summary',
+          params: {
+            clientRunId: run.clientRunId,
+            elapsedSeconds: run.elapsedSeconds.toString(),
+            distanceKm: run.distanceKm.toString(),
+            pointCount: run.points.length.toString(),
+            hexCount: run.claimedHexes.length.toString(),
+          },
+        });
+      } catch {
+        setRunAwaitingCache(run);
+        setError(
+          'The run is still open here, but its recovery copy could not be saved. Retry before closing HexRunner.',
+        );
+      } finally {
+        setIsCachingRun(false);
+      }
+    },
+    [router],
+  );
+
+  const stopSession = useCallback(async () => {
+    if (!uid) {
+      setError('Your local HexRunner identity is unavailable.');
+      stopWatching();
+      setIsRunning(false);
+      return;
+    }
+
+    const endedAt = Date.now();
+    const startedAt = startTimeRef.current ?? endedAt;
     const finalElapsedSeconds =
       startTimeRef.current === null
         ? elapsedSeconds
-        : Math.floor((Date.now() - startTimeRef.current) / 1_000);
+        : Math.floor((endedAt - startTimeRef.current) / 1_000);
     const finalDistanceKm = distanceKmRef.current;
+    const finalClaimedHexes = [...new Set(hexesFromPath(pathPoints))];
+    const clientRunId = createClientRunId();
 
     stopWatching();
     setIsRunning(false);
     startTimeRef.current = null;
 
-    router.push({
-      pathname: '/run-summary',
-      params: {
-        elapsedSeconds: finalElapsedSeconds.toString(),
-        distanceKm: finalDistanceKm.toString(),
-        pointCount: pathPoints.length.toString(),
-      },
-    });
-  }, [elapsedSeconds, pathPoints.length, router]);
+    const pendingRun = {
+      clientRunId,
+      userId: uid,
+      startedAt: new Date(startedAt).toISOString(),
+      endedAt: new Date(endedAt).toISOString(),
+      elapsedSeconds: finalElapsedSeconds,
+      distanceKm: finalDistanceKm,
+      points: pathPoints,
+      claimedHexes: finalClaimedHexes,
+    };
+
+    await cacheRunAndOpenSummary(pendingRun);
+  }, [cacheRunAndOpenSummary, elapsedSeconds, pathPoints, uid]);
 
   const pace = formatPace(elapsedSeconds, distanceKm);
 
@@ -281,7 +348,7 @@ export default function RunSessionScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Stop run"
-            onPress={stopSession}
+            onPress={() => void stopSession()}
             style={({ pressed }) => [
               styles.stopButton,
               {
@@ -305,38 +372,56 @@ export default function RunSessionScreen() {
         <View style={styles.readyContent}>
           <View style={styles.readyCopy}>
             <Text style={[styles.readyTitle, { color: colors.foreground }]}>
-              Ready to claim ground?
+              {runAwaitingCache
+                ? 'Save your completed run'
+                : 'Ready to claim ground?'}
             </Text>
             <Text
               style={[styles.readySubtitle, { color: colors.mutedForeground }]}
             >
-              Start moving to record your route, distance, and pace.
+              {runAwaitingCache
+                ? 'Retry the local recovery step before closing HexRunner.'
+                : 'Start moving to record your route, distance, and pace.'}
             </Text>
           </View>
 
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Start run"
-            disabled={isStarting}
-            onPress={startSession}
+            disabled={
+              isStarting ||
+              isCachingRun ||
+              (!runAwaitingCache && (identityLoading || !uid))
+            }
+            onPress={
+              runAwaitingCache
+                ? () => void cacheRunAndOpenSummary(runAwaitingCache)
+                : startSession
+            }
             style={({ pressed }) => [
               styles.startButton,
               {
                 backgroundColor: colors.primary,
                 borderColor: colors.accentForeground,
-                opacity: pressed || isStarting ? 0.82 : 1,
+                opacity:
+                  pressed ||
+                  isStarting ||
+                  isCachingRun ||
+                  (!runAwaitingCache && (identityLoading || !uid))
+                    ? 0.6
+                    : 1,
               },
             ]}
           >
-            {isStarting ? (
+            {isStarting || isCachingRun || (!runAwaitingCache && identityLoading) ? (
               <ActivityIndicator size="large" color={colors.primaryForeground} />
             ) : (
               <>
                 <Feather
-                  name="play"
+                  name={runAwaitingCache ? 'upload-cloud' : 'play'}
                   size={34}
                   color={colors.primaryForeground}
-                  style={styles.playIcon}
+                  style={runAwaitingCache ? undefined : styles.playIcon}
                 />
                 <Text
                   style={[
@@ -344,17 +429,19 @@ export default function RunSessionScreen() {
                     { color: colors.primaryForeground },
                   ]}
                 >
-                  START
+                  {runAwaitingCache ? 'RETRY SAVE' : 'START'}
                 </Text>
               </>
             )}
           </Pressable>
 
           <Text style={[styles.permissionNote, { color: colors.mutedForeground }]}>
-            Foreground location permission is required.
+            {runAwaitingCache
+              ? 'Keep HexRunner open until the summary appears.'
+              : 'Foreground location permission is required.'}
           </Text>
 
-          {error ? (
+          {error || identityError ? (
             <View
               style={[
                 styles.errorCard,
@@ -370,7 +457,7 @@ export default function RunSessionScreen() {
                 color={colors.destructive}
               />
               <Text style={[styles.errorText, { color: colors.foreground }]}>
-                {error}
+                {error ?? identityError}
               </Text>
             </View>
           ) : null}

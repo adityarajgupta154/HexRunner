@@ -6,11 +6,16 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
-import {
-  auth,
-  firebaseInitializationError,
-} from '@/src/services/firebase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const ANONYMOUS_UID_KEY = '@hexrunner/anonymous-uid';
+const VALID_UID = /^[A-Za-z0-9_-]{8,120}$/;
+
+function createAnonymousUid(): string {
+  const time = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 14);
+  return `device_${time}_${random}`;
+}
 
 type AuthContextValue = {
   uid: string | null;
@@ -21,48 +26,49 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: PropsWithChildren) {
-  const [uid, setUid] = useState<string | null>(
-    auth?.currentUser?.uid ?? null,
-  );
-  const [loading, setLoading] = useState(auth !== null);
-  const [error, setError] = useState<string | null>(
-    firebaseInitializationError?.message ?? null,
-  );
+  const [uid, setUid] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const firebaseAuth = auth;
+    let active = true;
 
-    if (!firebaseAuth) {
-      setLoading(false);
-      return;
+    async function loadIdentity() {
+      try {
+        const storedUid = await AsyncStorage.getItem(ANONYMOUS_UID_KEY);
+        const nextUid =
+          storedUid && VALID_UID.test(storedUid)
+            ? storedUid
+            : createAnonymousUid();
+
+        if (storedUid !== nextUid) {
+          await AsyncStorage.setItem(ANONYMOUS_UID_KEY, nextUid);
+        }
+
+        if (active) {
+          setUid(nextUid);
+          setError(null);
+        }
+      } catch (identityError: unknown) {
+        if (!active) return;
+        const message =
+          identityError instanceof Error
+            ? identityError.message
+            : 'Unable to create a local HexRunner identity.';
+        setUid(null);
+        setError(message);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
     }
 
-    let signInRequested = false;
-    const unsubscribe = onAuthStateChanged(firebaseAuth, (user) => {
-      if (user) {
-        setUid(user.uid);
-        setError(null);
-        setLoading(false);
-        return;
-      }
+    void loadIdentity();
 
-      setUid(null);
-
-      if (!signInRequested) {
-        signInRequested = true;
-        setLoading(true);
-        signInAnonymously(firebaseAuth).catch((signInError: unknown) => {
-          const message =
-            signInError instanceof Error
-              ? signInError.message
-              : 'Anonymous Firebase sign-in failed.';
-          setError(message);
-          setLoading(false);
-        });
-      }
-    });
-
-    return unsubscribe;
+    return () => {
+      active = false;
+    };
   }, []);
 
   const value = useMemo(
