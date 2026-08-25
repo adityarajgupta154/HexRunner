@@ -25,7 +25,11 @@ function formatPace(paceMinPerKm: number | null): string {
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { uid } = useAuth();
+  const {
+    uid,
+    loading: identityLoading,
+    error: identityError,
+  } = useAuth();
 
   const {
     data,
@@ -33,8 +37,13 @@ export default function ProfileScreen() {
     isError,
     error,
     refetch,
+    isRefetching,
   } = useGetUserStats(uid ?? '', {
-    query: { enabled: !!uid, queryKey: getGetUserStatsQueryKey(uid ?? '') },
+    query: {
+      enabled: !!uid,
+      queryKey: getGetUserStatsQueryKey(uid ?? ''),
+      refetchInterval: 30000,
+    },
   });
 
   const fitnessProfile = useMemo(() => {
@@ -46,7 +55,7 @@ export default function ProfileScreen() {
     void refetch();
   }, [refetch]);
 
-  if (isLoading && !data) {
+  if (identityLoading || (isLoading && !data)) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -54,23 +63,32 @@ export default function ProfileScreen() {
     );
   }
 
-  if (isError && !data) {
+  if (identityError || (isError && !data)) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background, paddingHorizontal: 32 }]}>
         <Feather name="alert-triangle" size={32} color={colors.destructive} style={{ marginBottom: 12 }} />
         <Text style={[styles.errorText, { color: colors.foreground }]}>Unable to load profile.</Text>
         <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
-          {error instanceof Error
+          {identityError ??
+          (error instanceof Error
             ? error.message
-            : 'Please try again later.'}
+            : 'Please try again later.')}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={onRetry}
-          style={({ pressed }) => [styles.retryBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-        >
-          <Text style={[styles.retryBtnText, { color: colors.primaryForeground }]}>Retry</Text>
-        </Pressable>
+        {uid ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading profile"
+            testID="profile-retry"
+            onPress={onRetry}
+            style={({ pressed }) => [styles.retryBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <Text style={[styles.retryBtnText, { color: colors.primaryForeground }]}>Retry</Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.identityHint, { color: colors.mutedForeground }]}>
+            Reopen HexRunner to retry device setup.
+          </Text>
+        )}
       </View>
     );
   }
@@ -81,10 +99,13 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <FlatList
+        testID="profile-activity-list"
         data={recentRuns}
         keyExtractor={(item) => item.runId}
         contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 24) + 60 }]}
         showsVerticalScrollIndicator={false}
+        refreshing={isRefetching && !isLoading}
+        onRefresh={onRetry}
         ListHeaderComponent={
           <>
             <View style={styles.header}>
@@ -93,6 +114,15 @@ export default function ProfileScreen() {
                 <Text style={[styles.title, { color: colors.foreground }]}>{data?.displayName || 'Runner'}</Text>
               </View>
             </View>
+
+            {isError && data ? (
+              <View style={[styles.staleBanner, { backgroundColor: colors.card, borderColor: colors.destructive }]}>
+                <Feather name="wifi-off" size={16} color={colors.destructive} />
+                <Text style={[styles.staleText, { color: colors.foreground }]}>
+                  Showing your latest saved progress.
+                </Text>
+              </View>
+            ) : null}
 
             <View style={[styles.tierCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
               <View style={styles.tierInfo}>
@@ -116,7 +146,7 @@ export default function ProfileScreen() {
 
             <View style={styles.statsGrid}>
               <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>HEXES</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>TERRITORY</Text>
                 <Text style={[styles.statValue, { color: colors.foreground }]}>{totals?.totalHexesOwned ?? 0}</Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -130,9 +160,9 @@ export default function ProfileScreen() {
                 </Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>AVG PACE</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>CLAIMED</Text>
                 <Text style={[styles.statValue, { color: colors.foreground }]}>
-                  {formatPace(totals?.averagePaceMinPerKm ?? null)}
+                  {totals?.totalClaimedHexes ?? 0}
                 </Text>
               </View>
             </View>
@@ -159,9 +189,17 @@ export default function ProfileScreen() {
                   year: 'numeric'
                 })}
               </Text>
-              <View style={[styles.hexBadge, { backgroundColor: colors.accent }]}>
-                <Feather name="hexagon" size={12} color={colors.primary} />
-                <Text style={[styles.hexBadgeText, { color: colors.primary }]}>+{item.newHexes}</Text>
+              <View style={styles.badgeRow}>
+                <View style={[styles.hexBadge, { backgroundColor: colors.accent }]}>
+                  <Feather name="plus" size={12} color={colors.primary} />
+                  <Text style={[styles.hexBadgeText, { color: colors.primary }]}>{item.newHexes} new</Text>
+                </View>
+                {item.stolenHexes > 0 ? (
+                  <View style={[styles.hexBadge, { backgroundColor: colors.muted }]}>
+                    <Feather name="repeat" size={12} color={colors.foreground} />
+                    <Text style={[styles.hexBadgeText, { color: colors.foreground }]}>{item.stolenHexes} stolen</Text>
+                  </View>
+                ) : null}
               </View>
             </View>
             <View style={styles.runMetrics}>
@@ -231,6 +269,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 16,
     marginBottom: 20,
+  },
+  staleBanner: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  staleText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
   tierInfo: {
     gap: 4,
@@ -327,6 +380,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   hexBadgeText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 12,
@@ -366,5 +424,10 @@ const styles = StyleSheet.create({
   retryBtnText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 15,
+  },
+  identityHint: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

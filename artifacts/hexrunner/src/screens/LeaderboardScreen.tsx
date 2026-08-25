@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,8 +16,11 @@ import { useGetLeaderboard, getGetLeaderboardQueryKey } from '@workspace/api-cli
 export default function LeaderboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { uid } = useAuth();
-  const [refreshing, setRefreshing] = useState(false);
+  const {
+    uid,
+    loading: identityLoading,
+    error: identityError,
+  } = useAuth();
   const leaderboardParams = useMemo(
     () => ({ currentUserId: uid ?? undefined }),
     [uid],
@@ -32,18 +35,17 @@ export default function LeaderboardScreen() {
     isRefetching,
   } = useGetLeaderboard(leaderboardParams, {
     query: {
+      enabled: !!uid,
       refetchInterval: 30000,
       queryKey: getGetLeaderboardQueryKey(leaderboardParams),
     },
   });
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
     await refetch();
-    setRefreshing(false);
   }, [refetch]);
 
-  if (isLoading && !data) {
+  if (identityLoading || (isLoading && !data)) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -51,7 +53,7 @@ export default function LeaderboardScreen() {
     );
   }
 
-  if (isError && !data) {
+  if (identityError || (isError && !data)) {
     return (
       <View style={[styles.centerContainer, { backgroundColor: colors.background, paddingHorizontal: 32 }]}>
         <Feather name="alert-triangle" size={32} color={colors.destructive} style={{ marginBottom: 12 }} />
@@ -59,17 +61,26 @@ export default function LeaderboardScreen() {
           Unable to load leaderboard.
         </Text>
         <Text style={[styles.errorSub, { color: colors.mutedForeground }]}>
-          {error instanceof Error
+          {identityError ??
+          (error instanceof Error
             ? error.message
-            : 'Please try again later.'}
+            : 'Please try again later.')}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => void refetch()}
-          style={({ pressed }) => [styles.retryBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
-        >
-          <Text style={[styles.retryBtnText, { color: colors.primaryForeground }]}>Retry</Text>
-        </Pressable>
+        {uid ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading leaderboard"
+            testID="leaderboard-retry"
+            onPress={() => void refetch()}
+            style={({ pressed }) => [styles.retryBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+          >
+            <Text style={[styles.retryBtnText, { color: colors.primaryForeground }]}>Retry</Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.identityHint, { color: colors.mutedForeground }]}>
+            Reopen HexRunner to retry device setup.
+          </Text>
+        )}
       </View>
     );
   }
@@ -83,7 +94,17 @@ export default function LeaderboardScreen() {
         <Text style={[styles.title, { color: colors.foreground }]}>Leaderboard</Text>
       </View>
 
+      {isError && data ? (
+        <View style={[styles.staleBanner, { backgroundColor: colors.card, borderColor: colors.destructive }]}>
+          <Feather name="wifi-off" size={16} color={colors.destructive} />
+          <Text style={[styles.staleText, { color: colors.foreground }]}>
+            Showing the latest saved standings.
+          </Text>
+        </View>
+      ) : null}
+
       <FlatList
+        testID="leaderboard-list"
         data={entries}
         keyExtractor={(item) => String(item.rank) + item.displayName}
         contentContainerStyle={[
@@ -91,7 +112,7 @@ export default function LeaderboardScreen() {
           { paddingBottom: Math.max(insets.bottom, 24) + 60 },
         ]}
         showsVerticalScrollIndicator={false}
-        refreshing={refreshing}
+        refreshing={isRefetching && !isLoading}
         onRefresh={onRefresh}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -126,26 +147,32 @@ export default function LeaderboardScreen() {
                 </Text>
               </View>
               <View style={styles.nameContainer}>
-                <Text
-                  style={[
-                    styles.nameText,
-                    { color: isMe ? colors.accentForeground : colors.foreground },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {item.displayName}
+                <View style={styles.nameLine}>
+                  <Text
+                    style={[
+                      styles.nameText,
+                      { color: isMe ? colors.accentForeground : colors.foreground },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {item.displayName}
+                  </Text>
+                  {isMe && (
+                    <View style={[styles.meBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={[styles.meBadgeText, { color: colors.primaryForeground }]}>YOU</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.runnerMeta, { color: colors.mutedForeground }]}>
+                  {item.totalRuns} {item.totalRuns === 1 ? 'run' : 'runs'} · {item.totalDistanceKm.toFixed(1)} km
                 </Text>
-                {isMe && (
-                  <View style={[styles.meBadge, { backgroundColor: colors.primary }]}>
-                    <Text style={[styles.meBadgeText, { color: colors.primaryForeground }]}>YOU</Text>
-                  </View>
-                )}
               </View>
               <View style={styles.scoreContainer}>
                 <Text style={[styles.scoreText, { color: colors.foreground }]}>
                   {item.totalHexesOwned}
                 </Text>
                 <Feather name="hexagon" size={14} color={colors.primary} />
+                <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>HEXES</Text>
               </View>
             </View>
           );
@@ -201,6 +228,26 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 15,
   },
+  identityHint: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  staleBanner: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  staleText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+  },
   listContent: {
     paddingHorizontal: 20,
     gap: 12,
@@ -236,14 +283,23 @@ const styles = StyleSheet.create({
   },
   nameContainer: {
     flex: 1,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  nameLine: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
     gap: 8,
   },
   nameText: {
+    flexShrink: 1,
     fontFamily: 'Inter_600SemiBold',
     fontSize: 16,
+  },
+  runnerMeta: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
   meBadge: {
     paddingHorizontal: 6,
@@ -256,13 +312,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   scoreContainer: {
-    flexDirection: 'row',
+    minWidth: 54,
     alignItems: 'center',
-    gap: 6,
+    gap: 2,
   },
   scoreText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 18,
     fontVariant: ['tabular-nums'],
+  },
+  scoreLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 8,
+    letterSpacing: 0.6,
   },
 });

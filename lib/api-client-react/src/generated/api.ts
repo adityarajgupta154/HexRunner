@@ -213,7 +213,7 @@ export const getSaveRunUrl = () => {
 }
 
 /**
- * Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
+ * Atomically saves a completed run and its claimed H3 array, then reassigns every claimed cell at the server's current time. Current territory totals are derived from live ownership.
  * @summary Save a completed run
  */
 export const saveRun = async (saveRunRequest: SaveRunRequest, options?: Parameters<typeof customFetch>[1]): Promise<SaveRunResult> => {
@@ -364,7 +364,7 @@ export const getGetLeaderboardUrl = (params?: GetLeaderboardParams,) => {
 }
 
 /**
- * Returns at most 20 users ordered by total hexes descending and user ID ascending.
+ * Returns at most 20 runners ordered by live owned hexes, total distance, run count, and user ID.
  * @summary Get the territory leaderboard
  */
 export const getLeaderboard = async (params?: GetLeaderboardParams, options?: Parameters<typeof customFetch>[1]): Promise<LeaderboardResult> => {

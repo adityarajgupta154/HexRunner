@@ -55,7 +55,7 @@ export const RegisterAnonymousIdentityResponse = zod.object({
 
 
 /**
- * Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
+ * Atomically saves a completed run and its claimed H3 array, then reassigns every claimed cell at the server's current time. Current territory totals are derived from live ownership.
  * @summary Save a completed run
  */
 export const saveRunBodyClientRunIdMin = 8;
@@ -181,7 +181,7 @@ export const LookupHexOwnershipResponse = zod.object({
 
 
 /**
- * Returns at most 20 users ordered by total hexes descending and user ID ascending.
+ * Returns at most 20 runners ordered by live owned hexes, total distance, run count, and user ID.
  * @summary Get the territory leaderboard
  */
 export const getLeaderboardQueryCurrentUserIdMin = 8;
@@ -200,6 +200,11 @@ export const getLeaderboardResponseUsersItemRankMultipleOf = 1;
 export const getLeaderboardResponseUsersItemTotalHexesOwnedMin = 0;
 export const getLeaderboardResponseUsersItemTotalHexesOwnedMultipleOf = 1;
 
+export const getLeaderboardResponseUsersItemTotalRunsMin = 0;
+export const getLeaderboardResponseUsersItemTotalRunsMultipleOf = 1;
+
+export const getLeaderboardResponseUsersItemTotalDistanceKmMin = 0;
+
 export const getLeaderboardResponseUsersMax = 20;
 
 
@@ -209,6 +214,8 @@ export const GetLeaderboardResponse = zod.object({
   "rank": zod.number().min(1).multipleOf(getLeaderboardResponseUsersItemRankMultipleOf),
   "displayName": zod.string(),
   "totalHexesOwned": zod.number().min(getLeaderboardResponseUsersItemTotalHexesOwnedMin).multipleOf(getLeaderboardResponseUsersItemTotalHexesOwnedMultipleOf),
+  "totalRuns": zod.number().min(getLeaderboardResponseUsersItemTotalRunsMin).multipleOf(getLeaderboardResponseUsersItemTotalRunsMultipleOf),
+  "totalDistanceKm": zod.number().min(getLeaderboardResponseUsersItemTotalDistanceKmMin),
   "isCurrentUser": zod.boolean()
 })).max(getLeaderboardResponseUsersMax)
 })

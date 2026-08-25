@@ -8,6 +8,7 @@ import {
 import { asc, desc, eq, sql } from "drizzle-orm";
 import {
   db,
+  hexrunnerHexOwnershipTable,
   hexrunnerRunsTable,
   hexrunnerUsersTable,
 } from "@workspace/db";
@@ -44,15 +45,50 @@ router.get("/leaderboard", async (req, res) => {
   const currentUserId = parsedCurrentUser?.data.userId ?? null;
 
   try {
+    const ownershipTotals = db
+      .select({
+        userId: hexrunnerHexOwnershipTable.ownerId,
+        totalHexesOwned:
+          sql<number>`count(${hexrunnerHexOwnershipTable.h3Index})::int`.as(
+            "live_hex_count",
+          ),
+      })
+      .from(hexrunnerHexOwnershipTable)
+      .groupBy(hexrunnerHexOwnershipTable.ownerId)
+      .as("ownership_totals");
+    const runTotals = db
+      .select({
+        userId: hexrunnerRunsTable.userId,
+        totalRuns: sql<number>`count(${hexrunnerRunsTable.id})::int`.as(
+          "total_runs",
+        ),
+        totalDistanceKm:
+          sql<number>`coalesce(sum(${hexrunnerRunsTable.distanceKm}), 0)::float8`.as(
+            "total_distance_km",
+          ),
+      })
+      .from(hexrunnerRunsTable)
+      .groupBy(hexrunnerRunsTable.userId)
+      .as("run_totals");
     const users = await db
       .select({
         id: hexrunnerUsersTable.id,
         displayName: hexrunnerUsersTable.displayName,
-        totalHexesOwned: hexrunnerUsersTable.totalHexesOwned,
+        totalHexesOwned:
+          sql<number>`coalesce(${ownershipTotals.totalHexesOwned}, 0)::int`,
+        totalRuns: runTotals.totalRuns,
+        totalDistanceKm: runTotals.totalDistanceKm,
       })
       .from(hexrunnerUsersTable)
+      .innerJoin(runTotals, eq(runTotals.userId, hexrunnerUsersTable.id))
+      .leftJoin(
+        ownershipTotals,
+        eq(ownershipTotals.userId, hexrunnerUsersTable.id),
+      )
       .orderBy(
-        desc(hexrunnerUsersTable.totalHexesOwned),
+        desc(sql`coalesce(${ownershipTotals.totalHexesOwned}, 0)`),
+        desc(runTotals.totalDistanceKm),
+        desc(runTotals.totalRuns),
         asc(hexrunnerUsersTable.id),
       )
       .limit(20);
@@ -63,6 +99,8 @@ router.get("/leaderboard", async (req, res) => {
           rank: index + 1,
           displayName: safeDisplayName(user.id, user.displayName),
           totalHexesOwned: user.totalHexesOwned,
+          totalRuns: user.totalRuns,
+          totalDistanceKm: user.totalDistanceKm,
           isCurrentUser: user.id === currentUserId,
         })),
       }),
@@ -86,7 +124,6 @@ router.get("/users/:userId/stats", async (req, res) => {
       .select({
         id: hexrunnerUsersTable.id,
         displayName: hexrunnerUsersTable.displayName,
-        totalHexesOwned: hexrunnerUsersTable.totalHexesOwned,
       })
       .from(hexrunnerUsersTable)
       .where(eq(hexrunnerUsersTable.id, parsed.data.userId))
@@ -113,35 +150,43 @@ router.get("/users/:userId/stats", async (req, res) => {
       return;
     }
 
-    const [totals] = await db
-      .select({
-        totalRuns: sql<number>`count(*)::int`,
-        totalDistanceKm: sql<number>`coalesce(sum(${hexrunnerRunsTable.distanceKm}), 0)::float8`,
-        totalElapsedSeconds: sql<number>`coalesce(sum(${hexrunnerRunsTable.elapsedSeconds}), 0)::int`,
-        totalClaimedHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)::int`,
-        totalNewHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.newHexCount}), 0)::int`,
-        totalStolenHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.stolenHexCount}), 0)::int`,
-      })
-      .from(hexrunnerRunsTable)
-      .where(eq(hexrunnerRunsTable.userId, user.id));
-    const recentRuns = await db
-      .select({
-        runId: hexrunnerRunsTable.id,
-        distanceKm: hexrunnerRunsTable.distanceKm,
-        averagePaceMinPerKm: hexrunnerRunsTable.avgPaceMinPerKm,
-        startedAt: hexrunnerRunsTable.startedAt,
-        endedAt: hexrunnerRunsTable.endedAt,
-        claimedHexes: hexrunnerRunsTable.hexCount,
-        newHexes: hexrunnerRunsTable.newHexCount,
-        stolenHexes: hexrunnerRunsTable.stolenHexCount,
-      })
-      .from(hexrunnerRunsTable)
-      .where(eq(hexrunnerRunsTable.userId, user.id))
-      .orderBy(
-        desc(hexrunnerRunsTable.endedAt),
-        desc(hexrunnerRunsTable.id),
-      )
-      .limit(5);
+    const [[totals], recentRuns, [ownershipTotals]] = await Promise.all([
+      db
+        .select({
+          totalRuns: sql<number>`count(*)::int`,
+          totalDistanceKm: sql<number>`coalesce(sum(${hexrunnerRunsTable.distanceKm}), 0)::float8`,
+          totalElapsedSeconds: sql<number>`coalesce(sum(${hexrunnerRunsTable.elapsedSeconds}), 0)::int`,
+          totalClaimedHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)::int`,
+          totalNewHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.newHexCount}), 0)::int`,
+          totalStolenHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.stolenHexCount}), 0)::int`,
+        })
+        .from(hexrunnerRunsTable)
+        .where(eq(hexrunnerRunsTable.userId, user.id)),
+      db
+        .select({
+          runId: hexrunnerRunsTable.id,
+          distanceKm: hexrunnerRunsTable.distanceKm,
+          averagePaceMinPerKm: hexrunnerRunsTable.avgPaceMinPerKm,
+          startedAt: hexrunnerRunsTable.startedAt,
+          endedAt: hexrunnerRunsTable.endedAt,
+          claimedHexes: hexrunnerRunsTable.hexCount,
+          newHexes: hexrunnerRunsTable.newHexCount,
+          stolenHexes: hexrunnerRunsTable.stolenHexCount,
+        })
+        .from(hexrunnerRunsTable)
+        .where(eq(hexrunnerRunsTable.userId, user.id))
+        .orderBy(
+          desc(hexrunnerRunsTable.endedAt),
+          desc(hexrunnerRunsTable.id),
+        )
+        .limit(5),
+      db
+        .select({
+          totalHexesOwned: sql<number>`count(*)::int`,
+        })
+        .from(hexrunnerHexOwnershipTable)
+        .where(eq(hexrunnerHexOwnershipTable.ownerId, user.id)),
+    ]);
     const averagePaceMinPerKm =
       totals.totalDistanceKm >= 0.01
         ? totals.totalElapsedSeconds / 60 / totals.totalDistanceKm
@@ -154,7 +199,7 @@ router.get("/users/:userId/stats", async (req, res) => {
         totals: {
           ...totals,
           averagePaceMinPerKm,
-          totalHexesOwned: user.totalHexesOwned,
+          totalHexesOwned: ownershipTotals.totalHexesOwned,
         },
         recentRuns,
       }),

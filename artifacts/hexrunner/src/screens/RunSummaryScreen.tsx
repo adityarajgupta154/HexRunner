@@ -16,9 +16,14 @@ import {
   savePendingRun,
 } from '@/src/services/runStorage';
 import { useAuth } from '@/src/context/AuthContext';
-import { useGetUserStats, getGetUserStatsQueryKey } from '@workspace/api-client-react';
+import {
+  getGetLeaderboardQueryKey,
+  getGetUserStatsQueryKey,
+  useGetUserStats,
+} from '@workspace/api-client-react';
 import { predictFitnessProfile } from '@/src/services/fitnessModel';
 import type { SaveRunResult } from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   isRunSummaryDoneDisabled,
   isRunSummaryRetryVisible,
@@ -57,6 +62,7 @@ export default function RunSummaryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { uid } = useAuth();
   const saveStartedRef = useRef(false);
   const [saveStatus, setSaveStatus] =
@@ -64,7 +70,7 @@ export default function RunSummaryScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveResult, setSaveResult] = useState<SaveRunResult | null>(null);
 
-  const { data: userStats, refetch: refetchStats } = useGetUserStats(uid ?? '', {
+  const { data: userStats } = useGetUserStats(uid ?? '', {
     query: { enabled: !!uid, queryKey: getGetUserStatsQueryKey(uid ?? '') },
   });
 
@@ -99,7 +105,14 @@ export default function RunSummaryScreen() {
         onSaved(result) {
           setSaveResult(result);
           setSaveStatus('saved');
-          void refetchStats();
+          void Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: getGetUserStatsQueryKey(uid ?? ''),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: getGetLeaderboardQueryKey(),
+            }),
+          ]);
         },
         onFailed(message) {
           setSaveError(message);
@@ -107,7 +120,7 @@ export default function RunSummaryScreen() {
         },
       },
     });
-  }, [clientRunId, refetchStats]);
+  }, [clientRunId, queryClient, uid]);
 
   useEffect(() => {
     if (saveStartedRef.current) return;

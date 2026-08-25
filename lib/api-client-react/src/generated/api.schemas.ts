@@ -159,6 +159,10 @@ export interface LeaderboardEntry {
   displayName: string;
   /** @minimum 0 */
   totalHexesOwned: number;
+  /** @minimum 0 */
+  totalRuns: number;
+  /** @minimum 0 */
+  totalDistanceKm: number;
   isCurrentUser: boolean;
 }
 

@@ -80,7 +80,9 @@ paths:
       operationId: saveRun
       tags: [runs]
       summary: Save a completed run
-      description: Atomically saves a completed run and its claimed H3 array, reassigns every claimed cell at the server's current time, and increments the user's total hex count.
+      description: Atomically saves a completed run and its claimed H3 array, then reassigns every claimed cell at the server's current time. Current territory totals are derived from live ownership.
+      security:
+        - anonymousDeviceCredential: []
       requestBody:
         required: true
         content:
@@ -154,7 +156,7 @@ paths:
       operationId: getLeaderboard
       tags: [users]
       summary: Get the territory leaderboard
-      description: Returns at most 20 users ordered by total hexes descending and user ID ascending.
+      description: Returns at most 20 runners ordered by live owned hexes, total distance, run count, and user ID.
       parameters:
         - name: currentUserId
           in: query
@@ -205,6 +207,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
 components:
+  securitySchemes:
+    anonymousDeviceCredential:
+      type: http
+      scheme: bearer
+      bearerFormat: HexRunner anonymous device credential
   schemas:
     HealthStatus:
       type: object
@@ -416,9 +423,16 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
+        totalRuns:
+          type: number
+          multipleOf: 1
+          minimum: 0
+        totalDistanceKm:
+          type: number
+          minimum: 0
         isCurrentUser:
           type: boolean
-      required: [rank, displayName, totalHexesOwned, isCurrentUser]
+      required: [rank, displayName, totalHexesOwned, totalRuns, totalDistanceKm, isCurrentUser]
     LeaderboardResult:
       type: object
       properties:
