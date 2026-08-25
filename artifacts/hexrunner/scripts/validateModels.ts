@@ -1,4 +1,4 @@
-import { checkForSpoofing, type LocationPoint } from '../src/services/antiSpoof';
+import { checkSession, type LocationPoint } from '../src/services/antiSpoof';
 import {
   hexBudgetForTier,
   predictFitnessProfile,
@@ -74,19 +74,25 @@ function pathAtSpeed(speedKmh: number, seconds: number): LocationPoint[] {
   }));
 }
 
-const walking = checkForSpoofing(pathAtSpeed(5, 60));
+const walking = checkSession(pathAtSpeed(5, 60));
 assert(!walking.suspicious, `Walking path flagged: ${walking.reason}`);
 
-const vehicle = checkForSpoofing(pathAtSpeed(35, 60));
+const thresholdVehicle = checkSession(pathAtSpeed(35, 30));
+assert(
+  !thresholdVehicle.suspicious,
+  'Exactly 30 seconds above 25 km/h must not be flagged.',
+);
+
+const vehicle = checkSession(pathAtSpeed(35, 40));
 assert(vehicle.suspicious, 'Vehicle-speed path was not flagged.');
 
-const teleport = checkForSpoofing([
+const teleport = checkSession([
   { lat: 51.5, lng: -0.12, timestamp: 0 },
   { lat: 51.55, lng: -0.02, timestamp: 5_000 },
 ]);
 assert(teleport.suspicious, 'Teleport path was not flagged.');
 
-const noisyTimestamps = checkForSpoofing([
+const noisyTimestamps = checkSession([
   { lat: 51.5, lng: -0.12, timestamp: 10_000 },
   { lat: 51.500001, lng: -0.120001, timestamp: 10_000 },
   { lat: 51.500002, lng: -0.120002, timestamp: 9_000 },

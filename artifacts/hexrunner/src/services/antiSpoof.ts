@@ -40,7 +40,7 @@ export function distanceBetweenKm(
   );
 }
 
-export function checkForSpoofing(
+export function checkSession(
   points: readonly LocationPoint[],
 ): AntiSpoofResult {
   let sustainedHighSpeedSeconds = 0;
@@ -95,3 +95,5 @@ export function checkForSpoofing(
 
   return { suspicious: false, reason: null };
 }
+
+export const checkForSpoofing = checkSession;

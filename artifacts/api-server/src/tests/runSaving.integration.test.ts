@@ -21,6 +21,8 @@ const TEST_USERS = {
   success: `device_test_success_${TEST_NAMESPACE}`,
   rollback: `device_test_rollback_${TEST_NAMESPACE}`,
   validation: `device_test_validation_${TEST_NAMESPACE}`,
+  owner: `device_test_owner_${TEST_NAMESPACE}`,
+  thief: `device_test_thief_${TEST_NAMESPACE}`,
   newer: `device_test_newer_${TEST_NAMESPACE}`,
   older: `device_test_older_${TEST_NAMESPACE}`,
 };
@@ -29,6 +31,8 @@ const TEST_RUNS = {
   rollback: `run_test_rollback_${TEST_NAMESPACE}`,
   invalidPath: `run_test_path_${TEST_NAMESPACE}`,
   future: `run_test_future_${TEST_NAMESPACE}`,
+  owner: `run_test_owner_${TEST_NAMESPACE}`,
+  thief: `run_test_thief_${TEST_NAMESPACE}`,
   newer: `run_test_newer_${TEST_NAMESPACE}`,
   older: `run_test_older_${TEST_NAMESPACE}`,
 };
@@ -465,6 +469,80 @@ describe("run-saving integration", { concurrency: false }, () => {
       ownerId: TEST_USERS.newer,
       lastRunId: TEST_RUNS.newer,
     });
+  });
+
+  test("transfers a claimed hex to a later runner and refreshes claimedAt", async () => {
+    const ownerCredential = await enroll(TEST_USERS.owner);
+    const thiefCredential = await enroll(TEST_USERS.thief);
+    const point = await unusedPoint(7);
+    const ownerEndedAt = new Date(Date.now() - 2 * 60_000);
+    const thiefEndedAt = new Date(Date.now() - 60_000);
+
+    const ownerResponse = await postJson<SaveResponse>(
+      "/api/runs",
+      runPayload({
+        clientRunId: TEST_RUNS.owner,
+        lat: point.lat,
+        lng: point.lng,
+        startedAt: new Date(ownerEndedAt.getTime() - 10 * 60_000),
+        endedAt: ownerEndedAt,
+      }),
+      ownerCredential,
+    );
+    assert.equal(ownerResponse.status, 201);
+    assert.equal(ownerResponse.body.newHexes, 1);
+    assert.equal(ownerResponse.body.stolenHexes, 0);
+
+    const [beforeSteal] = await db
+      .select({
+        ownerId: hexrunnerHexOwnershipTable.ownerId,
+        claimedAt: hexrunnerHexOwnershipTable.claimedAt,
+      })
+      .from(hexrunnerHexOwnershipTable)
+      .where(eq(hexrunnerHexOwnershipTable.h3Index, point.h3Index));
+    assert.equal(beforeSteal?.ownerId, TEST_USERS.owner);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const thiefResponse = await postJson<SaveResponse>(
+      "/api/runs",
+      runPayload({
+        clientRunId: TEST_RUNS.thief,
+        lat: point.lat,
+        lng: point.lng,
+        startedAt: new Date(thiefEndedAt.getTime() - 10 * 60_000),
+        endedAt: thiefEndedAt,
+      }),
+      thiefCredential,
+    );
+    assert.equal(thiefResponse.status, 201);
+    assert.equal(thiefResponse.body.newHexes, 0);
+    assert.equal(thiefResponse.body.stolenHexes, 1);
+
+    const [afterSteal] = await db
+      .select({
+        ownerId: hexrunnerHexOwnershipTable.ownerId,
+        lastRunId: hexrunnerHexOwnershipTable.lastRunId,
+        claimedAt: hexrunnerHexOwnershipTable.claimedAt,
+      })
+      .from(hexrunnerHexOwnershipTable)
+      .where(eq(hexrunnerHexOwnershipTable.h3Index, point.h3Index));
+    assert.deepEqual(
+      {
+        ownerId: afterSteal?.ownerId,
+        lastRunId: afterSteal?.lastRunId,
+      },
+      {
+        ownerId: TEST_USERS.thief,
+        lastRunId: TEST_RUNS.thief,
+      },
+    );
+    assert.ok(
+      beforeSteal &&
+        afterSteal &&
+        afterSteal.claimedAt.getTime() > beforeSteal.claimedAt.getTime(),
+      "Stealing a hex must refresh its claimedAt timestamp.",
+    );
   });
 
   test("cleans every integration-test row", async () => {

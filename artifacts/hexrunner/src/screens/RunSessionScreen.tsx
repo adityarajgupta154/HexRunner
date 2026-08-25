@@ -22,7 +22,7 @@ import {
   type PendingRun,
   queueRunForSave,
 } from '@/src/services/runStorage';
-import { checkForSpoofing } from '@/src/services/antiSpoof';
+import { checkSession } from '@/src/services/antiSpoof';
 
 type RunPoint = {
   lat: number;
@@ -240,7 +240,7 @@ export default function RunSessionScreen() {
     const finalClaimedHexes = [...new Set(hexesFromPath(pathPoints))];
     const clientRunId = createClientRunId();
 
-    const antiSpoofCheck = checkForSpoofing(pathPoints);
+    const antiSpoofCheck = checkSession(pathPoints);
 
     stopWatching();
     setIsRunning(false);

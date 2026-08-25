@@ -167,19 +167,22 @@ export default function RunSummaryScreen() {
 
         {saveResult ? (
           <View style={[styles.hexResultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.hexResultRow}>
-              <View style={styles.hexResultItem}>
-                <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>NEW</Text>
+            <View
+              accessibilityLabel={`New hexes claimed: ${saveResult.newHexes}. Hexes stolen from others: ${saveResult.stolenHexes}. Total claimed: ${saveResult.claimedHexes}.`}
+              style={styles.hexResultRows}
+            >
+              <View style={styles.hexResultLine}>
+                <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>New hexes claimed:</Text>
                 <Text style={[styles.hexResultValue, { color: colors.primary }]}>+{saveResult.newHexes}</Text>
               </View>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <View style={styles.hexResultItem}>
-                <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>STOLEN</Text>
+              <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.hexResultLine}>
+                <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>Hexes stolen from others:</Text>
                 <Text style={[styles.hexResultValue, { color: colors.accentForeground }]}>{saveResult.stolenHexes}</Text>
               </View>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-              <View style={styles.hexResultItem}>
-                <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>TOTAL CLAIMED</Text>
+              <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.hexResultLine}>
+                <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>Total claimed:</Text>
                 <Text style={[styles.hexResultValue, { color: colors.foreground }]}>{saveResult.claimedHexes}</Text>
               </View>
             </View>
@@ -411,24 +414,23 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
-  hexResultRow: {
+  hexResultRows: {
+    gap: 10,
+  },
+  hexResultLine: {
+    minHeight: 28,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 16,
   },
-  hexResultItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-  },
-  divider: {
-    width: 1,
-    height: 32,
+  horizontalDivider: {
+    height: 1,
   },
   hexResultLabel: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 10,
-    letterSpacing: 0.8,
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
   hexResultValue: {
     fontFamily: 'Inter_700Bold',
