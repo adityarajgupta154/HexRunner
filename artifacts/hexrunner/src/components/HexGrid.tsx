@@ -1,5 +1,6 @@
 type HexGridProps = {
   hexIndexes: string[];
+  claimedHexIndexes?: ReadonlySet<string>;
 };
 
 /**

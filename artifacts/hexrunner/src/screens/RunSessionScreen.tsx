@@ -9,7 +9,9 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import RunMap from '@/src/components/RunMap';
 import { useColors } from '@/hooks/useColors';
+import { hexesFromPath } from '@/src/services/hexEngine';
 import {
   startWatching,
   stopWatching,
@@ -23,6 +25,7 @@ type RunPoint = {
 
 const EARTH_RADIUS_KM = 6_371;
 const MIN_PACE_DISTANCE_KM = 0.01;
+const CLAIM_RECALCULATION_INTERVAL = 3;
 
 function degreesToRadians(degrees: number): number {
   return (degrees * Math.PI) / 180;
@@ -78,6 +81,7 @@ export default function RunSessionScreen() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [distanceKm, setDistanceKm] = useState(0);
   const [pathPoints, setPathPoints] = useState<RunPoint[]>([]);
+  const [claimedHexes, setClaimedHexes] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,6 +107,7 @@ export default function RunSessionScreen() {
     setElapsedSeconds(0);
     setDistanceKm(0);
     setPathPoints([]);
+    setClaimedHexes(new Set());
     distanceKmRef.current = 0;
     lastPointRef.current = null;
 
@@ -124,7 +129,18 @@ export default function RunSessionScreen() {
         }
 
         lastPointRef.current = nextPoint;
-        setPathPoints((currentPath) => [...currentPath, nextPoint]);
+        setPathPoints((currentPath) => {
+          const nextPath = [...currentPath, nextPoint];
+
+          if (
+            nextPath.length === 1 ||
+            nextPath.length % CLAIM_RECALCULATION_INTERVAL === 0
+          ) {
+            setClaimedHexes(new Set(hexesFromPath(nextPath)));
+          }
+
+          return nextPath;
+        });
       });
 
       startTimeRef.current = Date.now();
@@ -220,16 +236,18 @@ export default function RunSessionScreen() {
 
       {isRunning ? (
         <View style={styles.runningContent}>
-          <View style={styles.elapsedBlock}>
-            <Text style={[styles.metricLabel, { color: colors.mutedForeground }]}>
-              ELAPSED TIME
-            </Text>
-            <Text style={[styles.elapsedValue, { color: colors.foreground }]}>
-              {formatElapsed(elapsedSeconds)}
-            </Text>
+          <View style={styles.runMapFrame}>
+            <RunMap
+              currentPoint={pathPoints[pathPoints.length - 1] ?? null}
+              claimedHexIndexes={claimedHexes}
+            />
           </View>
 
           <View style={styles.statRow}>
+            <MetricCard
+              label="TIME"
+              value={formatElapsed(elapsedSeconds)}
+            />
             <MetricCard
               label="DISTANCE"
               value={distanceKm.toFixed(2)}
@@ -240,17 +258,19 @@ export default function RunSessionScreen() {
 
           <View
             style={[
-              styles.gpsCard,
+              styles.claimedCard,
               { backgroundColor: colors.card, borderColor: colors.border },
             ]}
           >
-            <Feather name="navigation" size={20} color={colors.primary} />
-            <View style={styles.gpsTextBlock}>
-              <Text style={[styles.gpsTitle, { color: colors.foreground }]}>
-                GPS path recording
+            <View style={styles.claimedIcon}>
+              <Feather name="hexagon" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.claimedTextBlock}>
+              <Text style={[styles.claimedText, { color: colors.foreground }]}>
+                Hexes claimed this run: {claimedHexes.size}
               </Text>
               <Text
-                style={[styles.gpsMeta, { color: colors.mutedForeground }]}
+                style={[styles.claimedMeta, { color: colors.mutedForeground }]}
               >
                 {pathPoints.length} location{' '}
                 {pathPoints.length === 1 ? 'point' : 'points'} captured
@@ -366,7 +386,7 @@ export default function RunSessionScreen() {
   }: {
     label: string;
     value: string;
-    unit: string;
+    unit?: string;
   }) {
     return (
       <View
@@ -381,7 +401,11 @@ export default function RunSessionScreen() {
         <Text style={[styles.metricValue, { color: colors.foreground }]}>
           {value}
         </Text>
-        <Text style={[styles.metricUnit, { color: colors.primary }]}>{unit}</Text>
+        {unit ? (
+          <Text style={[styles.metricUnit, { color: colors.primary }]}>
+            {unit}
+          </Text>
+        ) : null}
       </View>
     );
   }
@@ -493,18 +517,11 @@ const styles = StyleSheet.create({
   },
   runningContent: {
     flex: 1,
-    paddingTop: 38,
+    gap: 10,
+    paddingTop: 16,
   },
-  elapsedBlock: {
-    alignItems: 'center',
-    gap: 7,
-    marginBottom: 30,
-  },
-  elapsedValue: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 49,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -1.5,
+  runMapFrame: {
+    height: 226,
   },
   metricLabel: {
     fontFamily: 'Inter_700Bold',
@@ -513,56 +530,65 @@ const styles = StyleSheet.create({
   },
   statRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   metricCard: {
     flex: 1,
-    minHeight: 146,
+    minHeight: 88,
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 17,
+    borderRadius: 16,
+    padding: 11,
   },
   metricValue: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 35,
+    fontSize: 20,
     fontVariant: ['tabular-nums'],
-    letterSpacing: -1,
-    marginTop: 12,
+    letterSpacing: -0.5,
+    marginTop: 8,
   },
   metricUnit: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
+    fontSize: 10,
     marginTop: 2,
   },
-  gpsCard: {
+  claimedCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
+    gap: 11,
     borderWidth: 1,
-    borderRadius: 17,
-    padding: 16,
-    marginTop: 14,
+    borderRadius: 15,
+    paddingHorizontal: 13,
+    minHeight: 58,
   },
-  gpsTextBlock: {
-    gap: 3,
+  claimedIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    backgroundColor: 'rgba(45, 224, 176, 0.12)',
   },
-  gpsTitle: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 14,
+  claimedTextBlock: {
+    flex: 1,
+    gap: 2,
   },
-  gpsMeta: {
+  claimedText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+  },
+  claimedMeta: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 12,
+    fontSize: 11,
   },
   stopButton: {
-    minHeight: 58,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 11,
     borderRadius: 18,
-    marginTop: 'auto',
+    marginTop: 2,
   },
   stopIcon: {
     width: 15,
