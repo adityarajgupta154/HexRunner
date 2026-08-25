@@ -1,4 +1,4 @@
-import { cellToBoundary, latLngToCell } from 'h3-js';
+import { cellToBoundary, latLngToCell, polygonToCells } from 'h3-js';
 
 const HEX_RESOLUTION = 9;
 
@@ -10,6 +10,13 @@ export type PathPoint = {
 export type PolygonCoordinate = {
   latitude: number;
   longitude: number;
+};
+
+export type GeographicBounds = {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
 };
 
 /** Converts a latitude/longitude point to its resolution-9 H3 cell index. */
@@ -35,4 +42,22 @@ export function hexesFromPath(pathPoints: PathPoint[]): string[] {
   return [
     ...new Set(pathPoints.map(({ lat, lng }) => pointToHex(lat, lng))),
   ];
+}
+
+/** Returns all resolution-9 H3 cells whose centers fall inside map bounds. */
+export function hexesFromBoundingBox({
+  north,
+  south,
+  east,
+  west,
+}: GeographicBounds): string[] {
+  const boundingPolygon = [
+    [south, west],
+    [north, west],
+    [north, east],
+    [south, east],
+    [south, west],
+  ];
+
+  return polygonToCells(boundingPolygon, HEX_RESOLUTION);
 }

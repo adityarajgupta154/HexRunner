@@ -9,11 +9,13 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import type { LocationObject } from 'expo-location';
-import type { MapStyleElement } from 'react-native-maps';
+import type { MapStyleElement, Region } from 'react-native-maps';
 import MapView from 'react-native-maps/lib/MapView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import HexGrid from '@/src/components/HexGrid';
 import PlaceholderScreen from '@/src/components/PlaceholderScreen';
 import { useColors } from '@/hooks/useColors';
+import { hexesFromBoundingBox } from '@/src/services/hexEngine';
 import {
   startWatching,
   stopWatching,
@@ -23,6 +25,38 @@ const MAP_DELTA = {
   latitudeDelta: 0.008,
   longitudeDelta: 0.008,
 };
+
+const SIGNIFICANT_CENTER_MOVEMENT = 0.18;
+const SIGNIFICANT_ZOOM_CHANGE = 0.15;
+
+function regionChangedSignificantly(previous: Region, next: Region): boolean {
+  const latitudeThreshold =
+    previous.latitudeDelta * SIGNIFICANT_CENTER_MOVEMENT;
+  const longitudeThreshold =
+    previous.longitudeDelta * SIGNIFICANT_CENTER_MOVEMENT;
+  const latitudeZoomChange =
+    Math.abs(next.latitudeDelta - previous.latitudeDelta) /
+    previous.latitudeDelta;
+  const longitudeZoomChange =
+    Math.abs(next.longitudeDelta - previous.longitudeDelta) /
+    previous.longitudeDelta;
+
+  return (
+    Math.abs(next.latitude - previous.latitude) >= latitudeThreshold ||
+    Math.abs(next.longitude - previous.longitude) >= longitudeThreshold ||
+    latitudeZoomChange >= SIGNIFICANT_ZOOM_CHANGE ||
+    longitudeZoomChange >= SIGNIFICANT_ZOOM_CHANGE
+  );
+}
+
+function hexesForRegion(region: Region): string[] {
+  return hexesFromBoundingBox({
+    north: Math.min(90, region.latitude + region.latitudeDelta / 2),
+    south: Math.max(-90, region.latitude - region.latitudeDelta / 2),
+    east: region.longitude + region.longitudeDelta / 2,
+    west: region.longitude - region.longitudeDelta / 2,
+  });
+}
 
 const DARK_MAP_STYLE: MapStyleElement[] = [
   { elementType: 'geometry', stylers: [{ color: '#14212B' }] },
@@ -95,7 +129,9 @@ function LiveMap() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView | null>(null);
+  const lastHexRegionRef = useRef<Region | null>(null);
   const [location, setLocation] = useState<LocationObject | null>(null);
+  const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const beginWatching = useCallback(() => {
@@ -121,6 +157,31 @@ function LiveMap() {
     beginWatching();
     return stopWatching;
   }, [beginWatching]);
+
+  const calculateVisibleHexes = useCallback(
+    (region: Region, force = false) => {
+      const previous = lastHexRegionRef.current;
+
+      if (
+        !force &&
+        previous &&
+        !regionChangedSignificantly(previous, region)
+      ) {
+        return;
+      }
+
+      lastHexRegionRef.current = region;
+      setVisibleHexes(hexesForRegion(region));
+    },
+    [],
+  );
+
+  const handleRegionChangeComplete = useCallback(
+    (region: Region) => {
+      calculateVisibleHexes(region);
+    },
+    [calculateVisibleHexes],
+  );
 
   const recenterMap = useCallback(() => {
     if (!location) return;
@@ -205,19 +266,25 @@ function LiveMap() {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
   };
+  const initialRegion = { ...coordinate, ...MAP_DELTA };
 
   return (
     <View style={styles.container}>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        initialRegion={{ ...coordinate, ...MAP_DELTA }}
+        initialRegion={initialRegion}
         customMapStyle={DARK_MAP_STYLE}
+        minZoomLevel={14}
+        onMapReady={() => calculateVisibleHexes(initialRegion, true)}
+        onRegionChangeComplete={handleRegionChangeComplete}
         showsCompass={false}
         showsMyLocationButton={false}
         showsUserLocation
         toolbarEnabled={false}
-      />
+      >
+        <HexGrid hexIndexes={visibleHexes} />
+      </MapView>
 
       <View
         pointerEvents="none"
