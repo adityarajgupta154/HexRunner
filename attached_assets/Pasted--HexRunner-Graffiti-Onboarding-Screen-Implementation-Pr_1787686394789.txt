@@ -1,0 +1,731 @@
+# HexRunner — Graffiti Onboarding Screen Implementation Prompt
+
+Act as a **senior Expo React Native + TypeScript engineer, mobile product designer, and visual UI implementation specialist**.
+
+I have an existing working mobile application called **HexRunner**.
+
+I am attaching a reference image for the onboarding screen. **Use the attached image as the primary visual source of truth.**
+
+Your task is to implement the onboarding screen so that the final rendered screen is **as visually close to the reference image as realistically possible**, while keeping the implementation production-ready and responsive.
+
+---
+
+## 1. CRITICAL PROJECT RULES
+
+This is an existing working application.
+
+DO NOT:
+
+* rewrite the application
+* replace the existing navigation architecture
+* modify backend APIs
+* modify authentication
+* modify GPS tracking
+* modify H3 territory calculations
+* modify run-saving logic
+* modify anti-spoofing logic
+* add Firebase
+* add Firestore
+* introduce mocked application data
+* remove existing functionality
+* create a web-only implementation
+
+ONLY modify the onboarding presentation layer and the minimum navigation/state logic required to enter the existing application.
+
+Before writing code:
+
+1. Inspect the existing project structure.
+2. Find the existing onboarding implementation.
+3. Find the existing Expo Router navigation.
+4. Find how the app determines whether onboarding has already been completed.
+5. Reuse existing assets, fonts, utilities, and navigation wherever possible.
+6. Do not create duplicate navigation or duplicate app initialization logic.
+
+---
+
+# 2. VISUAL REFERENCE
+
+The attached image is the source of truth.
+
+The screen should visually communicate:
+
+**Urban street culture + graffiti + running + territory conquest + city mapping.**
+
+The design should NOT look like:
+
+* a generic fitness app
+* a generic SaaS onboarding screen
+* a standard Material Design screen
+* a normal card-based onboarding UI
+
+It should feel like a **premium streetwear campaign / urban gaming poster converted into a mobile app experience.**
+
+Visual references:
+
+* graffiti posters
+* street running culture
+* urban photography
+* underground game branding
+* paint-splatter graphics
+* city maps
+* hexagonal territory grids
+
+---
+
+# 3. COLOR SYSTEM
+
+Use the following palette:
+
+Background:
+#080808
+
+Near black:
+#111111
+
+Primary graffiti orange:
+#FF4318
+
+Bright orange:
+#FF5A1F
+
+Dark orange:
+#5A2117
+
+Warm white:
+#F5EDE0
+
+Pure white:
+#FFFFFF
+
+Muted gray:
+#A7A19A
+
+Dark gray:
+#303030
+
+Do not introduce random colors.
+
+Orange should be the main brand accent.
+
+---
+
+# 4. SCREEN STRUCTURE
+
+The screen must occupy the complete device viewport.
+
+Use:
+
+SafeAreaView
+
+and correctly handle:
+
+* Android status bar
+* iOS notch
+* Android navigation gesture area
+* different screen heights
+* different aspect ratios
+
+The reference is a portrait mobile screen.
+
+The UI must remain visually balanced on:
+
+* small Android phones
+* large Android phones
+* iPhone
+* iPhone Pro Max
+
+---
+
+# 5. BACKGROUND / HERO ARTWORK
+
+This is the most important part.
+
+Do NOT make the screen mostly empty like the current implementation.
+
+The hero section should occupy most of the screen.
+
+Create a layered cinematic background.
+
+Layer hierarchy:
+
+1. Black background
+2. Dark concrete/grunge texture
+3. Monochrome city skyline
+4. Street/map texture
+5. Hexagonal territory grid
+6. Orange paint splashes
+7. Orange route/path
+8. Runner artwork
+9. Location/territory indicator
+10. Graffiti typography
+11. UI controls
+
+The artwork must feel integrated instead of looking like separate cards.
+
+---
+
+# 6. HERO IMAGE
+
+Use a real visual asset for the hero section.
+
+Create/use:
+
+assets/onboarding/
+
+runner.png
+
+or an equivalent existing project asset if one already exists.
+
+Runner requirements:
+
+* hooded runner
+* face not visible
+* black streetwear
+* dynamic running/crouching pose
+* orange rim lighting
+* subtle HexRunner hex symbol on clothing
+* urban athletic aesthetic
+
+The runner should be integrated into the city/map environment.
+
+Do NOT put the runner inside a rectangular card.
+
+It must visually blend into the background.
+
+---
+
+# 7. HEX TERRITORY VISUAL
+
+Replace the old simple pen icon with a stronger HexRunner-specific symbol.
+
+Use a **targeted hex territory emblem**.
+
+The emblem should contain:
+
+* hexagon outline
+* central target/crosshair
+* small location/territory detail
+* orange glow
+* rough graffiti treatment
+
+It should represent:
+
+**CLAIM / TARGET / TERRITORY**
+
+Do NOT use the previous pencil/pen symbol.
+
+---
+
+# 8. TOP HEADER
+
+At the top:
+
+LEFT:
+
+HEXRUNNER
+
+RIGHT:
+
+SKIP
+
+HEXRUNNER:
+
+* graffiti/display style
+* uppercase
+* warm white
+* slightly irregular letter spacing
+* orange underline paint stroke
+* subtle rough texture
+
+SKIP:
+
+* uppercase
+* warm white
+* smaller
+* orange underline
+
+Both should feel like part of the poster rather than conventional navigation text.
+
+---
+
+# 9. STEP INDICATOR
+
+Hero badge:
+
+02
+
+Place it inside the orange hex/territory emblem.
+
+The badge should visually resemble a street-art sticker.
+
+Do NOT make it look like a standard rounded rectangle.
+
+Use:
+
+* irregular/rotated hexagonal frame
+* orange border
+* dark orange translucent interior
+* paint splatters
+* number "02"
+
+---
+
+# 10. PRIMARY EYEBROW
+
+Text:
+
+MOVE TO MAKE A MARK
+
+Position:
+
+below the hero badge/artwork.
+
+Style:
+
+* uppercase
+* orange
+* bold
+* graffiti/brush style
+* slight letter spacing
+
+---
+
+# 11. MAIN HEADLINE
+
+Main headline:
+
+PAINT
+THE
+GRID.
+
+The reference image uses oversized graffiti typography.
+
+Reproduce this visual hierarchy.
+
+"PAINT"
+
+* warm white
+* huge
+* brush typography
+
+"THE"
+
+* warm white
+* large
+* brush typography
+
+"GRID."
+
+* orange
+* huge
+* brush typography
+
+Important:
+
+The typography should visually overlap the hero artwork and paint textures.
+
+Do NOT use a clean generic font if a graffiti/display font is available.
+
+If the exact font is unavailable:
+
+Use the closest installed font and enhance it using:
+
+* rotation
+* text shadows
+* paint strokes
+* underline splashes
+* irregular positioning
+
+---
+
+# 12. ORANGE PAINT STROKES
+
+Add several hand-painted orange strokes around the headline.
+
+They should look imperfect.
+
+Use:
+
+* rough edges
+* paint splatter
+* brush texture
+* irregular width
+
+Avoid perfectly geometric lines.
+
+---
+
+# 13. MAP / CITY ELEMENT
+
+Behind the runner, create a subtle city map.
+
+Include:
+
+* road lines
+* city silhouette
+* hex grid
+* orange route
+* highlighted territory cells
+
+The orange route should travel through the hex grid.
+
+This communicates the core HexRunner concept:
+
+RUN → MOVE → CLAIM → TERRITORY
+
+---
+
+# 14. SUPPORTING COPY
+
+Use the exact copy:
+
+"Every verified stretch of your run paints the city map.
+Defend your cells or take new ground."
+
+Typography:
+
+* monospace/typewriter-inspired if available
+* muted warm gray
+* readable
+* approximately 16–18px
+* line height around 24px
+
+Keep this below the main hero headline.
+
+---
+
+# 15. SIDE TEXT
+
+Add vertical decorative text:
+
+/ CITY EDITION
+
+Position:
+
+right side.
+
+Rotate approximately 90 degrees.
+
+Style:
+
+* uppercase
+* small
+* muted gray
+* editorial fashion-magazine aesthetic
+
+This is decorative only.
+
+---
+
+# 16. PAGINATION
+
+Bottom area:
+
+3 indicators.
+
+State:
+
+First page:
+inactive
+
+Second page:
+ACTIVE
+
+Third page:
+inactive
+
+Active indicator:
+
+orange horizontal pill
+
+Inactive indicators:
+
+small dark gray circles
+
+The second indicator must be visually active because this is onboarding page 02.
+
+---
+
+# 17. CTA
+
+Bottom CTA:
+
+NEXT MARK   →
+
+The button should look like a **paint stroke**, not a normal rounded button.
+
+Dimensions:
+
+height approximately 64px
+
+horizontal margin approximately 40px
+
+Position above the bottom safe-area inset.
+
+Background:
+
+#FF4318
+
+Text:
+
+black
+
+Typography:
+
+bold uppercase / graffiti-inspired
+
+Arrow:
+
+large right arrow
+
+The paint button should have:
+
+* rough edges
+* slight paint splatter
+* subtle texture
+* irregular brush ends
+
+Do NOT use a pill-shaped button.
+
+---
+
+# 18. CTA INTERACTION
+
+Use React Native Reanimated.
+
+On press:
+
+scale:
+1 → 0.96 → 1
+
+Then navigate to the next onboarding screen using the existing onboarding navigation.
+
+Do NOT create a new navigation system.
+
+Use the project's existing Expo Router structure.
+
+---
+
+# 19. SCREEN ENTER ANIMATION
+
+When the screen opens:
+
+Animation sequence:
+
+0–250ms:
+background fade in
+
+150–500ms:
+city/map artwork appears
+
+250–650ms:
+hero emblem slides upward and rotates slightly into position
+
+350–800ms:
+runner artwork slides upward with slight opacity fade
+
+450–850ms:
+"PAINT THE GRID." typography appears
+
+600–950ms:
+supporting copy fades in
+
+700–1000ms:
+pagination appears
+
+750–1050ms:
+NEXT MARK button slides upward
+
+Keep animation subtle and performant.
+
+Target:
+
+60 FPS.
+
+Do not create excessive looping animations.
+
+---
+
+# 20. COMPONENT ARCHITECTURE
+
+Create reusable components.
+
+Suggested structure:
+
+components/
+onboarding/
+GraffitiBackground.tsx
+GraffitiLogo.tsx
+GraffitiStepBadge.tsx
+HeroArtwork.tsx
+TerritoryTarget.tsx
+GraffitiHeadline.tsx
+PaintStroke.tsx
+OnboardingPagination.tsx
+GraffitiCTA.tsx
+
+screens/routes:
+
+Use the existing onboarding route.
+
+Do not duplicate screens unnecessarily.
+
+---
+
+# 21. RESPONSIVE LAYOUT
+
+Do NOT rely on one fixed device resolution.
+
+Use:
+
+useWindowDimensions()
+
+or the project's existing responsive utilities.
+
+Important:
+
+The hero artwork should scale according to screen size.
+
+On smaller devices:
+
+* reduce headline size
+* reduce artwork size
+* preserve CTA
+* preserve supporting copy
+* avoid clipping
+
+On larger devices:
+
+* allow artwork to become larger
+* preserve visual balance
+
+The screen should never feel vertically cramped.
+
+---
+
+# 22. IMAGE HANDLING
+
+Prefer local bundled assets.
+
+Use:
+
+expo-image
+
+if already installed.
+
+Otherwise use React Native Image.
+
+Optimize images appropriately.
+
+Do not load huge unoptimized assets if avoidable.
+
+Use transparent PNG/WebP assets for:
+
+* runner
+* paint splashes
+* hex artwork
+* location emblem
+
+---
+
+# 23. ACCESSIBILITY
+
+All interactive elements must have:
+
+accessibilityRole
+
+accessibilityLabel
+
+minimum 44px touch target.
+
+Example:
+
+SKIP:
+"Skip onboarding"
+
+NEXT MARK:
+"Go to next onboarding screen"
+
+---
+
+# 24. EXISTING APP INTEGRATION
+
+After implementing the screen, verify:
+
+1. App launches normally.
+2. Onboarding appears when appropriate.
+3. Skip works.
+4. NEXT MARK works.
+5. Existing onboarding state persists.
+6. Existing Home screen remains unchanged.
+7. Existing GPS logic remains unchanged.
+8. Existing API remains unchanged.
+9. Existing authentication remains unchanged.
+10. No TypeScript errors are introduced.
+
+---
+
+# 25. DO NOT FAKE FUNCTIONALITY
+
+Do not add:
+
+* fake GPS
+* fake territory data
+* fake API responses
+* fake runner data
+* fake authentication
+
+This is a presentation redesign only.
+
+---
+
+# 26. FINAL VISUAL QUALITY BAR
+
+Before finishing, compare the implementation against the attached reference image.
+
+Check:
+
+* overall composition
+* spacing
+* typography hierarchy
+* orange/black contrast
+* hero image prominence
+* graffiti texture
+* runner placement
+* headline placement
+* badge placement
+* CTA position
+* pagination position
+* top navigation
+* visual density
+
+The final screen should feel like:
+
+**A premium streetwear campaign poster transformed into an interactive mobile onboarding screen for a territory-control running game.**
+
+It should NOT look like a normal React Native app.
+
+---
+
+# 27. IMPORTANT — IMPLEMENT, DON'T JUST DESCRIBE
+
+Do not respond with only an explanation.
+
+Actually:
+
+1. Inspect the existing project.
+2. Locate onboarding files.
+3. Implement the new screen.
+4. Add required assets/placeholders where necessary.
+5. Connect existing navigation.
+6. Run TypeScript/type checks.
+7. Fix any errors.
+8. Verify the final implementation.
+
+After implementation, provide a concise summary of:
+
+* files changed
+* assets added
+* navigation integration
+* commands/checks run
+* any remaining limitation

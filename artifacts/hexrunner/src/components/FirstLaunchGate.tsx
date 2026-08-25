@@ -9,7 +9,8 @@ import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 
 const KEY = '@hexrunner/paint-school-complete';
-const posterAsset = require('../../assets/images/onboarding-poster.png');
+const posterAsset01 = require('../../assets/images/onboarding-poster.png');
+const posterAsset02 = require('../../assets/images/onboarding-poster-02.png');
 
 const slides = [
   { mark: '01', icon: 'hexagon' as const, kicker: 'YOUR CITY / YOUR MARK', title: 'RUN\nLOUD.', copy: 'HexRunner turns ordinary blocks into a living territory game. Your route is your signature.' },
@@ -65,7 +66,7 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
     setActive(target);
     list.current?.scrollToOffset({
       offset: target * screenWidth,
-      animated: true,
+      animated: Platform.OS !== 'web',
     });
   };
 
@@ -105,29 +106,33 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
         onMomentumScrollEnd={onScrollEnd}
         keyExtractor={item => item.mark}
         renderItem={({ item, index }) => {
-          if (index === 0) {
+          if (index === 0 || index === 1) {
+            const isFirstPoster = index === 0;
             return (
-              <View testID="poster-slide" style={{ width: screenWidth, height: screenHeight, position: 'relative', overflow: 'hidden' }}>
+              <View
+                testID={isFirstPoster ? 'poster-slide' : 'poster-slide-02'}
+                style={{ width: screenWidth, height: screenHeight, position: 'relative', overflow: 'hidden' }}
+              >
                 <Image
-                  source={posterAsset}
+                  source={isFirstPoster ? posterAsset01 : posterAsset02}
                   style={[StyleSheet.absoluteFillObject, { width: screenWidth, height: screenHeight }]}
                   contentFit="fill"
                   transition={0}
                   accessibilityIgnoresInvertColors
                 />
                 <Pressable
-                  testID="poster-skip"
+                  testID={isFirstPoster ? 'poster-skip' : 'poster-skip-02'}
                   onPress={() => void finish()}
                   style={{ position: 'absolute', top: Math.max(insets.top, 20), right: 0, width: 120, height: 80 }}
                   accessibilityRole="button"
-                  accessibilityLabel="Skip"
+                  accessibilityLabel="Skip onboarding"
                 />
                 <Pressable
-                  testID="poster-next-mark"
+                  testID={isFirstPoster ? 'poster-next-mark' : 'poster-next-mark-02'}
                   onPress={next}
-                  style={{ position: 'absolute', bottom: Math.max(insets.bottom, 20), left: 0, right: 0, height: 100 }}
+                  style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: Math.max(insets.bottom + 80, 100) }}
                   accessibilityRole="button"
-                  accessibilityLabel="Next Mark"
+                  accessibilityLabel="Go to next onboarding screen"
                 />
               </View>
             );
@@ -163,7 +168,7 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
         }}
       />
 
-      {active !== 0 ? (
+      {active === 2 ? (
         <>
           <View style={[styles.headerOverlay, { paddingTop: insets.top + (Platform.OS === 'web' ? 28 : 12) }]}>
             <Text style={[styles.wordmark, { color: colors.foreground }]}>HEXRUNNER</Text>
