@@ -26,6 +26,10 @@ function RootLayoutNav() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerBackTitle: 'Back' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="run-summary"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
       </Stack>
     </>
   );

@@ -1,1 +1,1 @@
-export { default } from '@/src/screens/RunScreen';
+export { default } from '@/src/screens/RunSessionScreen';

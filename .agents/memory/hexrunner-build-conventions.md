@@ -40,6 +40,12 @@ The Replit browser preview cannot bundle the package-level `react-native-maps` i
 
 **How to apply:** keep a web fallback and either isolate map components in native platform files or import the platform-safe MapView entry directly. Recheck the web bundle whenever adding native map overlays.
 
+Expo Location's web subscription cleanup can call a missing native emitter method, even though starting the watcher works.
+
+**Why:** a Run session recorded successfully in the browser but crashed on Stop when the Expo subscription's remove method ran.
+
+**How to apply:** keep browser previews on the browser geolocation fallback; use Expo Location's high-accuracy watcher on iOS/Android. Always test both watcher setup and cleanup.
+
 ## Hackathon compliance note
 
 The user's own PRD warns project-creation timestamps should postdate the city battle start (29 Aug 2026 Bengaluru). User was told this on 25 Aug and proceeded — treat this as a practice build unless they say otherwise.

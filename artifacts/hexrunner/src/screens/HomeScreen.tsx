@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -12,6 +12,7 @@ import type { LocationObject } from 'expo-location';
 import type { MapStyleElement, Region } from 'react-native-maps';
 import MapView from 'react-native-maps/lib/MapView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import HexGrid from '@/src/components/HexGrid';
 import PlaceholderScreen from '@/src/components/PlaceholderScreen';
 import { useColors } from '@/hooks/useColors';
@@ -153,10 +154,12 @@ function LiveMap() {
     });
   }, []);
 
-  useEffect(() => {
-    beginWatching();
-    return stopWatching;
-  }, [beginWatching]);
+  useFocusEffect(
+    useCallback(() => {
+      beginWatching();
+      return stopWatching;
+    }, [beginWatching]),
+  );
 
   const calculateVisibleHexes = useCallback(
     (region: Region, force = false) => {
