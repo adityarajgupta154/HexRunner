@@ -261,10 +261,13 @@ function LiveMap() {
           <Text style={[styles.liveText, { color: colors.foreground }]}>LIVE GPS</Text>
         </View>
 
-        <View style={[styles.tierBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View
+          accessibilityLabel={`Today's target: ${fitnessProfile.budget} hexes`}
+          style={[styles.tierBadge, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
           <Feather name="target" size={14} color={colors.primary} />
           <Text style={[styles.tierText, { color: colors.foreground }]}>
-            {fitnessProfile.budget} Hexes
+            Today&apos;s target: {fitnessProfile.budget} hexes
           </Text>
         </View>
       </View>
@@ -365,6 +368,7 @@ const styles = StyleSheet.create({
   },
   tierBadge: {
     minHeight: 38,
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -373,9 +377,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   tierText: {
+    flexShrink: 1,
     fontFamily: 'Inter_700Bold',
-    fontSize: 12,
-    letterSpacing: 0.5,
+    fontSize: 11,
+    letterSpacing: 0.1,
   },
   recenterButton: {
     position: 'absolute',

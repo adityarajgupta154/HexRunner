@@ -1,5 +1,6 @@
 import { checkForSpoofing, type LocationPoint } from '../src/services/antiSpoof';
 import {
+  hexBudgetForTier,
   predictFitnessProfile,
   type FitnessTier,
   type RecentRun,
@@ -58,6 +59,10 @@ assert(
   predictFitnessProfile([], 'trained').tier === 'casual',
   'A brand-new user must default to casual.',
 );
+assert(hexBudgetForTier('beginner') === 6, 'Beginner budget must be 6.');
+assert(hexBudgetForTier('casual') === 10, 'Casual budget must be 10.');
+assert(hexBudgetForTier('regular') === 15, 'Regular budget must be 15.');
+assert(hexBudgetForTier('trained') === 20, 'Trained budget must be 20.');
 
 function pathAtSpeed(speedKmh: number, seconds: number): LocationPoint[] {
   const latitude = 51.5;

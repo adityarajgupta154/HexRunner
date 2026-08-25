@@ -16,6 +16,10 @@ export const FITNESS_BUDGETS: Readonly<Record<FitnessTier, number>> = {
   trained: 20,
 };
 
+export function hexBudgetForTier(tier: FitnessTier): number {
+  return FITNESS_BUDGETS[tier];
+}
+
 export type RecentRun = {
   distanceKm: number;
   averagePaceMinPerKm?: number | null;
@@ -252,7 +256,7 @@ export function predictTier(features: readonly number[]): {
       regular: probabilities[2],
       trained: probabilities[3],
     },
-    budget: FITNESS_BUDGETS[tier],
+    budget: hexBudgetForTier(tier),
   };
 }
 
@@ -267,7 +271,7 @@ export function predictFitnessProfile(
     return {
       tier: 'casual',
       probabilities: { beginner: 0, casual: 1, regular: 0, trained: 0 },
-      budget: FITNESS_BUDGETS.casual,
+      budget: hexBudgetForTier('casual'),
     };
   }
   return predictTier(features);
