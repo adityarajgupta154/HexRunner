@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useReducedMotion } from 'react-native-reanimated';
 
 interface Props {
@@ -92,10 +93,14 @@ export default function BrandReveal({ onComplete }: Props) {
       transparent={false}
       visible
     >
-      <Animated.View
-        testID="brand-reveal"
-        style={[styles.container, { opacity }]}
-      >
+      <Animated.View testID="brand-reveal" style={[styles.container, { opacity }]}>
+        <LinearGradient
+          colors={['#174450', '#081013', '#11170F']}
+          start={{ x: 0.8, y: 0 }}
+          end={{ x: 0.2, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <View pointerEvents="none" style={styles.grid} />
         <View style={styles.markStage}>
           <Animated.View
             style={[
@@ -115,7 +120,7 @@ export default function BrandReveal({ onComplete }: Props) {
           />
           <Animated.View style={{ transform: [{ scale }] }}>
             <Image
-              source={require('../../../assets/images/hexrunner-mark.png')}
+              source={require('../../../assets/images/hexrunner-mark-v2.png')}
               style={styles.logo}
               contentFit="contain"
               cachePolicy="memory"
@@ -123,7 +128,7 @@ export default function BrandReveal({ onComplete }: Props) {
           </Animated.View>
         </View>
         <Text style={styles.wordmark}>HEXRUNNER</Text>
-        <Text style={styles.tagline}>OWN THE STREETS</Text>
+        <Text style={styles.tagline}>NIGHT MODE / READY</Text>
       </Animated.View>
     </Modal>
   );
@@ -132,9 +137,15 @@ export default function BrandReveal({ onComplete }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0F14',
+    backgroundColor: '#081013',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  grid: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.2,
+    borderWidth: 1,
+    borderColor: '#92E8D1',
   },
   markStage: {
     width: 188,
@@ -148,24 +159,24 @@ const styles = StyleSheet.create({
     height: 156,
     borderRadius: 78,
     borderWidth: 2,
-    borderColor: '#00F09A',
-    backgroundColor: 'rgba(0, 240, 154, 0.08)',
+    borderColor: '#9CF04A',
+    backgroundColor: 'rgba(156, 240, 74, 0.09)',
   },
   logo: {
-    width: 144,
-    height: 144,
+    width: 132,
+    height: 132,
   },
   wordmark: {
     marginTop: 20,
     color: '#FFFFFF',
     fontFamily: 'Inter_700Bold',
-    fontSize: 27,
+    fontSize: 29,
     fontStyle: 'italic',
-    letterSpacing: 3.4,
+    letterSpacing: 1.6,
   },
   tagline: {
     marginTop: 8,
-    color: '#00F09A',
+    color: '#9CF04A',
     fontFamily: 'Inter_600SemiBold',
     fontSize: 10,
     letterSpacing: 4.2,

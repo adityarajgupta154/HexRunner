@@ -39,6 +39,7 @@ import { LiveInteractionsOverlay } from '@/src/components/LiveInteractionsOverla
 import { WaveActionModal } from '@/src/components/WaveActionModal';
 import { CoachTour } from '@/src/components/CoachTour';
 import { getTerritoryColor } from '@/src/services/territoryColor';
+import GlobeArrival from '@/src/components/GlobeArrival';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -47,7 +48,9 @@ const MAP_DELTA = {
 
 const SIGNIFICANT_CENTER_MOVEMENT = 0.18;
 const SIGNIFICANT_ZOOM_CHANGE = 0.15;
+const MAX_HEX_REGION_DELTA = 0.12;
 const HEX_REFRESH_INTERVAL = 15000;
+let hasShownGlobeArrivalThisSession = false;
 
 function regionChangedSignificantly(previous: Region, next: Region): boolean {
   const latitudeThreshold =
@@ -79,18 +82,18 @@ function hexesForRegion(region: Region): string[] {
 }
 
 const DARK_MAP_STYLE: MapStyleElement[] = [
-  { elementType: 'geometry', stylers: [{ color: '#24201e' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#d6c8b8' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#151414' }] },
-  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#554944' }] },
-  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#2d2825' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#342d29' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#443a35' }] },
-  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1c1918' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#634139' }] },
-  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#39312e' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#211c1b' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#b8aca0' }] },
+  { elementType: 'geometry', stylers: [{ color: '#0B171C' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#AFC2BC' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#071015' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#294148' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#102126' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#10251F' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#183039' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#091216' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#254A52' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#173039' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#061016' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#769792' }] },
 ];
 
 export default function HomeScreen() {
@@ -106,6 +109,9 @@ function LiveMap() {
   const mapRef = useRef<MapView | null>(null);
   const lastHexRegionRef = useRef<Region | null>(null);
   const [location, setLocation] = useState<LocationObject | null>(null);
+  const [showGlobeArrival, setShowGlobeArrival] = useState(
+    () => !hasShownGlobeArrivalThisSession,
+  );
   const [visibleHexes, setVisibleHexes] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hasLoadedOwnership, setHasLoadedOwnership] = useState(false);
@@ -272,6 +278,13 @@ function LiveMap() {
 
   const calculateVisibleHexes = useCallback(
     (region: Region, force = false) => {
+      if (
+        region.latitudeDelta > MAX_HEX_REGION_DELTA ||
+        region.longitudeDelta > MAX_HEX_REGION_DELTA
+      ) {
+        return;
+      }
+
       const previous = lastHexRegionRef.current;
       if (!force && previous && !regionChangedSignificantly(previous, region)) {
         return;
@@ -321,9 +334,10 @@ function LiveMap() {
 
   const handleRegionChangeComplete = useCallback(
     (region: Region) => {
+      if (showGlobeArrival) return;
       calculateVisibleHexes(region);
     },
-    [calculateVisibleHexes],
+    [calculateVisibleHexes, showGlobeArrival],
   );
 
   const recenterMap = useCallback(() => {
@@ -337,6 +351,20 @@ function LiveMap() {
       450,
     );
   }, [location]);
+
+  const completeGlobeArrival = useCallback(() => {
+    hasShownGlobeArrivalThisSession = true;
+    setShowGlobeArrival(false);
+    if (Platform.OS !== 'web' && location) {
+      const localRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        ...MAP_DELTA,
+      };
+      mapRef.current?.animateToRegion(localRegion, 900);
+      calculateVisibleHexes(localRegion, true);
+    }
+  }, [calculateVisibleHexes, location]);
 
   if (!location) {
     return (
@@ -375,7 +403,9 @@ function LiveMap() {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
   };
-  const initialRegion = { ...coordinate, ...MAP_DELTA };
+  const initialRegion = showGlobeArrival && Platform.OS !== 'web'
+    ? { latitude: coordinate.latitude, longitude: coordinate.longitude, latitudeDelta: 70, longitudeDelta: 70 }
+    : { ...coordinate, ...MAP_DELTA };
   const currentH3Index = pointToHex(coordinate.latitude, coordinate.longitude);
   const canAdoptCurrentZone = myHexes.has(currentH3Index);
   const currentZoneIsAdopted = caretakerHexes.has(currentH3Index);
@@ -458,8 +488,10 @@ function LiveMap() {
           style={StyleSheet.absoluteFill}
           initialRegion={initialRegion}
           customMapStyle={DARK_MAP_STYLE}
-          minZoomLevel={14}
-          onMapReady={() => calculateVisibleHexes(initialRegion, true)}
+          minZoomLevel={showGlobeArrival ? 2 : 14}
+          onMapReady={() => {
+            if (!showGlobeArrival) calculateVisibleHexes(initialRegion, true);
+          }}
           onRegionChangeComplete={handleRegionChangeComplete}
           showsCompass={false}
           showsMyLocationButton={false}
@@ -501,8 +533,9 @@ function LiveMap() {
           onPress={() => router.push('/profile')}
           style={[styles.pill, { backgroundColor: colors.card, flexDirection: 'column', alignItems: 'flex-start', paddingVertical: 6 }]}
         >
-          <Text style={[styles.pillText, { color: '#FFF' }]}>{((userStats?.totals.totalHexesOwned ?? 0) * 0.01).toFixed(2)} km²</Text>
-          <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, alignItems: 'center' }}>
+          <Text style={styles.territoryLabel}>YOUR TERRITORY</Text>
+          <Text style={[styles.territoryValue, { color: '#F1F4EA' }]}><Text style={{ color: '#9CF04A' }}>{((userStats?.totals.totalHexesOwned ?? 0) * 0.01).toFixed(2)}</Text> KM²</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 3, alignItems: 'center' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <View style={{ width: 8, height: 2, backgroundColor: colors.primary }} />
               <Text style={{ fontSize: 9, fontFamily: 'Inter_600SemiBold', color: colors.mutedForeground }}>YOU</Text>
@@ -818,8 +851,8 @@ function LiveMap() {
           styles.recenterButton,
           {
             bottom: Math.max(insets.bottom, 12) + 216,
-            backgroundColor: '#161920',
-            borderColor: '#303440',
+            backgroundColor: 'rgba(8,16,19,0.92)',
+            borderColor: 'rgba(184,211,199,0.25)',
             opacity: pressed ? 0.82 : 1,
           },
         ]}
@@ -838,8 +871,17 @@ function LiveMap() {
           }
         ]}
       >
-        <Text style={styles.startButtonText}>Start</Text>
+        <Feather name="play" size={19} color="#081013" />
+        <Text style={styles.startButtonText}>ARM RUN</Text>
       </Pressable>
+
+      {showGlobeArrival ? (
+        <GlobeArrival
+          latitude={coordinate.latitude}
+          longitude={coordinate.longitude}
+          onComplete={completeGlobeArrival}
+        />
+      ) : null}
 
       <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
       <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
@@ -871,7 +913,7 @@ const styles = StyleSheet.create({
     right: 78,
     padding: 6,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 3,
   },
   communityHeader: {
     minHeight: 44,
@@ -1116,12 +1158,14 @@ const styles = StyleSheet.create({
     height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 25,
+    borderRadius: 3,
     borderWidth: 1,
   },
   pill: {
-    height: 38,
-    borderRadius: 20,
+    minHeight: 38,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(184,211,199,0.18)',
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1133,11 +1177,14 @@ const styles = StyleSheet.create({
   },
   pillText: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 13,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
+  territoryLabel: { color: '#A5B7B0', fontFamily: 'Inter_700Bold', fontSize: 9, letterSpacing: 1.2 },
+  territoryValue: { marginTop: 1, fontFamily: 'Inter_700Bold', fontSize: 22, fontStyle: 'italic', letterSpacing: -1 },
   segmentedPill: {
     height: 38,
-    borderRadius: 20,
+    borderRadius: 3,
     flexDirection: 'row',
     padding: 3,
     shadowColor: '#000',
@@ -1147,7 +1194,7 @@ const styles = StyleSheet.create({
   },
   segmentOption: {
     paddingHorizontal: 12,
-    borderRadius: 17,
+    borderRadius: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1159,10 +1206,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    height: 56,
+    height: 58,
     paddingHorizontal: 32,
-    backgroundColor: '#00FF00',
-    borderRadius: 25,
+    backgroundColor: '#9CF04A',
+    borderRadius: 0,
+    flexDirection: 'row',
+    gap: 10,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1171,7 +1220,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   startButtonText: {
-    color: '#000',
+    color: '#081013',
     fontFamily: 'Inter_800ExtraBold',
     fontSize: 16,
     textTransform: 'uppercase',

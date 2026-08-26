@@ -1,0 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap');
+
+.hr-shell{font-family:Outfit,sans-serif;background:#091116;color:#f1f4ea;height:844px;width:390px;overflow:hidden;position:relative;isolation:isolate}
+.hr-shell:before{content:"";pointer-events:none;position:absolute;inset:0;z-index:40;opacity:.16;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E")}
+.hr-display{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-style:italic;letter-spacing:-.045em}.hr-mono{font-family:'DM Mono',monospace}.hr-glass{background:rgba(13,24,29,.82);backdrop-filter:blur(16px);border:1px solid rgba(184,211,199,.15)}
+.hr-grid{background-image:linear-gradient(rgba(143,181,171,.055) 1px,transparent 1px),linear-gradient(90deg,rgba(143,181,171,.055) 1px,transparent 1px);background-size:25px 25px}
+.hr-hex{clip-path:polygon(25% 6.7%,75% 6.7%,100% 50%,75% 93.3%,25% 93.3%,0 50%)}
+.hr-pulse{animation:hrpulse 1.8s ease-in-out infinite}.hr-scan{animation:hrscan 4.5s linear infinite}.hr-float{animation:hrfloat 3.2s ease-in-out infinite}
+@keyframes hrpulse{50%{opacity:.35;transform:scale(.72)}}@keyframes hrscan{from{transform:translateY(-30px)}to{transform:translateY(310px)}}@keyframes hrfloat{50%{transform:translateY(-7px)}}

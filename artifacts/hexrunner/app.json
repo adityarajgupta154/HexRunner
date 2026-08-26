@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/hexrunner-mark.png",
+      "image": "./assets/images/hexrunner-mark-v2.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A0F14"
     },

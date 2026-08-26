@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/src/context/AuthContext';
@@ -122,7 +123,7 @@ export default function ProfileScreen() {
   const recentRuns = data?.recentRuns ?? [];
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: '#091216', paddingTop: insets.top }]}>
       <FlatList
         testID="profile-activity-list"
         data={recentRuns}
@@ -135,6 +136,10 @@ export default function ProfileScreen() {
           <>
             <View style={styles.header}>
               <View>
+                <View style={styles.brandRow}>
+                  <Image source={require('../../assets/images/hexrunner-mark-v2.png')} style={styles.mark} contentFit="contain" />
+                  <Text style={styles.wordmark}>HEXRUNNER</Text>
+                </View>
                 <Text style={[styles.eyebrow, { color: colors.primary }]}>RUNNER FILE / ACTIVE</Text>
                 <Text style={[styles.title, { color: colors.foreground }]}>{data?.displayName || 'UNTAGGED'}</Text>
               </View>
@@ -339,18 +344,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 26 },
+  mark: { width: 23, height: 28 },
+  wordmark: { color: '#F1F4EA', fontFamily: 'Inter_700Bold', fontSize: 17, fontStyle: 'italic', letterSpacing: -0.4 },
   eyebrow: {
     fontFamily: 'Inter_700Bold',
     fontSize: 11,
     letterSpacing: 1.8,
   },
   title: {
-    fontFamily: 'PermanentMarker_400Regular',
-    fontSize: 31,
-    letterSpacing: -0.7,
+    fontFamily: 'Inter_700Bold',
+    fontStyle: 'italic',
+    fontSize: 43,
+    lineHeight: 37,
+    letterSpacing: -2,
     marginTop: 6,
   },
   listContent: {
@@ -363,7 +373,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 0,
     marginBottom: 20,
   },
   staleBanner: {
@@ -441,7 +451,7 @@ const styles = StyleSheet.create({
   statBoxFull: {
     width: '100%',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 16,
     gap: 8,
   },
@@ -458,7 +468,7 @@ const styles = StyleSheet.create({
   statBox: {
     width: '47%',
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 16,
     gap: 8,
   },
@@ -498,7 +508,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 12,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 16,
   },
   runHeader: {
@@ -560,7 +570,7 @@ const styles = StyleSheet.create({
   colorSwatch: {
     width: 44,
     height: 44,
-    borderRadius: 8,
+    borderRadius: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,15 +1,15 @@
 export const VIDEO_SOURCES = {
-  loop: require('../../../assets/videos/web/onboarding-close-loop.webm'),
-  take: require('../../../assets/videos/web/onboarding-take-it.webm'),
-  grow: require('../../../assets/videos/web/onboarding-grow-territory.webm'),
-  colour: require('../../../assets/videos/web/onboarding-claim-colour.webm'),
-  location: require('../../../assets/videos/web/onboarding-location-ready.webm'),
+  loop: require('../../../assets/videos/web/redesign/close-loop-v2.webm'),
+  take: require('../../../assets/videos/web/redesign/take-territory-v2.webm'),
+  grow: require('../../../assets/videos/web/redesign/grow-territory-v2.webm'),
+  colour: require('../../../assets/videos/web/redesign/choose-colour-v2.webm'),
+  location: require('../../../assets/videos/web/redesign/location-v2.webm'),
 };
 
 export const VIDEO_POSTERS = {
-  loop: require('../../../assets/images/onboarding-posters/close-loop.jpg'),
-  take: require('../../../assets/images/onboarding-posters/take-it.jpg'),
-  grow: require('../../../assets/images/onboarding-posters/grow-territory.jpg'),
-  colour: require('../../../assets/images/onboarding-posters/claim-colour.jpg'),
-  location: require('../../../assets/images/onboarding-posters/location-ready.jpg'),
+  loop: require('../../../assets/images/onboarding-posters/redesign/close-loop-v2.jpg'),
+  take: require('../../../assets/images/onboarding-posters/redesign/take-territory-v2.jpg'),
+  grow: require('../../../assets/images/onboarding-posters/redesign/grow-territory-v2.jpg'),
+  colour: require('../../../assets/images/onboarding-posters/redesign/choose-colour-v2.jpg'),
+  location: require('../../../assets/images/onboarding-posters/redesign/location-v2.jpg'),
 };

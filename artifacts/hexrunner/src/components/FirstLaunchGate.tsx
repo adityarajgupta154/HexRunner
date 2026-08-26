@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import {
   ONBOARDING_COMPLETE_KEY,
   saveOnboardingPace,
@@ -117,8 +119,14 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, WEB_BOTTOM_INSET) : insets.bottom;
 
   const renderOnboarding = () => (
-    <View testID="onboarding-root" style={[styles.screen, { backgroundColor: '#0B0D12' }]}>
+    <View testID="onboarding-root" style={[styles.screen, { backgroundColor: '#081013' }]}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
+      <LinearGradient
+        pointerEvents="none"
+        colors={['#174450', '#081013', '#11170F']}
+        locations={[0, 0.58, 1]}
+        style={StyleSheet.absoluteFill}
+      />
 
       {/* Background Video Area */}
       <View style={styles.mapArea}>
@@ -137,6 +145,10 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
              <Text style={styles.backText}>BACK</Text>
           </Pressable>
         ) : <View style={{width: 80}} />}
+        <View style={styles.brandLockup} pointerEvents="none">
+          <Image source={require('../../assets/images/hexrunner-mark-v2.png')} style={styles.headerMark} contentFit="contain" />
+          <Text style={styles.headerWordmark}>HEXRUNNER</Text>
+        </View>
       </View>
 
       {/* Bottom Sheet */}
@@ -224,7 +236,7 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
             onPress={() => void finish(false)}
             hitSlop={12}
           >
-            <Text style={styles.skipText}>SKIP</Text>
+             <Text style={styles.skipText}>SKIP SETUP</Text>
           </Pressable>
 
           <Pressable
@@ -236,7 +248,7 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
               pressed && { opacity: 0.8 },
             ]}
           >
-            <Text style={styles.nextText}>{step === 'location' ? 'TURN ON LOCATION' : 'NEXT'}</Text>
+             <Text style={styles.nextText}>{step === 'location' ? 'ENABLE LOCATION' : 'CONTINUE'}</Text>
           </Pressable>
         </View>
 
@@ -279,7 +291,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, width: '100%', height: '100%', overflow: 'hidden' },
   mapArea: {
     flex: 1,
-    backgroundColor: '#0B0D12',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -294,79 +306,94 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  brandLockup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerMark: { width: 24, height: 28 },
+  headerWordmark: {
+    color: '#F1F4EA',
+    fontFamily: 'Inter_700Bold',
+    fontStyle: 'italic',
+    fontSize: 15,
+    letterSpacing: -0.5,
+  },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingRight: 16,
-    paddingLeft: 8,
-    paddingVertical: 8,
-    borderRadius: 24,
+    backgroundColor: 'rgba(8,16,19,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(184,211,199,0.22)',
+    paddingRight: 12,
+    paddingLeft: 6,
+    paddingVertical: 7,
+    borderRadius: 3,
   },
   backText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 12,
-    color: '#000',
+    color: '#E7EEE7',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: 'rgba(8,16,19,0.96)',
+    borderTopWidth: 1,
+    borderColor: 'rgba(184,211,199,0.18)',
     paddingHorizontal: 24,
-    paddingTop: 32,
+    paddingTop: 26,
     paddingBottom: 24,
-    minHeight: 280,
+    minHeight: 300,
   },
   stepContent: {
     minHeight: 200,
   },
   stepContentInner: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     width: '100%',
   },
   title: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 24,
-    color: '#000000',
+    fontSize: 28,
+    color: '#F1F4EA',
     fontStyle: 'italic',
     letterSpacing: -0.5,
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   description: {
     fontFamily: 'Inter_500Medium',
     fontSize: 15,
     lineHeight: 22,
-    color: '#1A1D24',
-    textAlign: 'center',
+    color: '#C5D0C8',
+    textAlign: 'left',
   },
   colourGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: 12,
     marginTop: 24,
   },
   colourSwatch: {
     width: 48,
     height: 48,
-    borderRadius: 12,
+    borderRadius: 3,
   },
   segmented: {
     flexDirection: 'row',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 30,
+    backgroundColor: 'rgba(213,229,220,0.12)',
+    borderRadius: 3,
     padding: 4,
   },
   paceOption: {
     flex: 1,
     height: 36,
-    borderRadius: 20,
+    borderRadius: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   paceOptionText: {
-    color: '#8E8E93',
+    color: '#B9C8BF',
     fontFamily: 'Inter_700Bold',
     fontSize: 12,
   },
@@ -379,20 +406,20 @@ const styles = StyleSheet.create({
   skipText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 14,
-    color: '#000000',
+    color: '#B9C8BF',
     letterSpacing: 0.5,
   },
   nextButton: {
     paddingHorizontal: 32,
     paddingVertical: 16,
-    borderRadius: 30,
+    borderRadius: 0,
     minWidth: 140,
     alignItems: 'center',
   },
   nextText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 15,
-    color: '#000000',
+    color: '#081013',
   },
   signIn: {
     marginTop: 24,
@@ -401,17 +428,17 @@ const styles = StyleSheet.create({
   signInText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#C5D0C8',
     textDecorationLine: 'underline',
   },
   identityNotice: {
     position: 'absolute',
     top: -60,
     alignSelf: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#102126',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 3,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -423,6 +450,6 @@ const styles = StyleSheet.create({
   identityNoticeText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
-    color: '#000',
+    color: '#F1F4EA',
   },
 });

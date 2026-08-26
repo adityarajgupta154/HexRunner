@@ -34,24 +34,26 @@ function ClassicTabLayout() {
         headerShown: false,
         tabBarLabelStyle: {
           fontFamily: 'Inter_600SemiBold',
-          fontSize: 11,
+          fontSize: 10,
+          letterSpacing: 0.7,
         },
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: colors.background,
-          borderTopWidth: 2,
-          borderTopColor: colors.border,
+          backgroundColor: '#091216',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(184,211,199,0.16)',
           elevation: 0,
-          height: isWeb ? 84 : 70,
+          height: isWeb ? 84 : 74,
+          paddingTop: 7,
         },
         tabBarBackground: () =>
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />,
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#091216' }]} />,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'MAP',
           tabBarIcon: ({ color }) => (
             <ClassicTabIcon
               color={color}
@@ -64,7 +66,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="run"
         options={{
-          title: 'Run',
+          title: 'RUN',
           tabBarIcon: ({ color }) => (
             <ClassicTabIcon
               color={color}
@@ -77,7 +79,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: 'Leaderboard',
+          title: 'RANK',
           tabBarIcon: ({ color }) => (
             <ClassicTabIcon color={color} sfName="trophy" featherName="award" />
           ),
@@ -86,7 +88,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'YOU',
           tabBarIcon: ({ color }) => (
             <ClassicTabIcon
               color={color}
