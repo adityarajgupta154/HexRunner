@@ -1,0 +1,17 @@
+export default function Research() {
+  return (
+    <div className="w-screen h-screen overflow-hidden relative bg-bg px-[5.5vw] py-[5vh] font-body text-text hex-grid">
+      <div className="flex items-end justify-between"><div><p className="text-[1.5vw] font-bold tracking-[0.16em] text-primary">VERIFIED FOUNDATIONS</p><h1 className="font-display text-[4.4vw] font-extrabold tracking-[-0.04em]">RESEARCH AND REFERENCES</h1></div><p className="text-[1.5vw] font-bold text-muted">06 / 06</p></div>
+      <div className="mt-[5vh] grid grid-cols-2 gap-x-[3vw] gap-y-[2vh]">
+        <div className="rounded-[1vw] border border-primary/30 bg-[#10252a]/90 p-[1.6vw]"><p className="text-[1.8vw] font-bold text-primary">H3 GEOSPATIAL INDEXING</p><p className="mt-[0.8vh] text-[1.65vw] leading-[1.2]">Hexagonal hierarchical cells for coverage, territory and coarse area aggregation.</p><a href="https://h3geo.org/docs/" target="_blank" rel="noopener noreferrer" className="mt-[1vh] block text-[1.5vw] text-accent underline">h3geo.org/docs</a></div>
+        <div className="rounded-[1vw] border border-primary/30 bg-[#10252a]/90 p-[1.6vw]"><p className="text-[1.8vw] font-bold text-primary">OPEN-METEO AIR QUALITY API</p><p className="mt-[0.8vh] text-[1.65vw] leading-[1.2]">Current and forecast US AQI used for city air-quality context and exercise windows.</p><a href="https://open-meteo.com/en/docs/air-quality-api" target="_blank" rel="noopener noreferrer" className="mt-[1vh] block text-[1.5vw] text-accent underline">open-meteo.com/en/docs/air-quality-api</a></div>
+        <div className="rounded-[1vw] border border-accent/30 bg-[#211c13]/90 p-[1.6vw]"><p className="text-[1.8vw] font-bold text-accent">EXPO + REACT NATIVE</p><p className="mt-[0.8vh] text-[1.65vw] leading-[1.2]">Cross-platform mobile runtime with foreground location, maps, storage and on-device speech.</p><a href="https://docs.expo.dev/" target="_blank" rel="noopener noreferrer" className="mt-[1vh] block text-[1.5vw] text-primary underline">docs.expo.dev</a></div>
+        <div className="rounded-[1vw] border border-accent/30 bg-[#211c13]/90 p-[1.6vw]"><p className="text-[1.8vw] font-bold text-accent">POSTGRESQL + EXPRESS</p><p className="mt-[0.8vh] text-[1.65vw] leading-[1.2]">Transactional ownership updates, advisory locking, typed API validation and expiring presence.</p><a href="https://www.postgresql.org/docs/" target="_blank" rel="noopener noreferrer" className="mt-[1vh] block text-[1.5vw] text-primary underline">postgresql.org/docs</a></div>
+      </div>
+      <div className="mt-[3vh] grid grid-cols-[1fr_1.25fr] gap-[2vw] border-t border-white/15 pt-[2.5vh]">
+        <div><p className="text-[1.65vw] font-bold text-primary">PROJECT EVIDENCE</p><p className="mt-[0.8vh] text-[1.65vw] leading-[1.25]">Working Expo screens, run validation, live presence, AQI route, safety tools, voice controller and judge evidence checklist in the current repository.</p></div>
+        <div><p className="text-[1.65vw] font-bold text-accent">CLAIM DISCIPLINE</p><p className="mt-[0.8vh] text-[1.65vw] leading-[1.25]">This deck describes implemented code paths only. Registration fields remain editable placeholders; no partnerships, adoption metrics or fabricated research results are asserted.</p></div>
+      </div>
+    </div>
+  );
+}

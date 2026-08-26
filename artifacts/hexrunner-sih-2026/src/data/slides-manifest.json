@@ -1,0 +1,50 @@
+[
+  {
+    "id": "8e1e6ec0-5d06-4bb3-8895-81e7d997c24e",
+    "position": 1,
+    "filepath": "src/pages/slides/TitleSlide.tsx",
+    "title": "Title Page",
+    "description": "HexRunner SIH 2026 title page with editable registration placeholders.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "e690a62c-30ac-489a-b229-08e6314dfdbd",
+    "position": 2,
+    "filepath": "src/pages/slides/ProposedSolution.tsx",
+    "title": "Proposed Solution",
+    "description": "Problem, solution, user value, and product differentiators.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "9a2dc426-7e37-44bd-a431-b2885a7c1d53",
+    "position": 3,
+    "filepath": "src/pages/slides/TechnicalApproach.tsx",
+    "title": "Technical Approach",
+    "description": "End-to-end runner workflow from onboarding to validated progress.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "196c4d88-4ca8-4d85-a7af-6a4ac15f5cc6",
+    "position": 4,
+    "filepath": "src/pages/slides/Feasibility.tsx",
+    "title": "Feasibility and Viability",
+    "description": "Architecture, data flows, major risks, and existing mitigations.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "2ca2e930-1495-4798-9041-373a78cf80bc",
+    "position": 5,
+    "filepath": "src/pages/slides/Impact.tsx",
+    "title": "Impact and Benefits",
+    "description": "User, social, health, civic, and equity benefits.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5ef101ae-0828-40e8-b9c7-f1476747dc25",
+    "position": 6,
+    "filepath": "src/pages/slides/Research.tsx",
+    "title": "Research and References",
+    "description": "Technology references and verified project evidence.",
+    "speakerNotes": ""
+  }
+]

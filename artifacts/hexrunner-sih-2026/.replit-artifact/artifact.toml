@@ -1,0 +1,28 @@
+kind = "slides"
+previewPath = "/hexrunner-sih-2026/"
+title = "HexRunner — SIH 2026"
+description = "A six-slide Smart India Hackathon 2026 presentation explaining HexRunner's verified territory-running experience, technical workflow, feasibility, impact, and references."
+version = "1.0.0"
+id = "artifacts/hexrunner-sih-2026"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/hexrunner-sih-2026/" ]
+localPort = 23496
+
+[services.development]
+run = "pnpm --filter @workspace/hexrunner-sih-2026 run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hexrunner-sih-2026", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hexrunner-sih-2026/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23496"
+BASE_PATH = "/hexrunner-sih-2026/"

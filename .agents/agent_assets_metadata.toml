@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "RufHtbRE88A_C_vDJSzdB"
+uri = "file://.local/outputs/HexRunner-SIH-2026.pptx"
+type = "slides"
+title = "HexRunner SIH 2026 (Editable PPTX)"
+description = "Editable six-slide PowerPoint source with registration placeholders."
+logical_id = "a975db1b-44a5-4978-b905-4e87ce5a57ca"
+content_hash = "sha256:274dc59d684d8494a2543091cf909e2966c44e17074a3342ec43d4521665992a"
+size = 7938561
+mtime_ms = 1787774094000
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4dfeebda-b4c1-41c5-b50a-8c57424026b6/a975db1b-44a5-4978-b905-4e87ce5a57ca/5497b6b6-6bf8-41c1-bf4a-ebaaf2b9b740"
+storage_version_token = "1787774101535454"
+content_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+[[outputs]]
+id = "z9K1GsdLP4ZZlDMvrze8E"
+uri = "file://.local/outputs/HexRunner-SIH-2026-Submission.pdf"
+type = "pdf"
+title = "HexRunner SIH 2026 Submission (PDF)"
+description = "Portal-ready six-slide SIH submission PDF."
+logical_id = "40a8e9e9-951b-428e-b4d0-d2d85679f833"
+content_hash = "sha256:08cb8ccb4fd28ffc4f0faf33bd45adda41ce5a64b7df255c99b2352187fbfbd7"
+size = 4637986
+mtime_ms = 1787774099720
+storage_uri = "gcs://replit-rams-assets-pike/rams/assets/repl:4dfeebda-b4c1-41c5-b50a-8c57424026b6/40a8e9e9-951b-428e-b4d0-d2d85679f833/ba0070d6-cf0d-4f46-9e64-c98f9de72715"
+storage_version_token = "1787774102912382"
+content_type = "application/pdf"
