@@ -38,6 +38,10 @@ const palette = {
   accent: '#4A2119',
   accentForeground: '#FF9B72',
 
+  // First-launch cinematic treatment
+  cinematicAccent: '#D7FF3E',
+  cinematicAccentForeground: '#090B10',
+
   // Destructive actions (delete, error states, "hex under attack")
   destructive: '#C93425',
   destructiveForeground: '#F9EEDC',

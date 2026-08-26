@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Keyboard,
@@ -21,6 +21,7 @@ import {
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/src/context/AuthContext';
 import type { FitnessTier } from '@/src/services/fitnessModel';
+import { getOnboardingFitnessTier } from '@/src/services/onboardingPreferences';
 
 const setupReference = require('../../assets/images/arena-setup-reference.png');
 
@@ -150,6 +151,16 @@ export default function BaselineOnboarding() {
     null,
   );
   const [isSkipped, setIsSkipped] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void getOnboardingFitnessTier().then(tier => {
+      if (active && tier) setActivityLevel(tier);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (isSkipped) return null;
 
