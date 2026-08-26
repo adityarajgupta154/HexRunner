@@ -1,9 +1,12 @@
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import { rm } from "node:fs/promises";
+
+globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -27,6 +30,15 @@ try {
     format: "esm",
     outfile: outputFile,
     logLevel: "warning",
+    external: ["*.node", "pg-native"],
+    banner: {
+      js: `import { createRequire as __bannerCrReq } from 'node:module';
+import __bannerPath from 'node:path';
+import __bannerUrl from 'node:url';
+globalThis.require = __bannerCrReq(import.meta.url);
+globalThis.__filename = __bannerUrl.fileURLToPath(import.meta.url);
+globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);`,
+    },
   });
 
   const result = spawnSync(process.execPath, ["--test", outputFile], {

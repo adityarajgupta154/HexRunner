@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { after, describe, test } from "node:test";
+import {
+  db,
+  hexrunnerAirQualityAlertDeliveriesTable,
+  pool,
+} from "@workspace/db";
+import { inArray } from "drizzle-orm";
 import {
   AirQualityAreaCache,
   AirQualityOutageTracker,
@@ -8,15 +14,26 @@ import {
   type AirQualitySnapshot,
 } from "../lib/airQuality";
 import {
+  AIR_QUALITY_ALERT_MAX_ATTEMPTS,
+  AIR_QUALITY_ALERT_LEASE_MS,
+  AIR_QUALITY_ALERT_ORPHAN_GRACE_MS,
   AirQualityOperatorNotifier,
+  PostgresAirQualityAlertQueue,
+  airQualityAlertRetryDelayMs,
+  airQualityNotificationId,
   createAirQualityWebhookDelivery,
   type AirQualityOperatorNotification,
 } from "../lib/airQualityAlerts";
 import type { Logger } from "pino";
 
+after(async () => {
+  await pool.end();
+});
+
 function recordingLogger(errors: unknown[] = []): Logger {
   return {
     info() {},
+    warn() {},
     error(context: unknown) {
       errors.push(context);
     },
@@ -156,6 +173,10 @@ describe("air-quality operator notifications", { concurrency: false }, () => {
 
     assert.deepEqual(delivered, [
       {
+        notificationId: airQualityNotificationId(
+          "triggered",
+          "2026-08-25T10:00:00.000Z",
+        ),
         alertType: "air_quality_upstream_outage",
         status: "triggered",
         outageStartedAt: "2026-08-25T10:00:00.000Z",
@@ -165,6 +186,10 @@ describe("air-quality operator notifications", { concurrency: false }, () => {
         occurredAt: "2026-08-25T10:05:00.000Z",
       },
       {
+        notificationId: airQualityNotificationId(
+          "resolved",
+          "2026-08-25T10:00:00.000Z",
+        ),
         alertType: "air_quality_upstream_outage",
         status: "resolved",
         outageStartedAt: "2026-08-25T10:00:00.000Z",
@@ -232,6 +257,10 @@ describe("air-quality operator notifications", { concurrency: false }, () => {
     assert.ok(deliver);
     await assert.rejects(
       deliver({
+        notificationId: airQualityNotificationId(
+          "triggered",
+          "2026-08-25T10:00:00.000Z",
+        ),
         alertType: "air_quality_upstream_outage",
         status: "triggered",
         outageStartedAt: "2026-08-25T10:00:00.000Z",
@@ -242,6 +271,425 @@ describe("air-quality operator notifications", { concurrency: false }, () => {
       }),
       /must use HTTPS/,
     );
+  });
+});
+
+describe("durable air-quality notification queue", { concurrency: false }, () => {
+  let notificationSequence = 0;
+
+  function notifications(): {
+    trigger: AirQualityOperatorNotification;
+    resolution: AirQualityOperatorNotification;
+  } {
+    notificationSequence += 1;
+    const outageStartedAt = new Date(
+      Date.now() + notificationSequence * 60_000,
+    ).toISOString();
+    return {
+      trigger: {
+        notificationId: airQualityNotificationId(
+          "triggered",
+          outageStartedAt,
+        ),
+        alertType: "air_quality_upstream_outage",
+        status: "triggered",
+        outageStartedAt,
+        outageDurationMs: 300_000,
+        upstreamFailureCount: 4,
+        staleFallbackCount: 7,
+        occurredAt: new Date(Date.parse(outageStartedAt) + 300_000).toISOString(),
+      },
+      resolution: {
+        notificationId: airQualityNotificationId(
+          "resolved",
+          outageStartedAt,
+        ),
+        alertType: "air_quality_upstream_outage",
+        status: "resolved",
+        outageStartedAt,
+        outageDurationMs: 480_000,
+        upstreamFailureCount: 5,
+        staleFallbackCount: 9,
+        occurredAt: new Date(Date.parse(outageStartedAt) + 480_000).toISOString(),
+      },
+    };
+  }
+
+  test("leases one trigger, backs off, then releases its matching resolution", async (t) => {
+    const queue = new PostgresAirQualityAlertQueue();
+    const { trigger, resolution } = notifications();
+    const ids = [trigger.notificationId, resolution.notificationId];
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+
+    // Even if rows arrive out of order, the resolution cannot be claimed first.
+    await queue.enqueue(resolution);
+    await queue.enqueue(trigger);
+    const now = new Date(Date.now() + 1_000);
+    const secondQueue = new PostgresAirQualityAlertQueue();
+    const concurrentClaims = await Promise.all([
+      queue.claimNext(now),
+      secondQueue.claimNext(now),
+    ]);
+    assert.equal(
+      concurrentClaims.filter((claim) => claim !== null).length,
+      1,
+    );
+    const firstClaim = concurrentClaims.find((claim) => claim !== null)!;
+    assert.equal(firstClaim?.notification.status, "triggered");
+
+    const firstFailure = await queue.markFailed(
+      firstClaim!,
+      "provider unavailable",
+      now,
+    );
+    assert.deepEqual(firstFailure, {
+      applied: true,
+      exhausted: false,
+      failedAttemptCount: 1,
+    });
+    assert.equal(
+      await queue.claimNext(
+        new Date(
+          now.getTime() + airQualityAlertRetryDelayMs(1) - 1,
+        ),
+      ),
+      null,
+    );
+
+    const retryAt = new Date(
+      now.getTime() + airQualityAlertRetryDelayMs(1),
+    );
+    const retryClaim = await queue.claimNext(retryAt);
+    assert.equal(retryClaim?.notification.notificationId, trigger.notificationId);
+    await queue.markDelivered(retryClaim!, retryAt);
+
+    const resolutionClaim = await queue.claimNext(retryAt);
+    assert.equal(
+      resolutionClaim?.notification.notificationId,
+      resolution.notificationId,
+    );
+    await queue.markDelivered(resolutionClaim!, retryAt);
+  });
+
+  test("marks exhausted trigger and blocked resolution without storing location", async (t) => {
+    const queue = new PostgresAirQualityAlertQueue();
+    const { trigger, resolution } = notifications();
+    const ids = [trigger.notificationId, resolution.notificationId];
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+    await queue.enqueue(trigger);
+    await queue.enqueue(resolution);
+
+    let now = new Date(Date.now() + 1_000);
+    for (let attempt = 1; attempt <= AIR_QUALITY_ALERT_MAX_ATTEMPTS; attempt += 1) {
+      const claim = await queue.claimNext(now);
+      assert.equal(claim?.notification.notificationId, trigger.notificationId);
+      const failure = await queue.markFailed(
+        claim!,
+        "provider unavailable",
+        now,
+      );
+      assert.equal(failure.applied, true);
+      assert.equal(failure.failedAttemptCount, attempt);
+      assert.equal(
+        failure.exhausted,
+        attempt === AIR_QUALITY_ALERT_MAX_ATTEMPTS,
+      );
+      now = new Date(
+        now.getTime() + airQualityAlertRetryDelayMs(attempt),
+      );
+    }
+
+    const rows = await db
+      .select()
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every((row) => row.exhaustedAt instanceof Date));
+    assert.ok(rows.every((row) => row.deliveredAt === null));
+    const serialized = JSON.stringify(rows);
+    assert.equal(serialized.includes("latitude"), false);
+    assert.equal(serialized.includes("longitude"), false);
+    assert.equal(serialized.includes("coordinates"), false);
+  });
+
+  test("stale lease completion cannot exhaust a resolution after trigger delivery", async (t) => {
+    const firstQueue = new PostgresAirQualityAlertQueue();
+    const secondQueue = new PostgresAirQualityAlertQueue();
+    const { trigger, resolution } = notifications();
+    const ids = [trigger.notificationId, resolution.notificationId];
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+    await firstQueue.enqueue(trigger);
+    await firstQueue.enqueue(resolution);
+
+    let now = new Date(Date.now() + 1_000);
+    for (let attempt = 1; attempt < AIR_QUALITY_ALERT_MAX_ATTEMPTS; attempt += 1) {
+      const claim = await firstQueue.claimNext(now);
+      assert.ok(claim);
+      const failure = await firstQueue.markFailed(
+        claim,
+        "provider unavailable",
+        now,
+      );
+      assert.equal(failure.applied, true);
+      assert.equal(failure.exhausted, false);
+      now = new Date(
+        now.getTime() + airQualityAlertRetryDelayMs(attempt),
+      );
+    }
+
+    const staleClaim = await firstQueue.claimNext(now);
+    assert.ok(staleClaim);
+    const reclaimAt = new Date(
+      now.getTime() + AIR_QUALITY_ALERT_LEASE_MS + 1,
+    );
+    const winningClaim = await secondQueue.claimNext(reclaimAt);
+    assert.equal(
+      winningClaim?.notification.notificationId,
+      trigger.notificationId,
+    );
+    assert.equal(
+      await secondQueue.markDelivered(winningClaim!, reclaimAt),
+      true,
+    );
+
+    const staleFailure = await firstQueue.markFailed(
+      staleClaim!,
+      "late provider failure",
+      reclaimAt,
+    );
+    assert.deepEqual(staleFailure, {
+      applied: false,
+      exhausted: false,
+      failedAttemptCount: AIR_QUALITY_ALERT_MAX_ATTEMPTS,
+    });
+    const resolutionClaim = await secondQueue.claimNext(reclaimAt);
+    assert.equal(
+      resolutionClaim?.notification.notificationId,
+      resolution.notificationId,
+    );
+    assert.equal(
+      await secondQueue.markDelivered(resolutionClaim!, reclaimAt),
+      true,
+    );
+  });
+
+  test("durable recovery without a sustained trigger is discarded after the race window", async (t) => {
+    const queue = new PostgresAirQualityAlertQueue();
+    const { resolution } = notifications();
+    const ids = [resolution.notificationId];
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+    let now = new Date(Date.now() + 1_000);
+    const notifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(),
+      queue,
+      autoStart: false,
+      now: () => now,
+    });
+    notifier.record({
+      event: "air_quality_upstream_recovered",
+      recoveredAt: resolution.occurredAt,
+      lastFailureAt: resolution.outageStartedAt,
+      outageStartedAt: resolution.outageStartedAt,
+      outageDurationMs: resolution.outageDurationMs,
+      upstreamFailureCount: resolution.upstreamFailureCount,
+      staleFallbackCount: resolution.staleFallbackCount,
+    });
+    await notifier.waitForIdle();
+
+    let [pending] = await db
+      .select()
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    assert.equal(pending?.discardedAt, null);
+    now = new Date(
+      now.getTime() + AIR_QUALITY_ALERT_ORPHAN_GRACE_MS + 1,
+    );
+    await notifier.processDue();
+
+    [pending] = await db
+      .select()
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    assert.ok(pending?.discardedAt instanceof Date);
+    assert.equal(pending?.deliveredAt, null);
+    assert.equal(pending?.exhaustedAt, null);
+    assert.match(pending?.lastError ?? "", /No matching sustained trigger/);
+    assert.equal(await queue.claimNext(now), null);
+  });
+
+  test("late trigger insertion reopens a resolution racing orphan cleanup", async (t) => {
+    const firstQueue = new PostgresAirQualityAlertQueue();
+    const secondQueue = new PostgresAirQualityAlertQueue();
+    const { trigger, resolution } = notifications();
+    const ids = [trigger.notificationId, resolution.notificationId];
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+    await firstQueue.enqueue(resolution);
+    const afterGrace = new Date(
+      Date.now() + AIR_QUALITY_ALERT_ORPHAN_GRACE_MS + 2_000,
+    );
+    const [racingClaim] = await Promise.all([
+      firstQueue.claimNext(afterGrace),
+      secondQueue.enqueue(trigger),
+    ]);
+
+    const [savedResolution] = await db
+      .select()
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(
+        inArray(
+          hexrunnerAirQualityAlertDeliveriesTable.id,
+          [resolution.notificationId],
+        ),
+      );
+    assert.equal(savedResolution?.discardedAt, null);
+
+    const triggerClaim =
+      racingClaim?.notification.notificationId === trigger.notificationId
+        ? racingClaim
+        : await secondQueue.claimNext(afterGrace);
+    assert.equal(
+      triggerClaim?.notification.notificationId,
+      trigger.notificationId,
+    );
+    assert.equal(
+      await secondQueue.markDelivered(triggerClaim!, afterGrace),
+      true,
+    );
+    const resolutionClaim = await firstQueue.claimNext(afterGrace);
+    assert.equal(
+      resolutionClaim?.notification.notificationId,
+      resolution.notificationId,
+    );
+    assert.equal(
+      await firstQueue.markDelivered(resolutionClaim!, afterGrace),
+      true,
+    );
+  });
+
+  test("delivers persisted trigger before resolution after provider recovery", async (t) => {
+    const queue = new PostgresAirQualityAlertQueue();
+    const { trigger, resolution } = notifications();
+    const ids = [trigger.notificationId, resolution.notificationId];
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+    let now = new Date(Date.now() + 1_000);
+    let providerAvailable = false;
+    const delivered: AirQualityOperatorNotification["status"][] = [];
+    const outageNotifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(),
+      queue,
+      autoStart: false,
+      now: () => now,
+      deliver: async (notification) => {
+        if (!providerAvailable) {
+          throw new Error("provider unavailable");
+        }
+        delivered.push(notification.status);
+      },
+    });
+
+    outageNotifier.record({
+      event: "air_quality_outage_sustained",
+      occurredAt: trigger.occurredAt,
+      outageStartedAt: trigger.outageStartedAt,
+      outageDurationMs: trigger.outageDurationMs,
+      upstreamFailureCount: trigger.upstreamFailureCount,
+      staleFallbackCount: trigger.staleFallbackCount,
+    });
+    await outageNotifier.waitForIdle();
+    assert.equal(delivered.length, 0);
+
+    providerAvailable = true;
+    now = new Date(now.getTime() + airQualityAlertRetryDelayMs(1));
+    const recoveryNotifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(),
+      queue: new PostgresAirQualityAlertQueue(),
+      autoStart: false,
+      now: () => now,
+      deliver: async (notification) => {
+        delivered.push(notification.status);
+      },
+    });
+    recoveryNotifier.record({
+      event: "air_quality_upstream_recovered",
+      recoveredAt: resolution.occurredAt,
+      lastFailureAt: trigger.occurredAt,
+      outageStartedAt: resolution.outageStartedAt,
+      outageDurationMs: resolution.outageDurationMs,
+      upstreamFailureCount: resolution.upstreamFailureCount,
+      staleFallbackCount: resolution.staleFallbackCount,
+    });
+    await recoveryNotifier.waitForIdle();
+    assert.deepEqual(delivered, ["triggered", "resolved"]);
+
+    const rows = await db
+      .select()
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    assert.ok(rows.every((row) => row.deliveredAt instanceof Date));
+    assert.ok(rows.every((row) => row.exhaustedAt === null));
+  });
+
+  test("record returns before durable persistence or provider delivery completes", async () => {
+    let releaseEnqueue: (() => void) | undefined;
+    let enqueueStarted = false;
+    const queue = {
+      enqueue: async () => {
+        enqueueStarted = true;
+        await new Promise<void>((resolve) => {
+          releaseEnqueue = resolve;
+        });
+      },
+      claimNext: async () => null,
+      markDelivered: async () => true,
+      markFailed: async () => ({
+        applied: true,
+        exhausted: false,
+        failedAttemptCount: 1,
+      }),
+    };
+    const notifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(),
+      queue,
+      autoStart: false,
+    });
+
+    const returned = notifier.record({
+      event: "air_quality_outage_sustained",
+      occurredAt: "2026-08-25T10:05:00.000Z",
+      outageStartedAt: "2026-08-25T10:00:00.000Z",
+      outageDurationMs: 300_000,
+      upstreamFailureCount: 4,
+      staleFallbackCount: 7,
+    });
+    assert.equal(returned, undefined);
+    await Promise.resolve();
+    assert.equal(enqueueStarted, true);
+    releaseEnqueue?.();
+    await notifier.waitForIdle();
   });
 });
 

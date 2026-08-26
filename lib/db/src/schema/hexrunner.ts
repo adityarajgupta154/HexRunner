@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   check,
   doublePrecision,
@@ -346,6 +347,48 @@ export const hexrunnerRunsTable = pgTable(
       .notNull(),
   },
   (table) => [index("hexrunner_runs_user_id_idx").on(table.userId)],
+);
+
+// Durable operator-notification outbox. It intentionally stores only global
+// outage timing/counters and delivery state, never runner or area location.
+export const hexrunnerAirQualityAlertDeliveriesTable = pgTable(
+  "hexrunner_air_quality_alert_deliveries",
+  {
+    id: text("id").primaryKey(),
+    status: text("status").notNull(),
+    outageStartedAt: timestamp("outage_started_at", { withTimezone: true }).notNull(),
+    outageDurationMs: bigint("outage_duration_ms", { mode: "number" }).notNull(),
+    upstreamFailureCount: integer("upstream_failure_count").notNull(),
+    staleFallbackCount: integer("stale_fallback_count").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    lockToken: text("lock_token"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    exhaustedAt: timestamp("exhausted_at", { withTimezone: true }),
+    discardedAt: timestamp("discarded_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("hexrunner_aqi_alert_delivery_due_idx").on(
+      table.nextAttemptAt,
+      table.lockedUntil,
+    ),
+    index("hexrunner_aqi_alert_delivery_outage_idx").on(
+      table.outageStartedAt,
+      table.status,
+    ),
+    check("hexrunner_aqi_alert_delivery_status_check", sql`${table.status} IN ('triggered', 'resolved')`),
+    check("hexrunner_aqi_alert_delivery_duration_check", sql`${table.outageDurationMs} >= 0`),
+    check("hexrunner_aqi_alert_delivery_failure_count_check", sql`${table.upstreamFailureCount} >= 0`),
+    check("hexrunner_aqi_alert_delivery_fallback_count_check", sql`${table.staleFallbackCount} >= 0`),
+    check("hexrunner_aqi_alert_delivery_attempt_count_check", sql`${table.attemptCount} >= 0`),
+    check("hexrunner_aqi_alert_delivery_lock_check", sql`(${table.lockedUntil} IS NULL) = (${table.lockToken} IS NULL)`),
+    check("hexrunner_aqi_alert_delivery_terminal_check", sql`num_nonnulls(${table.deliveredAt}, ${table.exhaustedAt}, ${table.discardedAt}) <= 1`),
+  ],
 );
 
 // These rows intentionally contain neither a runner identity nor coordinates.

@@ -14,6 +14,7 @@ import {
 } from "../lib/airQuality";
 import {
   AirQualityOperatorNotifier,
+  PostgresAirQualityAlertQueue,
   createAirQualityWebhookDelivery,
 } from "../lib/airQualityAlerts";
 import {
@@ -33,6 +34,7 @@ const sourceCache = new AirQualityAreaCache<AirQualitySnapshot>(
 const outageTracker = new AirQualityOutageTracker();
 const operatorNotifier = new AirQualityOperatorNotifier({
   logger: airQualityAlertLogger,
+  queue: new PostgresAirQualityAlertQueue(),
   deliver: createAirQualityWebhookDelivery(
     process.env.AIR_QUALITY_OPERATOR_ALERT_WEBHOOK_URL,
   ),
