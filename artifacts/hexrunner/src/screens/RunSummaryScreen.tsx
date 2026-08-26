@@ -33,6 +33,7 @@ import {
 import { flushPendingSafetyReports } from '@/src/services/safetyStorage';
 import { flushPendingCivicReports } from '@/src/services/civicStorage';
 import { getSummaryCreditCopy } from '@/src/services/equityZoneDisplay';
+import { voiceCompanion } from '@/src/services/voiceCompanion';
 
 function numberParam(value: string | string[] | undefined): number {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -72,6 +73,7 @@ export default function RunSummaryScreen() {
     error: identityError,
   } = useAuth();
   const saveStartedRef = useRef(false);
+  const summaryMountedRef = useRef(true);
   const [saveStatus, setSaveStatus] =
     useState<RunSummarySaveStatus>('saving');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -121,6 +123,21 @@ export default function RunSummaryScreen() {
         onSaved(result) {
           setSaveResult(result);
           setSaveStatus('saved');
+          const earnedTerritory = result.newHexes + result.stolenHexes;
+          if (earnedTerritory > 0) {
+            void voiceCompanion.loadPreference().then(() => {
+              if (!summaryMountedRef.current) return;
+              voiceCompanion.beginRun();
+              voiceCompanion.announce({
+                id: `confirmed-territory:${clientRunId}`,
+                text:
+                  earnedTerritory === 1
+                    ? 'One new territory confirmed.'
+                    : `${earnedTerritory} new territories confirmed.`,
+                priority: 30,
+              });
+            });
+          }
           void Promise.all([
             queryClient.invalidateQueries({
               queryKey: getGetUserStatsQueryKey(uid ?? ''),
@@ -171,6 +188,15 @@ export default function RunSummaryScreen() {
       },
     });
   }, [clientRunId, queryClient, uid]);
+
+  useEffect(() => {
+    summaryMountedRef.current = true;
+    void voiceCompanion.loadPreference();
+    return () => {
+      summaryMountedRef.current = false;
+      voiceCompanion.endRun();
+    };
+  }, []);
 
   useEffect(() => {
     if (identityLoading || !uid || saveStartedRef.current) return;

@@ -12,7 +12,8 @@
     "validate:hex-engine": "rm -rf .hex-engine-validation && tsc scripts/validateHexEngine.ts src/services/hexEngine.ts src/services/territoryDisplay.ts --outDir .hex-engine-validation --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck && node .hex-engine-validation/scripts/validateHexEngine.js && rm -rf .hex-engine-validation",
     "validate:cold-zones": "rm -rf .cold-zones-validation && tsc scripts/validateColdZones.ts src/services/equityZoneDisplay.ts --outDir .cold-zones-validation --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck && node .cold-zones-validation/scripts/validateColdZones.js && rm -rf .cold-zones-validation",
     "validate:live-presence": "node --no-warnings --experimental-strip-types scripts/validateLivePresence.ts",
-    "validate:live-interactions": "node --no-warnings --experimental-strip-types scripts/validateLiveInteractions.ts"
+    "validate:live-interactions": "node --no-warnings --experimental-strip-types scripts/validateLiveInteractions.ts",
+    "validate:voice-companion": "node --no-warnings --experimental-strip-types scripts/validateVoiceCompanion.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -43,6 +44,7 @@
     "expo-router": "~6.0.17",
     "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.12",
+    "expo-speech": "~14.0.8",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",

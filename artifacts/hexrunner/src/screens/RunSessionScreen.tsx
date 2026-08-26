@@ -3,6 +3,7 @@ import {
   AppState,
   type AppStateStatus,
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,7 +30,7 @@ import {
 } from '@/src/services/runStorage';
 import { checkSession } from '@/src/services/antiSpoof';
 import { runPresence } from '@/src/services/runPresence';
-import { useLookupHexOwnership, type ExactPresence, type AnonymousPresence } from '@workspace/api-client-react';
+import { useLookupHexOwnership, useLookupSafetyAreas, type ExactPresence, type AnonymousPresence } from '@workspace/api-client-react';
 import SafetyTools from '@/src/components/SafetyTools';
 import CivicReportTools from '@/src/components/CivicReportTools';
 import { useLiveInteractions } from '@/src/hooks/useLiveInteractions';
@@ -38,6 +39,9 @@ import { WaveActionModal } from '@/src/components/WaveActionModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGetCurrentEquityZone, getGetCurrentEquityZoneQueryKey } from '@workspace/api-client-react';
 import { getEquityZoneDisplayState } from '@/src/services/equityZoneDisplay';
+import { pointToSafetyArea } from '@/src/services/hexEngine';
+import { voiceCompanion } from '@/src/services/voiceCompanion';
+import { isCurrentSafetyAnnouncement } from '@/src/services/voiceCompanionController';
 
 type RunPoint = {
   lat: number;
@@ -110,6 +114,11 @@ export default function RunSessionScreen() {
   const runningRef = useRef(false);
   const lastPointRef = useRef<RunPoint | null>(null);
   const distanceKmRef = useRef(0);
+  const announcedKilometreRef = useRef(0);
+  const observedSafetyAreaRef = useRef<string | null>(null);
+  const announcedPresenceRef = useRef(false);
+  const voiceEnabledRef = useRef(false);
+  const voicePreferenceLoadedRef = useRef(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -123,7 +132,10 @@ export default function RunSessionScreen() {
     useState<PendingRun | null>(null);
   const [isCachingRun, setIsCachingRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voicePreferenceLoaded, setVoicePreferenceLoaded] = useState(false);
   const ownershipLookup = useLookupHexOwnership();
+  const safetyLookup = useLookupSafetyAreas();
   const queryClient = useQueryClient();
   const [appStateStatus, setAppStateStatus] = useState<AppStateStatus>(
     AppState.currentState,
@@ -172,6 +184,72 @@ export default function RunSessionScreen() {
   const [selectedRunner, setSelectedRunner] = useState<ExactPresence | AnonymousPresence | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+    void voiceCompanion.loadPreference().then((enabled) => {
+      if (mounted) {
+        voiceEnabledRef.current = enabled;
+        voicePreferenceLoadedRef.current = true;
+        setVoiceEnabled(enabled);
+        setVoicePreferenceLoaded(true);
+      }
+    });
+    return () => {
+      mounted = false;
+      voiceCompanion.endRun();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isRunning || !voiceEnabled) return;
+    const fullKilometres = Math.floor(distanceKm);
+    for (
+      let kilometre = announcedKilometreRef.current + 1;
+      kilometre <= fullKilometres;
+      kilometre += 1
+    ) {
+      voiceCompanion.announce({
+        id: `kilometre:${kilometre}`,
+        text: `${kilometre} kilometre${kilometre === 1 ? '' : 's'} complete.`,
+        priority: 10,
+      });
+    }
+    announcedKilometreRef.current = Math.max(
+      announcedKilometreRef.current,
+      fullKilometres,
+    );
+  }, [distanceKm, isRunning, voiceEnabled]);
+
+  useEffect(() => {
+    if (!isRunning || !voiceEnabled) return;
+    interactions.events
+      .filter((event) => event.kind === 'contest')
+      .forEach((contestEvent) => {
+        voiceCompanion.announce({
+          id: `contest:${contestEvent.id}`,
+          text: 'A nearby territory contest is active.',
+          priority: 20,
+        });
+      });
+  }, [interactions.events, isRunning, voiceEnabled]);
+
+  useEffect(() => {
+    if (!isRunning || !voiceEnabled || announcedPresenceRef.current) return;
+    if (presence.nearestExactRunner || presence.anonymousRunners.length > 0) {
+      announcedPresenceRef.current = true;
+      voiceCompanion.announce({
+        id: 'nearby-runner:first',
+        text: 'Ghost Race activity is nearby.',
+        priority: 5,
+      });
+    }
+  }, [
+    isRunning,
+    presence.anonymousRunners.length,
+    presence.nearestExactRunner,
+    voiceEnabled,
+  ]);
+
+  useEffect(() => {
     if (!isRunning) return;
 
     const updateElapsed = () => {
@@ -194,8 +272,10 @@ export default function RunSessionScreen() {
 
       if (nextState === 'active') {
         runPresence.resumeRun(clientRunId);
+        voiceCompanion.resume();
       } else {
         runPresence.pauseRun(clientRunId);
+        voiceCompanion.pause();
       }
     };
     const subscription = AppState.addEventListener(
@@ -206,6 +286,7 @@ export default function RunSessionScreen() {
     return () => {
       subscription.remove();
       stopWatching();
+      voiceCompanion.endRun();
       const clientRunId = clientRunIdRef.current;
       if (clientRunId) {
         runPresence.endRun(clientRunId);
@@ -236,12 +317,16 @@ export default function RunSessionScreen() {
     setPendingCoverageHexes(0);
     setPoorAccuracyHexes(0);
     setContestedHexes(new Set());
+    announcedKilometreRef.current = 0;
+    observedSafetyAreaRef.current = null;
+    announcedPresenceRef.current = false;
     distanceKmRef.current = 0;
     const clientRunId = createClientRunId();
     clientRunIdRef.current = clientRunId;
     queryClient.removeQueries({ queryKey: getGetCurrentEquityZoneQueryKey() });
     runningRef.current = true;
     runPresence.beginRun(clientRunId, AppState.currentState === 'active');
+    voiceCompanion.beginRun();
     lastPointRef.current = null;
     startTimeRef.current = null;
 
@@ -266,6 +351,45 @@ export default function RunSessionScreen() {
           speedMetersPerSecond: location.coords.speed ?? undefined,
           mocked: location.mocked ?? undefined,
         };
+        const safetyArea = pointToSafetyArea(nextPoint.lat, nextPoint.lng);
+        if (
+          voicePreferenceLoadedRef.current &&
+          voiceEnabledRef.current &&
+          observedSafetyAreaRef.current !== safetyArea
+        ) {
+          observedSafetyAreaRef.current = safetyArea;
+          safetyLookup.mutate(
+            { data: { areaH3Indexes: [safetyArea] } },
+            {
+              onSuccess: (result) => {
+                if (
+                  !isCurrentSafetyAnnouncement({
+                    requestedRunId: clientRunId,
+                    requestedAreaId: safetyArea,
+                    currentRunId: clientRunIdRef.current,
+                    currentAreaId: observedSafetyAreaRef.current,
+                    isRunning: runningRef.current,
+                  })
+                ) {
+                  return;
+                }
+                const advisory = result.areas[0];
+                if (
+                  advisory?.concernScore !== null &&
+                  advisory.concernScore >= 50 &&
+                  advisory.confidence !== 'insufficient'
+                ) {
+                  voiceCompanion.announce({
+                    id: `safety-area:${advisory.areaH3Index}`,
+                    text: 'A coarse community advisory exists for this area. Stay aware of your surroundings.',
+                    priority: 100,
+                    cooldownKey: 'safety-advisory',
+                  });
+                }
+              },
+            },
+          );
+        }
         const previousPoint = lastPointRef.current;
 
         if (previousPoint) {
@@ -332,6 +456,7 @@ export default function RunSessionScreen() {
           : 'Unable to start this run.';
       setError(message);
       stopWatching();
+      voiceCompanion.endRun();
       runPresence.endRun(clientRunId);
       clientRunIdRef.current = null;
       runningRef.current = false;
@@ -339,7 +464,7 @@ export default function RunSessionScreen() {
     } finally {
       setIsStarting(false);
     }
-  }, [identityError, ownershipLookup, runAwaitingCache, uid]);
+  }, [identityError, ownershipLookup, queryClient, runAwaitingCache, safetyLookup, uid]);
 
   const cacheRunAndOpenSummary = useCallback(
     async (run: PendingRun) => {
@@ -375,6 +500,7 @@ export default function RunSessionScreen() {
     if (!uid) {
       setError('Your local HexRunner identity is unavailable.');
       stopWatching();
+      voiceCompanion.endRun();
       const clientRunId = clientRunIdRef.current;
       if (clientRunId) {
         runPresence.endRun(clientRunId);
@@ -410,6 +536,7 @@ export default function RunSessionScreen() {
     const antiSpoofCheck = checkSession(pathPoints);
 
     stopWatching();
+    voiceCompanion.endRun();
     runPresence.endRun(clientRunId);
     clientRunIdRef.current = null;
     runningRef.current = false;
@@ -435,6 +562,22 @@ export default function RunSessionScreen() {
   }, [cacheRunAndOpenSummary, elapsedSeconds, pathPoints, uid]);
 
   const pace = formatPace(elapsedSeconds, distanceKm);
+  const voiceAvailable = Platform.OS !== 'web';
+  const toggleVoice = useCallback(async () => {
+    if (!voiceAvailable) return;
+    const nextEnabled = !voiceEnabled;
+    voiceEnabledRef.current = nextEnabled;
+    setVoiceEnabled(nextEnabled);
+    await voiceCompanion.setEnabled(nextEnabled);
+    if (nextEnabled && isRunning) {
+      voiceCompanion.resume();
+      voiceCompanion.announce({
+        id: 'voice-enabled',
+        text: 'Voice guidance enabled.',
+        priority: 100,
+      });
+    }
+  }, [isRunning, voiceAvailable, voiceEnabled]);
 
   return (
     <View
@@ -489,6 +632,46 @@ export default function RunSessionScreen() {
           </Text>
         </View>
       </View>
+
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityState={{
+          checked: voiceEnabled,
+          disabled: !voicePreferenceLoaded || !voiceAvailable,
+        }}
+        accessibilityLabel="Voice guidance"
+        accessibilityHint="Uses on-device speech only and never records microphone audio"
+        disabled={!voicePreferenceLoaded || !voiceAvailable}
+        testID="voice-guidance-toggle"
+        onPress={() => void toggleVoice()}
+        style={({ pressed }) => [
+          styles.voiceControl,
+          {
+            backgroundColor: voiceEnabled ? colors.accent : colors.card,
+            borderColor: voiceEnabled ? colors.primary : colors.border,
+            opacity:
+              pressed || !voicePreferenceLoaded || !voiceAvailable ? 0.65 : 1,
+          },
+        ]}
+      >
+        <Feather
+          name={voiceEnabled ? 'volume-2' : 'volume-x'}
+          size={18}
+          color={voiceEnabled ? colors.primary : colors.mutedForeground}
+        />
+        <View style={styles.voiceCopy}>
+          <Text style={[styles.voiceLabel, { color: colors.foreground }]}>
+            {voiceAvailable
+              ? `Voice guidance ${voiceEnabled ? 'on' : 'off'}`
+              : 'Voice guidance unavailable on web'}
+          </Text>
+          <Text style={[styles.voiceMeta, { color: colors.mutedForeground }]}>
+            {voiceAvailable
+              ? 'On-device speech only · no microphone'
+              : 'Use the iOS or Android app for on-device speech'}
+          </Text>
+        </View>
+      </Pressable>
 
       {isRunning ? (
         <ScrollView
@@ -906,6 +1089,28 @@ const styles = StyleSheet.create({
   },
   runningScroll: {
     flex: 1,
+  },
+  voiceControl: {
+    minHeight: 50,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  voiceCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  voiceLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+  },
+  voiceMeta: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
   },
   runMapFrame: {
     height: 226,
