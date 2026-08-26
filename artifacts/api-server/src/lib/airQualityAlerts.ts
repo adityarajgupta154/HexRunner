@@ -13,6 +13,11 @@ export const AIR_QUALITY_ALERT_RETRY_BASE_MS = 5_000;
 export const AIR_QUALITY_ALERT_RETRY_MAX_MS = 5 * 60_000;
 export const AIR_QUALITY_ALERT_LEASE_MS = 30_000;
 export const AIR_QUALITY_ALERT_ORPHAN_GRACE_MS = 5 * 60_000;
+// Terminal delivery outcomes remain available to operators for 30 days.
+export const AIR_QUALITY_ALERT_TERMINAL_RETENTION_MS =
+  30 * 24 * 60 * 60_000;
+export const AIR_QUALITY_ALERT_CLEANUP_INTERVAL_MS = 6 * 60 * 60_000;
+export const AIR_QUALITY_ALERT_CLEANUP_BATCH_SIZE = 500;
 const AIR_QUALITY_ALERT_POLL_MS = 1_000;
 
 type AlertableAirQualitySignal = Extract<
@@ -54,6 +59,7 @@ export type AirQualityAlertFailureResult = {
 export interface AirQualityAlertQueue {
   enqueue(notification: AirQualityOperatorNotification): Promise<void>;
   claimNext(now: Date): Promise<ClaimedAirQualityAlert | null>;
+  deleteExpiredTerminal(cutoff: Date): Promise<number>;
   markDelivered(
     claim: ClaimedAirQualityAlert,
     deliveredAt: Date,
@@ -264,6 +270,37 @@ export class PostgresAirQualityAlertQueue implements AirQualityAlertQueue {
     });
   }
 
+  async deleteExpiredTerminal(cutoff: Date): Promise<number> {
+    const result = await db.execute(sql`
+      WITH expired AS (
+        SELECT queued.id
+        FROM hexrunner_air_quality_alert_deliveries AS queued
+        WHERE (
+            queued.delivered_at IS NOT NULL
+            AND queued.delivered_at <= ${cutoff}
+          ) OR (
+            queued.exhausted_at IS NOT NULL
+            AND queued.exhausted_at <= ${cutoff}
+          ) OR (
+            queued.discarded_at IS NOT NULL
+            AND queued.discarded_at <= ${cutoff}
+          )
+        ORDER BY COALESCE(
+          queued.delivered_at,
+          queued.exhausted_at,
+          queued.discarded_at
+        ) ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT ${AIR_QUALITY_ALERT_CLEANUP_BATCH_SIZE}
+      )
+      DELETE FROM hexrunner_air_quality_alert_deliveries AS queued
+      USING expired
+      WHERE queued.id = expired.id
+      RETURNING queued.id
+    `);
+    return result.rows.length;
+  }
+
   async markDelivered(
     claim: ClaimedAirQualityAlert,
     deliveredAt: Date,
@@ -363,6 +400,7 @@ export class AirQualityOperatorNotifier {
   private workerPromise: Promise<void> | undefined;
   private pollTimer: NodeJS.Timeout | undefined;
   private activeAlertStartedAt: string | undefined;
+  private nextCleanupAtMs = 0;
 
   constructor(private readonly options: AirQualityOperatorNotifierOptions) {
     if (options.queue && options.autoStart !== false) {
@@ -486,6 +524,35 @@ export class AirQualityOperatorNotifier {
   private async drainDue(): Promise<void> {
     const queue = this.options.queue;
     if (!queue) return;
+    const cleanupNow = this.now();
+    if (cleanupNow.getTime() >= this.nextCleanupAtMs) {
+      try {
+        const deleted = await queue.deleteExpiredTerminal(
+          new Date(
+            cleanupNow.getTime() -
+              AIR_QUALITY_ALERT_TERMINAL_RETENTION_MS,
+          ),
+        );
+        this.nextCleanupAtMs =
+          deleted === AIR_QUALITY_ALERT_CLEANUP_BATCH_SIZE
+            ? cleanupNow.getTime()
+            : cleanupNow.getTime() +
+              AIR_QUALITY_ALERT_CLEANUP_INTERVAL_MS;
+        if (deleted > 0) {
+          this.options.logger.info(
+            { deleted },
+            "Deleted expired air-quality alert delivery history",
+          );
+        }
+      } catch (error) {
+        this.nextCleanupAtMs =
+          cleanupNow.getTime() + AIR_QUALITY_ALERT_CLEANUP_INTERVAL_MS;
+        this.options.logger.error(
+          { err: error },
+          "Air-quality alert history cleanup failed",
+        );
+      }
+    }
     try {
       while (true) {
         const claim = await queue.claimNext(this.now());

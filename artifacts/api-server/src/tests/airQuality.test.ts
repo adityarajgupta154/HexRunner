@@ -17,6 +17,8 @@ import {
   AIR_QUALITY_ALERT_MAX_ATTEMPTS,
   AIR_QUALITY_ALERT_LEASE_MS,
   AIR_QUALITY_ALERT_ORPHAN_GRACE_MS,
+  AIR_QUALITY_ALERT_CLEANUP_INTERVAL_MS,
+  AIR_QUALITY_ALERT_TERMINAL_RETENTION_MS,
   AirQualityOperatorNotifier,
   PostgresAirQualityAlertQueue,
   airQualityAlertRetryDelayMs,
@@ -586,6 +588,184 @@ describe("durable air-quality notification queue", { concurrency: false }, () =>
     );
   });
 
+  test("retains recent outcomes and never deletes active alert deliveries", async (t) => {
+    const queue = new PostgresAirQualityAlertQueue();
+    const now = new Date();
+    const cutoff = new Date(
+      now.getTime() - AIR_QUALITY_ALERT_TERMINAL_RETENTION_MS,
+    );
+    const oldTerminalAt = new Date(cutoff.getTime() - 1);
+    const recentTerminalAt = new Date(cutoff.getTime() + 1);
+    const prefix = `aqi-retention-${notificationSequence++}`;
+    const ids = {
+      oldDelivered: `${prefix}-old-delivered`,
+      oldExhausted: `${prefix}-old-exhausted`,
+      oldDiscarded: `${prefix}-old-discarded`,
+      recentDelivered: `${prefix}-recent-delivered`,
+      recentExhausted: `${prefix}-recent-exhausted`,
+      recentDiscarded: `${prefix}-recent-discarded`,
+      pending: `${prefix}-pending`,
+      leased: `${prefix}-leased`,
+      retryable: `${prefix}-retryable`,
+    };
+    const allIds = Object.values(ids);
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, allIds));
+    });
+    const baseRow = (id: string, status: "triggered" | "resolved") => ({
+      id,
+      status,
+      outageStartedAt: new Date(now.getTime() - 60_000),
+      outageDurationMs: 60_000,
+      upstreamFailureCount: 2,
+      staleFallbackCount: 1,
+      occurredAt: now,
+      nextAttemptAt: oldTerminalAt,
+    });
+    await db.insert(hexrunnerAirQualityAlertDeliveriesTable).values([
+      { ...baseRow(ids.oldDelivered, "triggered"), deliveredAt: oldTerminalAt },
+      { ...baseRow(ids.oldExhausted, "triggered"), exhaustedAt: oldTerminalAt },
+      { ...baseRow(ids.oldDiscarded, "resolved"), discardedAt: oldTerminalAt },
+      {
+        ...baseRow(ids.recentDelivered, "triggered"),
+        deliveredAt: recentTerminalAt,
+      },
+      {
+        ...baseRow(ids.recentExhausted, "triggered"),
+        exhaustedAt: recentTerminalAt,
+      },
+      {
+        ...baseRow(ids.recentDiscarded, "resolved"),
+        discardedAt: recentTerminalAt,
+      },
+      baseRow(ids.pending, "triggered"),
+      {
+        ...baseRow(ids.leased, "triggered"),
+        lockToken: "retention-test-lease",
+        lockedUntil: new Date(now.getTime() + AIR_QUALITY_ALERT_LEASE_MS),
+      },
+      {
+        ...baseRow(ids.retryable, "triggered"),
+        attemptCount: 3,
+        lastError: "provider unavailable",
+      },
+    ]);
+
+    assert.equal(await queue.deleteExpiredTerminal(cutoff), 3);
+    const remaining = await db
+      .select({ id: hexrunnerAirQualityAlertDeliveriesTable.id })
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, allIds));
+    assert.deepEqual(
+      remaining.map(({ id }) => id).sort(),
+      [
+        ids.recentDelivered,
+        ids.recentExhausted,
+        ids.recentDiscarded,
+        ids.pending,
+        ids.leased,
+        ids.retryable,
+      ].sort(),
+    );
+  });
+
+  test("multiple queue instances safely share expired-history cleanup", async (t) => {
+    const firstQueue = new PostgresAirQualityAlertQueue();
+    const secondQueue = new PostgresAirQualityAlertQueue();
+    const cutoff = new Date();
+    const oldTerminalAt = new Date(
+      cutoff.getTime() - AIR_QUALITY_ALERT_TERMINAL_RETENTION_MS - 1,
+    );
+    const prefix = `aqi-concurrent-retention-${notificationSequence++}`;
+    const ids = Array.from(
+      { length: 24 },
+      (_, index) => `${prefix}-${index}`,
+    );
+    t.after(async () => {
+      await db
+        .delete(hexrunnerAirQualityAlertDeliveriesTable)
+        .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    });
+    await db.insert(hexrunnerAirQualityAlertDeliveriesTable).values(
+      ids.map((id, index) => ({
+        id,
+        status: "triggered",
+        outageStartedAt: new Date(oldTerminalAt.getTime() - index),
+        outageDurationMs: 60_000,
+        upstreamFailureCount: 2,
+        staleFallbackCount: 1,
+        occurredAt: oldTerminalAt,
+        nextAttemptAt: oldTerminalAt,
+        deliveredAt: oldTerminalAt,
+      })),
+    );
+
+    const deleted = await Promise.all([
+      firstQueue.deleteExpiredTerminal(cutoff),
+      secondQueue.deleteExpiredTerminal(cutoff),
+    ]);
+    assert.equal(deleted[0] + deleted[1], ids.length);
+    const remaining = await db
+      .select({ id: hexrunnerAirQualityAlertDeliveriesTable.id })
+      .from(hexrunnerAirQualityAlertDeliveriesTable)
+      .where(inArray(hexrunnerAirQualityAlertDeliveriesTable.id, ids));
+    assert.deepEqual(remaining, []);
+  });
+
+  test("cleanup failure is throttled without blocking a due alert", async () => {
+    const { trigger } = notifications();
+    const errors: unknown[] = [];
+    const delivered: AirQualityOperatorNotification[] = [];
+    let cleanupCalls = 0;
+    let claimAvailable = true;
+    let now = new Date();
+    const queue = {
+      enqueue: async () => {},
+      deleteExpiredTerminal: async () => {
+        cleanupCalls += 1;
+        throw new Error("cleanup unavailable");
+      },
+      claimNext: async () => {
+        if (!claimAvailable) return null;
+        claimAvailable = false;
+        return {
+          notification: trigger,
+          attemptCount: 0,
+          lockToken: "cleanup-failure-claim",
+        };
+      },
+      markDelivered: async () => true,
+      markFailed: async () => ({
+        applied: true,
+        exhausted: false,
+        failedAttemptCount: 1,
+      }),
+    };
+    const notifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(errors),
+      queue,
+      autoStart: false,
+      now: () => now,
+      deliver: async (notification) => {
+        delivered.push(notification);
+      },
+    });
+
+    await notifier.processDue();
+    await notifier.processDue();
+    assert.equal(cleanupCalls, 1);
+    assert.deepEqual(delivered, [trigger]);
+    assert.equal(errors.length, 1);
+
+    now = new Date(
+      now.getTime() + AIR_QUALITY_ALERT_CLEANUP_INTERVAL_MS,
+    );
+    await notifier.processDue();
+    assert.equal(cleanupCalls, 2);
+  });
+
   test("delivers persisted trigger before resolution after provider recovery", async (t) => {
     const queue = new PostgresAirQualityAlertQueue();
     const { trigger, resolution } = notifications();
@@ -664,6 +844,7 @@ describe("durable air-quality notification queue", { concurrency: false }, () =>
         });
       },
       claimNext: async () => null,
+      deleteExpiredTerminal: async () => 0,
       markDelivered: async () => true,
       markFailed: async () => ({
         applied: true,
