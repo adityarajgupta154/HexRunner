@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Props = {
   latitude: number;
@@ -11,6 +12,7 @@ type Props = {
 
 /** A session-only GPS arrival interstitial. It intentionally reports coordinates, never a guessed city. */
 export default function GlobeArrival({ latitude, longitude, onComplete }: Props) {
+  const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const opacity = useRef(new Animated.Value(1)).current;
   const scale = useRef(new Animated.Value(reducedMotion ? 1 : 1.35)).current;
@@ -65,7 +67,7 @@ export default function GlobeArrival({ latitude, longitude, onComplete }: Props)
           </View>
         </View>
       </Animated.View>
-      <View style={styles.copy}>
+      <View style={[styles.copy, { bottom: Math.max(insets.bottom, 16) + 84 }]}>
         <Text style={styles.eyebrow}>GPS LINK / LOCKED</Text>
         <Text style={styles.title}>ARRIVING AT{'\n'}YOUR GRID.</Text>
         <View style={styles.coordinate}>
@@ -85,7 +87,7 @@ const styles = StyleSheet.create({
   longitudeLine: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(146,232,209,0.3)' },
   target: { position: 'absolute', width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: '#9CF04A', backgroundColor: 'rgba(156,240,74,0.12)', alignItems: 'center', justifyContent: 'center' },
   targetCore: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#9CF04A' },
-  copy: { position: 'absolute', bottom: 100, alignItems: 'center' },
+  copy: { position: 'absolute', alignItems: 'center' },
   eyebrow: { color: '#9CF04A', fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 1.9 },
   title: { marginTop: 9, color: '#F1F4EA', fontFamily: 'Inter_700Bold', fontSize: 31, fontStyle: 'italic', lineHeight: 27, textAlign: 'center' },
   coordinate: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },

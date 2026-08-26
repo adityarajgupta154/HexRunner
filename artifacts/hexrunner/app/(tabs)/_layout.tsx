@@ -4,6 +4,7 @@ import { useColors } from '@/hooks/useColors';
 import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // IMPORTANT: iOS 26 uses NativeTabs for native tabs with liquid glass support.
 // NativeTabs intentionally does NOT use custom design tokens — liquid glass
@@ -24,7 +25,9 @@ function ClassicTabIcon({ color, sfName, featherName }: ClassicTabIconProps) {
 
 function ClassicTabLayout() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
+  const bottomInset = isWeb ? 34 : insets.bottom;
 
   return (
     <Tabs
@@ -43,8 +46,9 @@ function ClassicTabLayout() {
           borderTopWidth: 1,
           borderTopColor: 'rgba(184,211,199,0.16)',
           elevation: 0,
-          height: isWeb ? 84 : 74,
+          height: 50 + bottomInset,
           paddingTop: 7,
+          paddingBottom: Math.max(bottomInset, 4),
         },
         tabBarBackground: () =>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: '#091216' }]} />,

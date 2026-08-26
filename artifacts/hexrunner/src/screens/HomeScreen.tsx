@@ -40,6 +40,7 @@ import { WaveActionModal } from '@/src/components/WaveActionModal';
 import { CoachTour } from '@/src/components/CoachTour';
 import { getTerritoryColor } from '@/src/services/territoryColor';
 import GlobeArrival from '@/src/components/GlobeArrival';
+import { useReducedMotion } from 'react-native-reanimated';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -103,6 +104,7 @@ export default function HomeScreen() {
 function LiveMap() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const { uid } = useAuth();
   const router = useRouter();
 
@@ -361,10 +363,10 @@ function LiveMap() {
         longitude: location.coords.longitude,
         ...MAP_DELTA,
       };
-      mapRef.current?.animateToRegion(localRegion, 900);
+      if (!reducedMotion) mapRef.current?.animateToRegion(localRegion, 900);
       calculateVisibleHexes(localRegion, true);
     }
-  }, [calculateVisibleHexes, location]);
+  }, [calculateVisibleHexes, location, reducedMotion]);
 
   if (!location) {
     return (
@@ -403,7 +405,7 @@ function LiveMap() {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
   };
-  const initialRegion = showGlobeArrival && Platform.OS !== 'web'
+  const initialRegion = showGlobeArrival && Platform.OS !== 'web' && !reducedMotion
     ? { latitude: coordinate.latitude, longitude: coordinate.longitude, latitudeDelta: 70, longitudeDelta: 70 }
     : { ...coordinate, ...MAP_DELTA };
   const currentH3Index = pointToHex(coordinate.latitude, coordinate.longitude);

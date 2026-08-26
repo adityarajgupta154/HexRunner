@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
@@ -20,11 +20,19 @@ function NativeVideo({ source }: Pick<Props, 'source'>) {
 
   useEffect(() => {
     const playTimer = setTimeout(() => {
-      player.play();
+      if (AppState.currentState === 'active') player.play();
     }, 60);
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        player.play();
+      } else {
+        player.pause();
+      }
+    });
 
     return () => {
       clearTimeout(playTimer);
+      appStateSubscription.remove();
     };
   }, [player]);
 
