@@ -15,7 +15,7 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="bg-[#030712] min-h-screen text-foreground selection:bg-primary selection:text-[#030712] overflow-x-hidden font-sans">
+      <div className="bg-[#030712] min-h-screen text-foreground selection:bg-primary selection:text-[#030712] overflow-x-clip overflow-y-visible font-sans relative">
         <Hero onStoreClick={() => setModalOpen(true)} />
         <HandsetReveal />
         <WorldStageStats />

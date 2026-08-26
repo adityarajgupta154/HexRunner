@@ -12,7 +12,7 @@ export function HandsetReveal() {
   const textY = useTransform(scrollYProgress, [0, 0.5, 1], ["30%", "0%", "-30%"]);
 
   return (
-    <div ref={ref} className="relative w-full h-[150vh] bg-zinc-50 rounded-t-[3rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-20 flex flex-col items-center pt-40 overflow-hidden">
+    <div ref={ref} className="relative w-full h-[150vh] bg-zinc-50 rounded-t-[3rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] z-10 flex flex-col items-center pt-40 overflow-clip">
       <motion.div style={{ y: textY }} className="text-center px-4 max-w-3xl relative z-30">
         <h2 className="text-5xl md:text-7xl font-black text-zinc-900 uppercase tracking-tighter mb-8 leading-[0.9]">
           The World Is<br/>Your Track

@@ -22,7 +22,7 @@ const faqs = [
 
 export function FAQ() {
   return (
-    <div className="w-full bg-[#030712] py-40 px-6 z-40 relative border-t border-white/5">
+    <div className="w-full bg-[#030712] py-40 px-6 z-60 relative rounded-t-[3rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] border-t border-white/5">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-5xl md:text-7xl font-black text-white uppercase tracking-tighter mb-20 text-center">
           Questions?

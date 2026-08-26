@@ -13,6 +13,25 @@ logos, text, trademarks, imagery, video, fonts, icons, or source code.
 - Rounded card edges and the global outline remain visible through most of the
   journey, creating a stacked-deck transition between scenes.
 
+## Fresh live audit — August 26, 2026
+
+A new 1440×900 browser session was scrolled from the top to the absolute footer
+in roughly half-viewport increments. The measured document height was 17,001px,
+with the following approximate scroll bands:
+
+- `0–900`: dark geographical hero hold.
+- `900–1,350`: rounded white handset card rises over the hero.
+- `1,350–2,700`: full-bleed world-stage media with foreground stat tiles.
+- `3,150–10,350`: long dark-green pinned walkthrough; the phone remains fixed
+  while active step cards and phone content swap.
+- `10,800–11,250`: pale activity-choice handoff.
+- `12,150–13,200`: overlapping battles/prizes card fan.
+- `14,100–15,000`: dark FAQ accordion.
+- `15,000–16,101`: lime closing CTA and footer takeover.
+
+These measurements are pacing guidance, not a license to copy proprietary
+content. HexRunner uses its own wording, product states, and local media.
+
 ## Motion architecture to reproduce for HexRunner
 
 1. **Hero hold**

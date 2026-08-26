@@ -14,3 +14,4 @@
 - [Cross-platform onboarding video codecs](onboarding-video-codecs.md) — pair native H.264 with web VP9 and still posters; fetched MP4s may remain undecodable in Chromium.
 - [Expo Video shared-object cleanup](expo-video-cleanup.md) — let useVideoPlayer own release; unmount cleanup must not call methods on a player that may already be released.
 - [Framer Motion scroll keyframes](framer-motion-scroll-keyframes.md) — clamp dynamic scroll ranges to ordered 0–1 values before useTransform reaches WAAPI.
+- [CSS sticky overflow ancestors](css-sticky-overflow-ancestors.md) — use overflow-x clip, not hidden, around long sticky decks to prevent blank runways.

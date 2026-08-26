@@ -12,7 +12,7 @@ export function ActivityCard() {
   const phoneY = useTransform(scrollYProgress, [0, 1], ["15%", "-15%"]);
 
   return (
-    <div ref={ref} className="relative w-full bg-zinc-50 rounded-t-[3rem] py-32 md:py-48 px-6 z-40 overflow-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.3)]">
+    <div ref={ref} className="relative w-full bg-zinc-50 rounded-t-[3rem] py-32 md:py-48 px-6 z-40 overflow-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
       {/* Map Texture Background */}
       <motion.div style={{ y: mapY }} className="absolute inset-0 opacity-[0.03] pointer-events-none">
         <img src={`${import.meta.env.BASE_URL}images/earth-night.png`} alt="Texture" className="w-full h-full object-cover grayscale invert scale-150" />

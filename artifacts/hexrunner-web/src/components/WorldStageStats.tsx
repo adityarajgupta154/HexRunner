@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 export function WorldStageStats() {
   return (
-    <div className="relative w-full py-48 bg-[#030712] z-30 overflow-hidden flex flex-col items-center">
+    <div className="relative w-full py-48 bg-[#030712] z-20 rounded-t-[3rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col items-center">
       <div className="absolute inset-0 z-0">
         <img 
           src={`${import.meta.env.BASE_URL}images/urban-runner.jpg`}

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 
 export function EndState({ onStoreClick }: { onStoreClick: () => void }) {
   return (
-    <div className="relative min-h-screen w-full bg-primary flex flex-col items-center justify-center p-6 z-50 rounded-t-[3rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden">
+    <div className="relative min-h-screen w-full bg-primary flex flex-col items-center justify-center p-6 z-70 rounded-t-[3rem] shadow-[0_-20px_50px_rgba(0,0,0,0.5)] overflow-hidden">
       
       {/* Background graphic */}
       <div className="absolute inset-0 opacity-[0.08] pointer-events-none flex items-center justify-center mix-blend-color-burn">

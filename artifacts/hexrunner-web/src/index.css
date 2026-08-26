@@ -97,3 +97,26 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@media (min-width: 768px) and (max-height: 700px) {
+  .gameplay-stage {
+    padding-block: 1rem;
+  }
+
+  .gameplay-copy {
+    transform: scale(0.62);
+    transform-origin: center left;
+  }
+
+  .gameplay-phone {
+    width: min(260px, calc((100vh - 3rem) / 2.1));
+    border-width: 10px;
+    border-radius: 2.25rem;
+  }
+}
+
+@media (min-width: 768px) and (max-height: 560px) {
+  .gameplay-copy {
+    transform: scale(0.48);
+  }
+}
