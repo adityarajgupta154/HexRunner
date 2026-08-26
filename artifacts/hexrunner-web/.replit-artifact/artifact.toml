@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/hexrunner-web/"
+title = "HexRunner — Claim Your City"
+description = "The official cinematic marketing website for HexRunner, a GPS territory-running game. It explains live territory capture, loop-based gameplay, rankings, safety, and community competition through a rich scroll-driven experience, with prototype App Store and Google Play notices."
+version = "1.0.0"
+id = "artifacts/hexrunner-web"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/hexrunner-web/" ]
+localPort = 20434
+
+[services.development]
+run = "pnpm --filter @workspace/hexrunner-web run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hexrunner-web", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/hexrunner-web/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20434"
+BASE_PATH = "/hexrunner-web/"
