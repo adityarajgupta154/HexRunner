@@ -12,9 +12,17 @@ import {
 import { consumeRateLimit } from "../lib/rateLimit";
 
 const router: IRouter = Router();
+const enrollmentLimit = process.env.NODE_ENV === "development" ? 1_000 : 10;
 
 router.post("/anonymous-identities", async (req, res): Promise<void> => {
-  if (!consumeRateLimit("identity-enrollment-ip", req.ip ?? "unknown", 10, 24 * 60 * 60 * 1_000)) {
+  if (
+    !consumeRateLimit(
+      "identity-enrollment-ip",
+      req.ip ?? "unknown",
+      enrollmentLimit,
+      24 * 60 * 60 * 1_000,
+    )
+  ) {
     res.status(429).json({ error: "Too many device enrollments. Try again later." });
     return;
   }
