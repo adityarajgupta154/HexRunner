@@ -20,6 +20,9 @@ export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   displayName: text("display_name"),
   activityLevel: text("activity_level"),
   city: text("city"),
+  // A key, rather than client-selected CSS/hex, keeps territory rendering safe
+  // and makes ownership snapshots independently reproducible.
+  territoryColor: text("territory_color").default("amber").notNull(),
   baselineCompletedAt: timestamp("baseline_completed_at", {
     withTimezone: true,
   }),
@@ -31,7 +34,12 @@ export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
-});
+}, (table) => [
+  check(
+    "hexrunner_users_territory_color_check",
+    sql`${table.territoryColor} IN ('amber', 'cyan', 'emerald', 'fuchsia', 'violet')`,
+  ),
+]);
 
 // Live coordinates are deliberately isolated from run history.  A user has at
 // most one row and expiry makes an interrupted client disappear automatically.

@@ -9,10 +9,12 @@ import {
   StyleSheet,
   Text,
   View,
+  Linking,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useForegroundPermissions, type LocationObject } from 'expo-location';
 import RunMap from '@/src/components/RunMap';
 import PresenceOverlay from '@/src/components/PresenceOverlay';
 import { useLivePresence } from '@/src/hooks/useLivePresence';
@@ -30,7 +32,7 @@ import {
 } from '@/src/services/runStorage';
 import { checkSession } from '@/src/services/antiSpoof';
 import { runPresence } from '@/src/services/runPresence';
-import { useLookupHexOwnership, useLookupSafetyAreas, type ExactPresence, type AnonymousPresence } from '@workspace/api-client-react';
+import { useLookupHexOwnership, useLookupSafetyAreas, useGetUserStats, getGetUserStatsQueryKey, type ExactPresence, type AnonymousPresence } from '@workspace/api-client-react';
 import SafetyTools from '@/src/components/SafetyTools';
 import CivicReportTools from '@/src/components/CivicReportTools';
 import { useLiveInteractions } from '@/src/hooks/useLiveInteractions';
@@ -42,6 +44,7 @@ import { getEquityZoneDisplayState } from '@/src/services/equityZoneDisplay';
 import { pointToSafetyArea } from '@/src/services/hexEngine';
 import { voiceCompanion } from '@/src/services/voiceCompanion';
 import { isCurrentSafetyAnnouncement } from '@/src/services/voiceCompanionController';
+import { getTerritoryColor } from '@/src/services/territoryColor';
 
 type RunPoint = {
   lat: number;
@@ -102,6 +105,10 @@ export default function RunSessionScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams();
+  const targetLatitude = params.targetLatitude ? Number(params.targetLatitude) : null;
+  const targetLongitude = params.targetLongitude ? Number(params.targetLongitude) : null;
+
   const {
     uid,
     loading: identityLoading,
@@ -114,6 +121,9 @@ export default function RunSessionScreen() {
   const runningRef = useRef(false);
   const lastPointRef = useRef<RunPoint | null>(null);
   const distanceKmRef = useRef(0);
+  const totalPausedMsRef = useRef(0);
+  const pauseStartTimeRef = useRef<number | null>(null);
+  const locationCallbackRef = useRef<((location: LocationObject) => void) | null>(null);
   const announcedKilometreRef = useRef(0);
   const observedSafetyAreaRef = useRef<string | null>(null);
   const announcedPresenceRef = useRef(false);
@@ -140,6 +150,14 @@ export default function RunSessionScreen() {
   const [appStateStatus, setAppStateStatus] = useState<AppStateStatus>(
     AppState.currentState,
   );
+  const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
+  const [locationPermission, requestLocationPermission] = useForegroundPermissions();
+
+  const { data: userStats } = useGetUserStats(uid ?? '', {
+    query: { enabled: !!uid, queryKey: getGetUserStatsQueryKey(uid ?? '') },
+  });
+  const myColor = getTerritoryColor(userStats?.baseline?.territoryColor);
 
   const [isFocused, setIsFocused] = useState(false);
   useFocusEffect(
@@ -158,13 +176,14 @@ export default function RunSessionScreen() {
   } : null;
 
   const presence = useLivePresence({
-    enabled: isFocused && isRunning,
+    enabled: isFocused && isRunning && !isPaused,
     location: presenceLocation,
     mode: 'run'
   });
   const shouldPollEquity =
     isFocused &&
     isRunning &&
+    !isPaused &&
     appStateStatus === 'active' &&
     !!uid &&
     presence.hasSnapshot;
@@ -180,7 +199,7 @@ export default function RunSessionScreen() {
     },
   });
 
-  const interactions = useLiveInteractions(isFocused && isRunning, presence.hasSnapshot);
+  const interactions = useLiveInteractions(isFocused && isRunning && !isPaused, presence.hasSnapshot);
   const [selectedRunner, setSelectedRunner] = useState<ExactPresence | AnonymousPresence | null>(null);
 
   useEffect(() => {
@@ -254,8 +273,12 @@ export default function RunSessionScreen() {
 
     const updateElapsed = () => {
       if (startTimeRef.current === null) return;
+      const now = Date.now();
+      const currentPauseMs = isPausedRef.current && pauseStartTimeRef.current !== null
+        ? (now - pauseStartTimeRef.current)
+        : 0;
       setElapsedSeconds(
-        Math.floor((Date.now() - startTimeRef.current) / 1_000),
+        Math.floor((now - startTimeRef.current - totalPausedMsRef.current - currentPauseMs) / 1_000)
       );
     };
 
@@ -271,8 +294,10 @@ export default function RunSessionScreen() {
       if (!clientRunId || !runningRef.current) return;
 
       if (nextState === 'active') {
-        runPresence.resumeRun(clientRunId);
-        voiceCompanion.resume();
+        if (!isPausedRef.current) {
+          runPresence.resumeRun(clientRunId);
+          voiceCompanion.resume();
+        }
       } else {
         runPresence.pauseRun(clientRunId);
         voiceCompanion.pause();
@@ -321,130 +346,136 @@ export default function RunSessionScreen() {
     observedSafetyAreaRef.current = null;
     announcedPresenceRef.current = false;
     distanceKmRef.current = 0;
+    totalPausedMsRef.current = 0;
+    pauseStartTimeRef.current = null;
     const clientRunId = createClientRunId();
     clientRunIdRef.current = clientRunId;
     queryClient.removeQueries({ queryKey: getGetCurrentEquityZoneQueryKey() });
     runningRef.current = true;
+    setIsPaused(false);
+    isPausedRef.current = false;
     runPresence.beginRun(clientRunId, AppState.currentState === 'active');
     voiceCompanion.beginRun();
     lastPointRef.current = null;
     startTimeRef.current = null;
 
-    try {
-      await startWatching((location) => {
-        if (clientRunIdRef.current !== clientRunId) return;
+    locationCallbackRef.current = (location) => {
+      if (clientRunIdRef.current !== clientRunId) return;
 
-        runPresence.publishLocation(clientRunId, {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          accuracy: location.coords.accuracy,
-          mocked: location.mocked,
-        });
-        if (startTimeRef.current === null) {
-          startTimeRef.current = location.timestamp;
-        }
-        const nextPoint: RunPoint = {
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-          timestamp: location.timestamp,
-          accuracyMeters: location.coords.accuracy ?? undefined,
-          speedMetersPerSecond: location.coords.speed ?? undefined,
-          mocked: location.mocked ?? undefined,
-        };
-        const safetyArea = pointToSafetyArea(nextPoint.lat, nextPoint.lng);
-        if (
-          voicePreferenceLoadedRef.current &&
-          voiceEnabledRef.current &&
-          observedSafetyAreaRef.current !== safetyArea
-        ) {
-          observedSafetyAreaRef.current = safetyArea;
-          safetyLookup.mutate(
-            { data: { areaH3Indexes: [safetyArea] } },
-            {
-              onSuccess: (result) => {
-                if (
-                  !isCurrentSafetyAnnouncement({
-                    requestedRunId: clientRunId,
-                    requestedAreaId: safetyArea,
-                    currentRunId: clientRunIdRef.current,
-                    currentAreaId: observedSafetyAreaRef.current,
-                    isRunning: runningRef.current,
-                  })
-                ) {
-                  return;
-                }
-                const advisory = result.areas[0];
-                if (
-                  advisory?.concernScore !== null &&
-                  advisory.concernScore >= 50 &&
-                  advisory.confidence !== 'insufficient'
-                ) {
-                  voiceCompanion.announce({
-                    id: `safety-area:${advisory.areaH3Index}`,
-                    text: 'A coarse community advisory exists for this area. Stay aware of your surroundings.',
-                    priority: 100,
-                    cooldownKey: 'safety-advisory',
-                  });
-                }
-              },
-            },
-          );
-        }
-        const previousPoint = lastPointRef.current;
-
-        if (previousPoint) {
-          distanceKmRef.current += haversineDistanceKm(
-            previousPoint,
-            nextPoint,
-          );
-          setDistanceKm(distanceKmRef.current);
-        }
-
-        lastPointRef.current = nextPoint;
-        setPathPoints((currentPath) => {
-          const nextPath = [...currentPath, nextPoint];
-
-          if (
-            nextPath.length === 1 ||
-            nextPath.length % CLAIM_RECALCULATION_INTERVAL === 0
-          ) {
-            try {
-              const quality = getClaimQualitySnapshot(nextPath);
-              setClaimedHexes(new Set(quality.eligibleHexes));
-              setPendingCoverageHexes(quality.pendingHexes.length);
-              setPoorAccuracyHexes(quality.rejectedAccuracyHexes.length);
-              if (quality.eligibleHexes.length > 0) {
-                ownershipLookup.mutate(
-                  { data: { h3Indexes: quality.eligibleHexes } },
-                  {
-                    onSuccess: (result) => {
-                      setContestedHexes(
-                        new Set(
-                          result.ownership
-                            .filter((hex) => hex.ownerId && hex.ownerId !== uid)
-                            .map((hex) => hex.h3Index),
-                        ),
-                      );
-                    },
-                  },
-                );
-              } else {
-                setContestedHexes(new Set());
-              }
-            } catch (hexError) {
-              console.error(
-                '[HexRunner] Unable to update claimed hexes during the run.',
-                hexError,
-              );
-              setError(
-                'Territory calculation paused. Your GPS path is still being recorded.',
-              );
-            }
-          }
-
-          return nextPath;
-        });
+      runPresence.publishLocation(clientRunId, {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy,
+        mocked: location.mocked,
       });
+      if (startTimeRef.current === null) {
+        startTimeRef.current = location.timestamp;
+      }
+      const nextPoint: RunPoint = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+        timestamp: location.timestamp,
+        accuracyMeters: location.coords.accuracy ?? undefined,
+        speedMetersPerSecond: location.coords.speed ?? undefined,
+        mocked: location.mocked ?? undefined,
+      };
+      const safetyArea = pointToSafetyArea(nextPoint.lat, nextPoint.lng);
+      if (
+        voicePreferenceLoadedRef.current &&
+        voiceEnabledRef.current &&
+        observedSafetyAreaRef.current !== safetyArea
+      ) {
+        observedSafetyAreaRef.current = safetyArea;
+        safetyLookup.mutate(
+          { data: { areaH3Indexes: [safetyArea] } },
+          {
+            onSuccess: (result) => {
+              if (
+                !isCurrentSafetyAnnouncement({
+                  requestedRunId: clientRunId,
+                  requestedAreaId: safetyArea,
+                  currentRunId: clientRunIdRef.current,
+                  currentAreaId: observedSafetyAreaRef.current,
+                  isRunning: runningRef.current,
+                })
+              ) {
+                return;
+              }
+              const advisory = result.areas[0];
+              if (
+                advisory?.concernScore !== null &&
+                advisory.concernScore >= 50 &&
+                advisory.confidence !== 'insufficient'
+              ) {
+                voiceCompanion.announce({
+                  id: `safety-area:${advisory.areaH3Index}`,
+                  text: 'A coarse community advisory exists for this area. Stay aware of your surroundings.',
+                  priority: 100,
+                  cooldownKey: 'safety-advisory',
+                });
+              }
+            },
+          },
+        );
+      }
+      const previousPoint = lastPointRef.current;
+
+      if (previousPoint) {
+        distanceKmRef.current += haversineDistanceKm(
+          previousPoint,
+          nextPoint,
+        );
+        setDistanceKm(distanceKmRef.current);
+      }
+
+      lastPointRef.current = nextPoint;
+      setPathPoints((currentPath) => {
+        const nextPath = [...currentPath, nextPoint];
+
+        if (
+          nextPath.length === 1 ||
+          nextPath.length % CLAIM_RECALCULATION_INTERVAL === 0
+        ) {
+          try {
+            const quality = getClaimQualitySnapshot(nextPath);
+            setClaimedHexes(new Set(quality.eligibleHexes));
+            setPendingCoverageHexes(quality.pendingHexes.length);
+            setPoorAccuracyHexes(quality.rejectedAccuracyHexes.length);
+            if (quality.eligibleHexes.length > 0) {
+              ownershipLookup.mutate(
+                { data: { h3Indexes: quality.eligibleHexes } },
+                {
+                  onSuccess: (result) => {
+                    setContestedHexes(
+                      new Set(
+                        result.ownership
+                          .filter((hex) => hex.ownerId && hex.ownerId !== uid)
+                          .map((hex) => hex.h3Index),
+                      ),
+                    );
+                  },
+                },
+              );
+            } else {
+              setContestedHexes(new Set());
+            }
+          } catch (hexError) {
+            console.error(
+              '[HexRunner] Unable to update claimed hexes during the run.',
+              hexError,
+            );
+            setError(
+              'Territory calculation paused. Your GPS path is still being recorded.',
+            );
+          }
+        }
+
+        return nextPath;
+      });
+    };
+
+    try {
+      await startWatching((location) => locationCallbackRef.current?.(location));
 
       startTimeRef.current ??= Date.now();
       runningRef.current = true;
@@ -513,10 +544,16 @@ export default function RunSessionScreen() {
 
     const endedAt = Date.now();
     const startedAt = startTimeRef.current ?? endedAt;
-    const finalElapsedSeconds =
-      startTimeRef.current === null
-        ? elapsedSeconds
-        : Math.floor((endedAt - startTimeRef.current) / 1_000);
+    if (isPausedRef.current && pauseStartTimeRef.current !== null) {
+      totalPausedMsRef.current += (endedAt - pauseStartTimeRef.current);
+      // clear pause start so we don't double count if something fails
+      pauseStartTimeRef.current = null;
+    }
+
+    // Server validation requires: Math.abs(elapsed + paused - wallDuration) <= 5 seconds
+    const wallDurationSeconds = Math.floor((endedAt - startedAt) / 1000);
+    const finalPausedSeconds = Math.round(totalPausedMsRef.current / 1000);
+    const finalElapsedSeconds = Math.max(0, wallDurationSeconds - finalPausedSeconds);
     const finalDistanceKm = distanceKmRef.current;
     let finalClaimedHexes: string[];
     try {
@@ -541,6 +578,8 @@ export default function RunSessionScreen() {
     clientRunIdRef.current = null;
     runningRef.current = false;
     setIsRunning(false);
+    setIsPaused(false);
+    isPausedRef.current = false;
     startTimeRef.current = null;
 
     const pendingRun: PendingRun = {
@@ -548,6 +587,7 @@ export default function RunSessionScreen() {
       startedAt: new Date(startedAt).toISOString(),
       endedAt: new Date(endedAt).toISOString(),
       elapsedSeconds: finalElapsedSeconds,
+      pausedSeconds: finalPausedSeconds,
       distanceKm: finalDistanceKm,
       points: pathPoints,
       claimedHexes: finalClaimedHexes,
@@ -569,7 +609,7 @@ export default function RunSessionScreen() {
     voiceEnabledRef.current = nextEnabled;
     setVoiceEnabled(nextEnabled);
     await voiceCompanion.setEnabled(nextEnabled);
-    if (nextEnabled && isRunning) {
+    if (nextEnabled && isRunning && !isPaused) {
       voiceCompanion.resume();
       voiceCompanion.announce({
         id: 'voice-enabled',
@@ -577,415 +617,235 @@ export default function RunSessionScreen() {
         priority: 100,
       });
     }
-  }, [isRunning, voiceAvailable, voiceEnabled]);
+  }, [isRunning, isPaused, voiceAvailable, voiceEnabled]);
+
+  const togglePause = useCallback(() => {
+    const nextPaused = !isPaused;
+    setIsPaused(nextPaused);
+    isPausedRef.current = nextPaused;
+    const clientRunId = clientRunIdRef.current;
+
+    if (nextPaused) {
+      stopWatching();
+      pauseStartTimeRef.current = Date.now();
+      if (clientRunId) runPresence.pauseRun(clientRunId);
+      voiceCompanion.pause();
+      lastPointRef.current = null;
+    } else {
+      if (pauseStartTimeRef.current !== null) {
+        totalPausedMsRef.current += (Date.now() - pauseStartTimeRef.current);
+        pauseStartTimeRef.current = null;
+      }
+      lastPointRef.current = null;
+      if (clientRunId) runPresence.resumeRun(clientRunId);
+      if (voiceEnabledRef.current) voiceCompanion.resume();
+
+      startWatching((location) => locationCallbackRef.current?.(location)).catch((err) => {
+        setError('Failed to restart GPS on resume.');
+        setIsPaused(true);
+        isPausedRef.current = true;
+      });
+    }
+  }, [isPaused]);
+
+  const isLocationReady = Platform.OS === 'web' || locationPermission?.granted;
 
   return (
-    <View
-      style={[
-        styles.screen,
-        {
-          backgroundColor: colors.background,
-          paddingTop: insets.top + 20,
-          paddingBottom: Math.max(insets.bottom, 12) + 98,
-        },
-      ]}
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.eyebrow, { color: colors.primary }]}>
-            HEXRUNNER
-          </Text>
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            MAKE A MARK
-          </Text>
+    <View style={styles.screen}>
+      <View style={StyleSheet.absoluteFill}>
+        {isRunning ? (
+          <RunMap
+            currentPoint={pathPoints[pathPoints.length - 1] ?? null}
+            pathPoints={pathPoints}
+            claimedHexIndexes={claimedHexes}
+            contestedHexIndexes={contestedHexes}
+            exactRunners={presence.exactRunners}
+            anonymousRunners={presence.anonymousRunners}
+            onRunnerPress={setSelectedRunner}
+            myColor={myColor}
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#1A1D24' }]} />
+        )}
+      </View>
+
+      <View pointerEvents="box-none" style={[styles.headerFloating, { paddingTop: insets.top + 20 }]}>
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: voiceEnabled }}
+          disabled={!voicePreferenceLoaded || !voiceAvailable}
+          onPress={() => void toggleVoice()}
+          style={[styles.voicePill, { opacity: !voicePreferenceLoaded || !voiceAvailable ? 0.65 : 1 }]}
+        >
+          <Feather name={voiceEnabled ? 'volume-2' : 'volume-x'} size={18} color="#000" />
+        </Pressable>
+
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot2, { backgroundColor: isRunning ? (isPaused ? '#FF9500' : '#00FF00') : '#8E8E93' }]} />
+          <Text style={styles.statusPillText}>{isRunning ? (isPaused ? 'PAUSED' : 'RECORDING') : 'READY'}</Text>
         </View>
+
+        <View style={{ width: 44 }} />
+      </View>
+
+      {isRunning ? (
         <View
           style={[
-            styles.statusBadge,
+            styles.bottomSheet,
             {
-              backgroundColor: isRunning ? colors.accent : colors.muted,
-              borderColor: isRunning ? colors.primary : colors.border,
+              bottom: 84,
+              paddingBottom: Math.max(insets.bottom, 12) + 12,
             },
           ]}
         >
-          <View
-            style={[
-              styles.statusDot,
-              {
-                backgroundColor: isRunning
-                  ? colors.primary
-                  : colors.mutedForeground,
-              },
-            ]}
-          />
-          <Text
-            style={[
-              styles.statusText,
-              {
-                color: isRunning
-                  ? colors.accentForeground
-                  : colors.mutedForeground,
-              },
-            ]}
-          >
-            {isRunning ? 'RECORDING' : 'READY'}
-          </Text>
-        </View>
-      </View>
+           <View style={styles.sheetHandle} />
 
-      <Pressable
-        accessibilityRole="switch"
-        accessibilityState={{
-          checked: voiceEnabled,
-          disabled: !voicePreferenceLoaded || !voiceAvailable,
-        }}
-        accessibilityLabel="Voice guidance"
-        accessibilityHint="Uses on-device speech only and never records microphone audio"
-        disabled={!voicePreferenceLoaded || !voiceAvailable}
-        testID="voice-guidance-toggle"
-        onPress={() => void toggleVoice()}
-        style={({ pressed }) => [
-          styles.voiceControl,
-          {
-            backgroundColor: voiceEnabled ? colors.accent : colors.card,
-            borderColor: voiceEnabled ? colors.primary : colors.border,
-            opacity:
-              pressed || !voicePreferenceLoaded || !voiceAvailable ? 0.65 : 1,
-          },
-        ]}
-      >
-        <Feather
-          name={voiceEnabled ? 'volume-2' : 'volume-x'}
-          size={18}
-          color={voiceEnabled ? colors.primary : colors.mutedForeground}
-        />
-        <View style={styles.voiceCopy}>
-          <Text style={[styles.voiceLabel, { color: colors.foreground }]}>
-            {voiceAvailable
-              ? `Voice guidance ${voiceEnabled ? 'on' : 'off'}`
-              : 'Voice guidance unavailable on web'}
-          </Text>
-          <Text style={[styles.voiceMeta, { color: colors.mutedForeground }]}>
-            {voiceAvailable
-              ? 'On-device speech only · no microphone'
-              : 'Use the iOS or Android app for on-device speech'}
-          </Text>
-        </View>
-      </Pressable>
+           <View style={styles.metricsRow}>
+             <View style={styles.metricCol}>
+               <Text style={styles.metricLabel}>DISTANCE</Text>
+               <Text style={styles.metricValue}>{distanceKm.toFixed(2)}</Text>
+               <Text style={styles.metricUnit}>km</Text>
+             </View>
+             <View style={styles.metricCol}>
+               <Text style={styles.metricLabel}>DURATION</Text>
+               <Text style={styles.metricValue}>{formatElapsed(elapsedSeconds)}</Text>
+               <Text style={styles.metricUnit}></Text>
+             </View>
+             <View style={styles.metricCol}>
+               <Text style={styles.metricLabel}>PACE</Text>
+               <Text style={styles.metricValue}>{pace}</Text>
+               <Text style={styles.metricUnit}>/km</Text>
+             </View>
+           </View>
 
-      {isRunning ? (
-        <ScrollView
-          style={styles.runningScroll}
-          contentContainerStyle={styles.runningContent}
-          showsVerticalScrollIndicator={false}
+           <ScrollView style={{maxHeight: 180}} showsVerticalScrollIndicator={false}>
+             <SafetyTools currentPoint={pathPoints[pathPoints.length - 1] ?? null} isRunning clientRunId={clientRunIdRef.current} />
+             <CivicReportTools currentPoint={pathPoints[pathPoints.length - 1] ?? null} clientRunId={clientRunIdRef.current} />
+           </ScrollView>
+
+           <Pressable
+             accessibilityRole="button"
+             onPress={togglePause}
+             style={({ pressed }) => [
+               styles.pauseButton,
+               { backgroundColor: isPaused ? '#00FF00' : '#FF9500' },
+               pressed && { opacity: 0.85 }
+             ]}
+           >
+             <Text style={[styles.pauseButtonText, { color: '#000' }]}>{isPaused ? 'Resume' : 'Pause Run'}</Text>
+           </Pressable>
+
+           <Pressable
+             accessibilityRole="button"
+             delayLongPress={600}
+             onLongPress={() => void stopSession()}
+             style={({ pressed }) => [
+               styles.holdToFinish,
+               pressed && { transform: [{ scale: 0.95 }] }
+             ]}
+           >
+             <Text style={styles.holdToFinishText}>Hold to Finish</Text>
+           </Pressable>
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.preflightSheet,
+            {
+              bottom: 84,
+              paddingBottom: Math.max(insets.bottom, 12) + 20,
+            },
+          ]}
         >
-          <View style={styles.runMapFrame}>
-            <RunMap
-              currentPoint={pathPoints[pathPoints.length - 1] ?? null}
-              pathPoints={pathPoints}
-              claimedHexIndexes={claimedHexes}
-              contestedHexIndexes={contestedHexes}
-              exactRunners={presence.exactRunners}
-              anonymousRunners={presence.anonymousRunners}
-              onRunnerPress={setSelectedRunner}
-            />
-          </View>
+          <View style={styles.sheetHandle} />
 
-          <View style={styles.statRow}>
-            <MetricCard
-              label="TIME"
-              value={formatElapsed(elapsedSeconds)}
-            />
-            <MetricCard
-              label="DISTANCE"
-              value={distanceKm.toFixed(2)}
-              unit="km"
-            />
-            <MetricCard label="PACE" value={pace} unit="min/km" />
-          </View>
+          <Text style={styles.preflightTitle}>
+            {runAwaitingCache ? 'Save your completed run' : 'Ready to claim ground?'}
+          </Text>
+          <Text style={styles.preflightSubtitle}>
+            {runAwaitingCache
+              ? 'Retry the local recovery step before closing HexRunner.'
+              : 'Start moving to record your route, distance, and pace.'}
+          </Text>
 
-          {(() => {
-            const equityDisplayState = isRunning ? getEquityZoneDisplayState(equityStatus, isFetchingEquity, isErrorEquity) : 'unavailable';
-            let equityContent;
-            let equityBg = colors.card;
-            let equityBorder = colors.border;
-            switch (equityDisplayState) {
-              case 'checking':
-                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>CHECKING REWARD STATUS...</Text>;
-                break;
-              case 'cold_zone_active':
-                equityContent = (
-                  <View style={styles.equityActiveRow}>
-                    <Feather name="zap" size={15} color={colors.primaryForeground} />
-                    <Text style={[styles.equityTextActive, { color: colors.primaryForeground }]}>COLD ZONE — 2X</Text>
-                  </View>
-                );
-                equityBg = colors.primary;
-                equityBorder = colors.primary;
-                break;
-              case 'standard':
-                equityContent = <Text style={[styles.equityText, { color: colors.foreground }]}>STANDARD ZONE — 1X</Text>;
-                break;
-              case 'insufficient_data':
-                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>ZONE BONUS UNAVAILABLE — MORE CITY ACTIVITY NEEDED</Text>;
-                break;
-              case 'stale_error':
-                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>SIGNAL LOST — FINAL CREDIT CONFIRMED ON SAVE</Text>;
-                break;
-              case 'unavailable':
-              default:
-                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>WAITING FOR SERVER-VERIFIED ZONE</Text>;
-                break;
-            }
-            return (
-              <View style={[styles.equityContainer, { backgroundColor: equityBg, borderColor: equityBorder }]}>
-                {equityContent}
-              </View>
-            );
-          })()}
-
-          <SafetyTools
-            currentPoint={pathPoints[pathPoints.length - 1] ?? null}
-            isRunning
-            clientRunId={clientRunIdRef.current}
-          />
-          <CivicReportTools
-            currentPoint={pathPoints[pathPoints.length - 1] ?? null}
-            clientRunId={clientRunIdRef.current}
-          />
-
-          <PresenceOverlay
-            isLoading={presence.isLoading}
-            hasSnapshot={presence.hasSnapshot}
-            isOffline={presence.isOffline}
-            isStale={presence.isStale}
-            ambientCount={presence.ambientCount}
-            nearestExactRunner={presence.nearestExactRunner}
-            targetDirection={presence.targetDirection}
-            anonymousCount={presence.anonymousRunners.length}
-          />
-
-          <View
-            style={[
-              styles.claimedCard,
-              { backgroundColor: colors.card, borderColor: colors.border },
-            ]}
-          >
-            <View style={styles.claimedIcon}>
-              <Feather name="hexagon" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.claimedTextBlock}>
-              <Text style={[styles.claimedText, { color: colors.foreground }]}>
-                Paint-ready zones: {claimedHexes.size}
-              </Text>
-              <Text
-                style={[styles.claimedMeta, { color: colors.mutedForeground }]}
+          {!isLocationReady && Platform.OS !== 'web' ? (
+            <View style={styles.permissionBox}>
+              <Feather name="map-pin" size={18} color="#FF9500" />
+              <Text style={styles.permissionText}>Location access is required.</Text>
+              <Pressable
+                onPress={() => {
+                  if (locationPermission?.canAskAgain) {
+                    void requestLocationPermission();
+                  } else {
+                    void Linking.openSettings();
+                  }
+                }}
+                style={styles.permissionBtn}
               >
-                {pendingCoverageHexes > 0
-                  ? `${pendingCoverageHexes} zone${pendingCoverageHexes === 1 ? '' : 's'} need 6s of coverage`
-                  : poorAccuracyHexes > 0
-                    ? `${poorAccuracyHexes} zone${poorAccuracyHexes === 1 ? '' : 's'} skipped for poor GPS accuracy`
-                    : `${pathPoints.length} location ${pathPoints.length === 1 ? 'point' : 'points'} captured`}
-              </Text>
-            </View>
-          </View>
-
-          {contestedHexes.size > 0 ? (
-            <View style={[styles.contestCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
-              <Feather name="crosshair" size={17} color={colors.primary} />
-              <Text style={[styles.contestText, { color: colors.accentForeground }]}>
-                Painting over {contestedHexes.size} rival {contestedHexes.size === 1 ? 'zone' : 'zones'} — finish your coverage to take them over.
-              </Text>
+                <Text style={styles.permissionBtnText}>
+                  {locationPermission?.canAskAgain ? 'ALLOW' : 'Open Settings'}
+                </Text>
+              </Pressable>
             </View>
           ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Stop run"
-            onPress={() => void stopSession()}
-            style={({ pressed }) => [
-              styles.stopButton,
-              {
-                backgroundColor: colors.destructive,
-                opacity: pressed ? 0.82 : 1,
-              },
-            ]}
-          >
-            <View style={styles.stopIcon} />
-            <Text
-              style={[
-                styles.stopButtonText,
-                { color: colors.destructiveForeground },
-              ]}
-            >
-              Stop Run
-            </Text>
-          </Pressable>
-
-          <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
-          <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
-        </ScrollView>
-      ) : (
-        <View style={styles.readyContent}>
-          <View style={styles.readyCopy}>
-            <Text style={[styles.readyTitle, { color: colors.foreground }]}>
-              {runAwaitingCache
-                ? 'Save your completed run'
-                : 'Ready to claim ground?'}
-            </Text>
-            <Text
-              style={[styles.readySubtitle, { color: colors.mutedForeground }]}
-            >
-              {runAwaitingCache
-                ? 'Retry the local recovery step before closing HexRunner.'
-                : 'Start moving to record your route, distance, and pace.'}
-            </Text>
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Start run"
-            disabled={
-              isStarting ||
-              isCachingRun ||
-              (!runAwaitingCache && (identityLoading || !uid))
-            }
-            onPress={
-              runAwaitingCache
-                ? () => void cacheRunAndOpenSummary(runAwaitingCache)
-                : startSession
-            }
-            style={({ pressed }) => [
-              styles.startButton,
-              {
-                backgroundColor: colors.primary,
-                borderColor: colors.accentForeground,
-                opacity:
-                  pressed ||
-                  isStarting ||
-                  isCachingRun ||
-                  (!runAwaitingCache && (identityLoading || !uid))
-                    ? 0.6
-                    : 1,
-              },
-            ]}
-          >
-            {isStarting || isCachingRun || (!runAwaitingCache && identityLoading) ? (
-              <ActivityIndicator size="large" color={colors.primaryForeground} />
-            ) : (
-              <>
-                <Feather
-                  name={runAwaitingCache ? 'upload-cloud' : 'play'}
-                  size={34}
-                  color={colors.primaryForeground}
-                  style={runAwaitingCache ? undefined : styles.playIcon}
-                />
-                <Text
-                  style={[
-                    styles.startButtonText,
-                    { color: colors.primaryForeground },
-                  ]}
-                >
-                  {runAwaitingCache ? 'RETRY SAVE' : 'START'}
-                </Text>
-              </>
-            )}
-          </Pressable>
-
-          <Text style={[styles.permissionNote, { color: colors.mutedForeground }]}>
-            {runAwaitingCache
-              ? 'Keep HexRunner open until the summary appears.'
-              : 'Foreground location permission is required.'}
-          </Text>
-
-          <SafetyTools currentPoint={null} isRunning={false} clientRunId={null} />
+          {targetLatitude && targetLongitude ? (
+            <View style={styles.noticeBox}>
+              <Feather name="target" size={16} color="#007AFF" />
+              <Text style={styles.noticeText}>Scouting target engaged. Paint loops at or around your destination to secure it.</Text>
+            </View>
+          ) : null}
 
           {error || identityError ? (
-            <View
-              style={[
-                styles.errorCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.destructive,
-                },
-              ]}
-            >
-              <Feather
-                name="alert-circle"
-                size={18}
-                color={colors.destructive}
-              />
-              <Text style={[styles.errorText, { color: colors.foreground }]}>
-                {error ?? identityError}
-              </Text>
+            <View style={styles.errorBox}>
+              <Feather name="alert-circle" size={16} color="#FF3B30" />
+              <Text style={styles.errorText}>{error ?? identityError}</Text>
             </View>
           ) : null}
 
           {identityNotice ? (
-            <View
-              style={[
-                styles.errorCard,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: colors.primary,
-                },
-              ]}
-            >
-              <Feather name="info" size={18} color={colors.primary} />
-              <Text style={[styles.errorText, { color: colors.foreground }]}>
-                {identityNotice}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Dismiss identity notice"
-                hitSlop={8}
-                onPress={() => void dismissIdentityNotice()}
-              >
-                <Feather name="x" size={18} color={colors.mutedForeground} />
+            <View style={styles.noticeBox}>
+              <Feather name="info" size={16} color="#007AFF" />
+              <Text style={styles.noticeText}>{identityNotice}</Text>
+              <Pressable onPress={() => void dismissIdentityNotice()} hitSlop={8} style={{marginLeft: 'auto'}}>
+                <Feather name="x" size={16} color="#90949F" />
               </Pressable>
             </View>
           ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={isStarting || isCachingRun || (!runAwaitingCache && (identityLoading || !uid || !isLocationReady))}
+            onPress={runAwaitingCache ? () => void cacheRunAndOpenSummary(runAwaitingCache) : startSession}
+            style={({ pressed }) => [
+              styles.startPreflightBtn,
+              { opacity: pressed || isStarting || isCachingRun || (!runAwaitingCache && (identityLoading || !uid || !isLocationReady)) ? 0.6 : 1 }
+            ]}
+          >
+            {isStarting || isCachingRun || (!runAwaitingCache && identityLoading) ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Text style={styles.startPreflightBtnText}>{runAwaitingCache ? 'RETRY SAVE' : 'START'}</Text>
+            )}
+          </Pressable>
+
+          <Text style={styles.bgNote}>
+            {Platform.OS === 'web'
+              ? 'Web must keep tab active.'
+              : 'Native continuous locked-screen tracking requires a development build.'}
+          </Text>
         </View>
       )}
+
+      <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
+      <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
     </View>
   );
-
-  function MetricCard({
-    label,
-    value,
-    unit,
-  }: {
-    label: string;
-    value: string;
-    unit?: string;
-  }) {
-    return (
-      <View
-        style={[
-          styles.metricCard,
-          { backgroundColor: colors.card, borderColor: colors.border },
-        ]}
-      >
-        <Text style={[styles.metricLabel, { color: colors.mutedForeground }]}>
-          {label}
-        </Text>
-        <Text style={[styles.metricValue, { color: colors.foreground }]}>
-          {value}
-        </Text>
-        {unit ? (
-          <Text style={[styles.metricUnit, { color: colors.primary }]}>
-            {unit}
-          </Text>
-        ) : null}
-      </View>
-    );
-  }
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',
@@ -1067,21 +927,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 12,
   },
-  errorCard: {
-    maxWidth: 340,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-  },
-  errorText: {
-    flex: 1,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 18,
-  },
   runningContent: {
     gap: 10,
     paddingTop: 16,
@@ -1115,11 +960,6 @@ const styles = StyleSheet.create({
   runMapFrame: {
     height: 226,
   },
-  metricLabel: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.1,
-  },
   statRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1133,103 +973,211 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
-  equityText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 11,
-    letterSpacing: 1.1,
-    textAlign: 'center',
-  },
-  equityActiveRow: {
+  headerFloating: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  voicePill: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
-  equityTextActive: {
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161920',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
+  },
+  statusDot2: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusPillText: {
+    color: '#FFF',
     fontFamily: 'Inter_700Bold',
-    fontSize: 13,
-    letterSpacing: 1.5,
+    fontSize: 12,
   },
-  metricCard: {
-    flex: 1,
-    minHeight: 88,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 11,
+  bottomSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 12,
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 5,
+    backgroundColor: '#E5E5EA',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  metricCol: {
+    alignItems: 'center',
+  },
+  metricLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: '#8E8E93',
+    marginBottom: 4,
   },
   metricValue: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 20,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
-    marginTop: 8,
+    fontFamily: 'Inter_900Black',
+    fontSize: 40,
+    color: '#000',
+    letterSpacing: -1,
   },
   metricUnit: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 10,
-    marginTop: 2,
-  },
-  claimedCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-    borderWidth: 1,
-    borderRadius: 15,
-    paddingHorizontal: 13,
-    minHeight: 58,
-  },
-  claimedIcon: {
-    width: 34,
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 11,
-    backgroundColor: 'rgba(45, 224, 176, 0.12)',
-  },
-  claimedTextBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  claimedText: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 13,
+    fontSize: 12,
+    color: '#8E8E93',
+    marginTop: -4,
   },
-  claimedMeta: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 11,
-  },
-  contestCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 13,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  contestText: {
-    flex: 1,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  stopButton: {
-    minHeight: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
+  holdToFinish: {
+    backgroundColor: '#000',
+    borderRadius: 30,
+    height: 60,
     justifyContent: 'center',
-    gap: 11,
-    borderRadius: 18,
-    marginTop: 2,
+    alignItems: 'center',
+    marginTop: 12,
   },
-  stopIcon: {
-    width: 15,
-    height: 15,
-    borderRadius: 3,
-    backgroundColor: '#F2E8D5',
-  },
-  stopButtonText: {
+  holdToFinishText: {
+    color: '#FFF',
     fontFamily: 'Inter_700Bold',
     fontSize: 17,
   },
+  pauseButton: {
+    borderRadius: 30,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  pauseButtonText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 17,
+  },
+  preflightSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    backgroundColor: '#FFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 12,
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  preflightTitle: {
+    fontFamily: 'Inter_900Black',
+    fontSize: 24,
+    color: '#000',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  preflightSubtitle: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  permissionBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF9E6',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  permissionText: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    color: '#D57B00',
+  },
+  permissionBtn: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  permissionBtnText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+    color: '#FFF',
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEBEB',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    color: '#C93425',
+  },
+  noticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E5F1FF',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  noticeText: {
+    flex: 1,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+    color: '#007AFF',
+  },
+  startPreflightBtn: {
+    backgroundColor: '#00FF00',
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  startPreflightBtnText: {
+    fontFamily: 'Inter_900Black',
+    fontSize: 18,
+    color: '#000',
+  },
+  bgNote: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: '#8E8E93',
+    textAlign: 'center',
+  }
 });

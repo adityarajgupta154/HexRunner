@@ -9,3 +9,4 @@
 - [PostgreSQL outbox concurrency](postgres-outbox-concurrency.md) — correlate events durably, token-guard lease completion, and serialize terminal classification with late inserts.
 - [Voice event authority](voice-event-authority.md) — spoken run events must use authoritative confirmations and reject stale asynchronous context.
 - [First-launch browser checks](first-launch-browser-checks.md) — baseline handoff checks need both protected identity state and an available location.
+- [Anonymous identity bootstrap](anonymous-identity-bootstrap.md) — keep fresh web identity setup cancellation-aware and persist each UID/credential pair atomically.

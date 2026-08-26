@@ -9,6 +9,8 @@ export type HexGridProps = {
   hexIndexes: string[];
   claimedHexIndexes?: ReadonlySet<string>;
   otherHexIndexes?: ReadonlySet<string>;
+  myColor?: string;
+  otherColors?: ReadonlyMap<string, string>;
 };
 
 type CanvasPoint = { x: number; y: number };
@@ -38,20 +40,32 @@ export default function HexGrid({
   hexIndexes,
   claimedHexIndexes,
   otherHexIndexes,
+  myColor,
+  otherColors,
 }: HexGridProps) {
   const colors = useColors();
   const polygons = useMemo(() => {
     if (!center) return [];
-    return hexIndexes.map(h3Index => ({
-      h3Index,
-      points: hexToPolygon(h3Index)
-        .map(coordinate => project(coordinate.latitude, coordinate.longitude, center))
-        .map(point => `${point.x},${point.y}`)
-        .join(' '),
-      isMine: claimedHexIndexes?.has(h3Index) ?? false,
-      isOther: otherHexIndexes?.has(h3Index) ?? false,
-    }));
-  }, [center, claimedHexIndexes, hexIndexes, otherHexIndexes]);
+    return hexIndexes.map(h3Index => {
+      const isMine = claimedHexIndexes?.has(h3Index) ?? false;
+      const isOther = otherHexIndexes?.has(h3Index) ?? false;
+
+      let hexColor = isMine ? (myColor ?? colors.primary) : (isOther ? (otherColors?.get(h3Index) ?? colors.destructive) : 'transparent');
+      let strokeColor = isMine ? (myColor ?? colors.primary) : (isOther ? (otherColors?.get(h3Index) ?? colors.destructive) : colors.foreground);
+
+      return {
+        h3Index,
+        points: hexToPolygon(h3Index)
+          .map(coordinate => project(coordinate.latitude, coordinate.longitude, center))
+          .map(point => `${point.x},${point.y}`)
+          .join(' '),
+        isMine,
+        isOther,
+        hexColor,
+        strokeColor,
+      };
+    });
+  }, [center, claimedHexIndexes, hexIndexes, otherHexIndexes, myColor, otherColors, colors]);
 
   if (!center) return null;
 
@@ -64,15 +78,16 @@ export default function HexGrid({
         viewBox={`0 0 ${CANVAS_SIZE} ${CANVAS_SIZE}`}
         preserveAspectRatio="xMidYMid slice"
       >
-        {polygons.map(({ h3Index, points, isMine, isOther }) => (
+        {polygons.map(({ h3Index, points, isMine, isOther, hexColor, strokeColor }) => (
           <Polygon
             key={h3Index}
             points={points}
-            fill={isMine ? colors.primary : isOther ? colors.destructive : 'transparent'}
+            fill={hexColor}
             fillOpacity={isMine ? 0.32 : isOther ? 0.26 : 0}
-            stroke={isMine ? colors.primary : isOther ? colors.destructive : colors.foreground}
+            stroke={strokeColor}
             strokeOpacity={isMine || isOther ? 0.92 : 0.34}
             strokeWidth={isMine || isOther ? 3 : 1.4}
+            strokeDasharray={isOther ? "6, 4" : undefined}
           />
         ))}
       </Svg>

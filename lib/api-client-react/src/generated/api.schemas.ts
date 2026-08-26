@@ -103,6 +103,8 @@ export interface SaveRunRequest {
   /** @minimum 0 */
   elapsedSeconds: number;
   /** @minimum 0 */
+  pausedSeconds?: number;
+  /** @minimum 0 */
   distanceKm: number;
   /** @maxItems 20000 */
   points: RunPoint[];
@@ -147,6 +149,9 @@ export interface SaveRunResult {
   dailyBonusCredit: number;
   /** @minimum 1 */
   dailyBonusCap: number;
+  loopDetected: boolean;
+  /** @minimum 0 */
+  interiorHexes: number;
 }
 
 export interface HexOwnershipLookupRequest {
@@ -160,6 +165,17 @@ export interface HexOwnershipLookupRequest {
   h3Indexes: string[];
 }
 
+export type TerritoryColor = typeof TerritoryColor[keyof typeof TerritoryColor];
+
+
+export const TerritoryColor = {
+  amber: 'amber',
+  cyan: 'cyan',
+  emerald: 'emerald',
+  fuchsia: 'fuchsia',
+  violet: 'violet',
+} as const;
+
 export interface HexOwnership {
   h3Index: string;
   /** @nullable */
@@ -172,6 +188,7 @@ export interface HexOwnership {
      * @nullable
      */
   freshnessScore: number | null;
+  ownerTerritoryColor: TerritoryColor | null;
 }
 
 export interface HexOwnershipLookupResult {
@@ -602,6 +619,7 @@ export interface UserBaselineUpdate {
      */
   city: string;
   activityLevel: FitnessTier;
+  territoryColor?: TerritoryColor;
 }
 
 export interface UserBaseline {
@@ -609,6 +627,7 @@ export interface UserBaseline {
   city: string;
   activityLevel: FitnessTier;
   completedAt: string;
+  territoryColor: TerritoryColor;
 }
 
 export interface TakeoverAlert {

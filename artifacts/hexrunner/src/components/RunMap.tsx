@@ -19,6 +19,7 @@ type RunMapProps = {
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
   onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
+  myColor?: string;
 };
 
 /** Browser fallback; Expo Go selects RunMap.native.tsx automatically. */
@@ -30,6 +31,7 @@ export default function RunMap({
   exactRunners,
   anonymousRunners,
   onRunnerPress,
+  myColor,
 }: RunMapProps) {
   const colors = useColors();
 
@@ -55,6 +57,7 @@ export default function RunMap({
         exactRunners={exactRunners}
         anonymousRunners={anonymousRunners}
         onRunnerPress={onRunnerPress}
+        myColor={myColor}
       />
     </View>
   );

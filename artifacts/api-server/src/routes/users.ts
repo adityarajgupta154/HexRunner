@@ -23,11 +23,19 @@ import { calculateRunStreak } from "../lib/runStreak";
 const router: IRouter = Router();
 const leaderboardScopes = ["global", "city", "friends"] as const;
 const fitnessTiers = ["beginner", "casual", "regular", "trained"] as const;
+const territoryColors = ["amber", "cyan", "emerald", "fuchsia", "violet"] as const;
+const DEFAULT_TERRITORY_COLOR = "amber";
 
 function isFitnessTier(
   value: string | null,
 ): value is (typeof fitnessTiers)[number] {
   return value !== null && fitnessTiers.includes(value as (typeof fitnessTiers)[number]);
+}
+
+function safeTerritoryColor(value: string | null): (typeof territoryColors)[number] {
+  return territoryColors.includes(value as (typeof territoryColors)[number])
+    ? (value as (typeof territoryColors)[number])
+    : DEFAULT_TERRITORY_COLOR;
 }
 
 function startOfUtcDay(value: Date): Date {
@@ -224,6 +232,7 @@ router.patch("/users/:userId/baseline", async (req, res) => {
   const activityLevel = parsedBody.data.activityLevel;
   const city = parsedBody.data.city.trim().replace(/\s+/g, " ");
   const displayName = parsedBody.data.displayName?.trim().replace(/\s+/g, " ");
+  const territoryColor = parsedBody.data.territoryColor;
   const now = new Date();
 
   try {
@@ -234,6 +243,7 @@ router.patch("/users/:userId/baseline", async (req, res) => {
         displayName: displayName || null,
         city,
         activityLevel,
+        territoryColor: territoryColor ?? DEFAULT_TERRITORY_COLOR,
         baselineCompletedAt: now,
         lastSeenAt: now,
       })
@@ -243,6 +253,7 @@ router.patch("/users/:userId/baseline", async (req, res) => {
           displayName: displayName || sql`${hexrunnerUsersTable.displayName}`,
           city,
           activityLevel,
+          territoryColor: territoryColor ?? sql`${hexrunnerUsersTable.territoryColor}`,
           baselineCompletedAt: now,
           lastSeenAt: now,
         },
@@ -253,6 +264,7 @@ router.patch("/users/:userId/baseline", async (req, res) => {
         city: hexrunnerUsersTable.city,
         activityLevel: hexrunnerUsersTable.activityLevel,
         baselineCompletedAt: hexrunnerUsersTable.baselineCompletedAt,
+        territoryColor: hexrunnerUsersTable.territoryColor,
       });
 
     if (
@@ -270,6 +282,7 @@ router.patch("/users/:userId/baseline", async (req, res) => {
         city: user.city,
         activityLevel: user.activityLevel,
         completedAt: user.baselineCompletedAt,
+        territoryColor: safeTerritoryColor(user.territoryColor),
       }),
     );
   } catch (error) {
@@ -294,6 +307,7 @@ router.get("/users/:userId/stats", async (req, res) => {
         activityLevel: hexrunnerUsersTable.activityLevel,
         city: hexrunnerUsersTable.city,
         baselineCompletedAt: hexrunnerUsersTable.baselineCompletedAt,
+        territoryColor: hexrunnerUsersTable.territoryColor,
       })
       .from(hexrunnerUsersTable)
       .where(eq(hexrunnerUsersTable.id, parsed.data.userId))
@@ -430,6 +444,7 @@ router.get("/users/:userId/stats", async (req, res) => {
                 city: user.city,
                 activityLevel: user.activityLevel,
                 completedAt: user.baselineCompletedAt,
+                territoryColor: safeTerritoryColor(user.territoryColor),
               }
             : null,
         takeoverAlerts,

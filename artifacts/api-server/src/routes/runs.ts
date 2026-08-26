@@ -15,6 +15,7 @@ import { dailyBudgetForActivity } from "../lib/fitnessBudget";
 import { calculateRunStreak } from "../lib/runStreak";
 import { consumeRateLimit } from "../lib/rateLimit";
 import { getPathIntegrity } from "../lib/pathIntegrity";
+import { getLoopCapture } from "../lib/loopCapture";
 import {
   addEquityContributions,
   EQUITY_DAILY_BONUS_CAP,
@@ -68,15 +69,30 @@ router.post("/runs", async (req, res): Promise<void> => {
   const uniqueClaimedHexes = new Set(run.claimedHexes);
   const quality = getClaimQualitySnapshot(run.points);
   const pathIntegrity = getPathIntegrity(run.points);
-  const eligibleClaimedHexes = new Set(quality.eligibleHexes);
+  const loopCapture = pathIntegrity.flaggedSuspicious
+    ? { loopDetected: false, interiorHexes: [] }
+    : getLoopCapture(run.points);
+  const eligiblePathHexes = new Set(quality.eligibleHexes);
+  const authoritativeClaimHexes = [
+    ...eligiblePathHexes,
+    ...loopCapture.interiorHexes.filter((h3Index) => !eligiblePathHexes.has(h3Index)),
+  ];
+  // Older clients submit dwell-qualified path cells only. A newer client may
+  // include the complete server-derivable set, but can never add its own cell.
+  const matchesSet = (expected: readonly string[]) =>
+    expected.length === uniqueClaimedHexes.size &&
+    expected.every((h3Index) => uniqueClaimedHexes.has(h3Index));
   const claimedHexesMatchQuality =
-    eligibleClaimedHexes.size === uniqueClaimedHexes.size &&
-    [...eligibleClaimedHexes].every((h3Index) =>
-      uniqueClaimedHexes.has(h3Index),
-    );
+    matchesSet(quality.eligibleHexes) || matchesSet(authoritativeClaimHexes);
   const runWindowMs = run.endedAt.getTime() - run.startedAt.getTime();
+  // Pauses are client-reported validation metadata. Persisted elapsed time
+  // remains active movement time so pace and credits cannot be inflated by a
+  // stopped clock; omitted values retain legacy zero-pause semantics.
+  const pausedSeconds = run.pausedSeconds ?? 0;
   const durationMatchesWindow =
-    Math.abs(runWindowMs - run.elapsedSeconds * 1_000) <= 5_000;
+    Math.abs(
+      runWindowMs - (run.elapsedSeconds + pausedSeconds) * 1_000,
+    ) <= 5_000;
   const pointsAreChronological = run.points.every(
     (point, index) =>
       index === 0 || point.timestamp >= run.points[index - 1]!.timestamp,
@@ -104,10 +120,10 @@ router.post("/runs", async (req, res): Promise<void> => {
     const result = await db.transaction(async (tx) => {
       const now = new Date();
 
-      if (run.claimedHexes.length > 0) {
+      if (authoritativeClaimHexes.length > 0) {
         const requestApplicationName = `hexrunner-run:${run.clientRunId}`;
         const lockRows = sql.join(
-          run.claimedHexes.map((h3Index) => sql`(${h3Index})`),
+          authoritativeClaimHexes.map((h3Index) => sql`(${h3Index})`),
           sql`, `,
         );
         await tx.execute(
@@ -173,7 +189,7 @@ router.post("/runs", async (req, res): Promise<void> => {
       const bonusEarlierToday = Number(dailyUsage?.bonus ?? 0);
 
       const existingOwnership =
-        run.claimedHexes.length === 0
+        authoritativeClaimHexes.length === 0
           ? []
           : await tx
               .select({
@@ -185,7 +201,7 @@ router.post("/runs", async (req, res): Promise<void> => {
               .where(
                 inArray(
                   hexrunnerHexOwnershipTable.h3Index,
-                  run.claimedHexes,
+                  authoritativeClaimHexes,
                 ),
               );
       const existingOwnershipByHex = new Map(
@@ -213,7 +229,7 @@ router.post("/runs", async (req, res): Promise<void> => {
           previousRun.endedAt,
         ]),
       );
-      const claimableHexes = run.claimedHexes.filter((h3Index) => {
+      const claimableHexes = authoritativeClaimHexes.filter((h3Index) => {
         const ownership = existingOwnershipByHex.get(h3Index);
         if (!ownership) return true;
 
@@ -402,7 +418,7 @@ router.post("/runs", async (req, res): Promise<void> => {
           // Contributions describe validated traversal, not territory awards.
           // A daily ownership budget can withhold claims but must not erase
           // legitimate aggregate activity from the equity baseline.
-          run.claimedHexes,
+           quality.eligibleHexes,
           utcDayStart,
           now,
         );
@@ -518,6 +534,8 @@ router.post("/runs", async (req, res): Promise<void> => {
         averageAccuracyMeters: result.averageAccuracyMeters,
         maxSpeedMetersPerSecond: result.maxSpeedMetersPerSecond,
       },
+      loopDetected: loopCapture.loopDetected,
+      interiorHexes: loopCapture.interiorHexes.length,
     });
 
     res.status(result.idempotent ? 200 : 201).json(response);

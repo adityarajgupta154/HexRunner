@@ -23,6 +23,7 @@ type RunMapProps = {
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
   onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
+  myColor?: string;
 };
 
 const RUN_MAP_DELTA = {
@@ -59,6 +60,7 @@ export default function RunMap({
   exactRunners,
   anonymousRunners,
   onRunnerPress,
+  myColor,
 }: RunMapProps) {
   const colors = useColors();
   const mapRef = useRef<MapView | null>(null);
@@ -126,6 +128,7 @@ export default function RunMap({
           exactRunners={exactRunners}
           anonymousRunners={anonymousRunners}
           onRunnerPress={onRunnerPress}
+          myColor={myColor}
         />
       </MapView>
       <View

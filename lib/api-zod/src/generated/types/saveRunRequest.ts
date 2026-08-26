@@ -20,6 +20,8 @@ export interface SaveRunRequest {
   /** @minimum 0 */
   elapsedSeconds: number;
   /** @minimum 0 */
+  pausedSeconds?: number;
+  /** @minimum 0 */
   distanceKm: number;
   /** @maxItems 20000 */
   points: RunPoint[];

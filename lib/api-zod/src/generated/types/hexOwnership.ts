@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { TerritoryColor } from './territoryColor';
 
 export interface HexOwnership {
   h3Index: string;
@@ -18,4 +19,5 @@ export interface HexOwnership {
      * @nullable
      */
   freshnessScore: number | null;
+  ownerTerritoryColor: TerritoryColor | null;
 }

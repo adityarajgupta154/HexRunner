@@ -8,6 +8,8 @@ export type HexGridProps = {
   hexIndexes: string[];
   claimedHexIndexes?: ReadonlySet<string>;
   otherHexIndexes?: ReadonlySet<string>;
+  myColor?: string;
+  otherColors?: ReadonlyMap<string, string>;
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -28,40 +30,49 @@ export default function HexGrid({
   hexIndexes,
   claimedHexIndexes,
   otherHexIndexes,
+  myColor,
+  otherColors,
 }: HexGridProps) {
   const colors = useColors();
   const polygons = useMemo(
     () =>
-      hexIndexes.map(h3Index => ({
-        h3Index,
-        coordinates: hexToPolygon(h3Index),
-        isMine: claimedHexIndexes?.has(h3Index) ?? false,
-        isOther: otherHexIndexes?.has(h3Index) ?? false,
-      })),
-    [claimedHexIndexes, hexIndexes, otherHexIndexes],
+      hexIndexes.map(h3Index => {
+        const isMine = claimedHexIndexes?.has(h3Index) ?? false;
+        const isOther = otherHexIndexes?.has(h3Index) ?? false;
+
+        let hexColor = isMine ? (myColor ?? colors.primary) : (isOther ? (otherColors?.get(h3Index) ?? colors.destructive) : 'transparent');
+        let strokeColor = isMine ? (myColor ?? colors.primary) : (isOther ? (otherColors?.get(h3Index) ?? colors.destructive) : colors.foreground);
+
+        return {
+          h3Index,
+          coordinates: hexToPolygon(h3Index),
+          isMine,
+          isOther,
+          hexColor,
+          strokeColor,
+        };
+      }),
+    [claimedHexIndexes, hexIndexes, otherHexIndexes, myColor, otherColors, colors],
   );
 
   return (
     <>
-      {polygons.map(({ h3Index, coordinates, isMine, isOther }) => {
+      {polygons.map(({ h3Index, coordinates, isMine, isOther, hexColor, strokeColor }) => {
         const fillColor = isMine
-          ? hexToRgba(colors.primary, 0.32)
+          ? hexToRgba(hexColor, 0.32)
           : isOther
-            ? hexToRgba(colors.destructive, 0.26)
+            ? hexToRgba(hexColor, 0.26)
             : 'transparent';
-        const strokeColor = isMine
-          ? colors.primary
-          : isOther
-            ? colors.destructive
-            : hexToRgba(colors.foreground, 0.34);
+        const finalStrokeColor = isMine || isOther ? strokeColor : hexToRgba(strokeColor, 0.34);
 
         return (
           <Polygon
             key={h3Index}
             coordinates={coordinates}
             fillColor={fillColor}
-            strokeColor={strokeColor}
+            strokeColor={finalStrokeColor}
             strokeWidth={isMine || isOther ? 2 : 1}
+            lineDashPattern={isOther ? [6, 4] : undefined}
             tappable={false}
             zIndex={isMine ? 3 : isOther ? 2 : 1}
           />

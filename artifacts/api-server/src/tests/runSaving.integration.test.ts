@@ -22,6 +22,7 @@ import { cleanupExpiredCivicData } from "../routes/civic";
 import { issueAnonymousCredential } from "../lib/anonymousCredential";
 import { equityDailyAreaKey, equityRunKey } from "../lib/equityZones";
 import { getPathIntegrity } from "../lib/pathIntegrity";
+import { getLoopCapture } from "../lib/loopCapture";
 
 process.env.SESSION_SECRET ||= "hexrunner-run-saving-tests-only";
 
@@ -66,6 +67,9 @@ const TEST_RUNS = {
   repeatOther: `run_test_repeat_other_${TEST_NAMESPACE}`,
   historical: `run_test_historical_${TEST_NAMESPACE}`,
   retentionFixture: `run_test_retention_fixture_${TEST_NAMESPACE}`,
+  pausedValid: `run_test_paused_valid_${TEST_NAMESPACE}`,
+  pausedForged: `run_test_paused_forged_${TEST_NAMESPACE}`,
+  pausedLegacy: `run_test_paused_legacy_${TEST_NAMESPACE}`,
 };
 const TEST_USER_IDS = Object.values(TEST_USERS);
 const TEST_RUN_IDS = Object.values(TEST_RUNS);
@@ -298,6 +302,32 @@ describe("run-saving integration", { concurrency: false }, () => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
     await pool.end();
+  });
+
+  test("derives bounded interiors only from simple closed paths", () => {
+    const square = [
+      { lat: 37.770, lng: -122.425, timestamp: 0 },
+      { lat: 37.770, lng: -122.415, timestamp: 10_000 },
+      { lat: 37.780, lng: -122.415, timestamp: 20_000 },
+      { lat: 37.780, lng: -122.425, timestamp: 30_000 },
+      { lat: 37.770, lng: -122.425, timestamp: 40_000 },
+    ];
+    const captured = getLoopCapture(square);
+    assert.equal(captured.loopDetected, true);
+    assert.ok(captured.interiorHexes.length > 0);
+    assert.deepEqual(getLoopCapture([...square.slice(0, -1), {
+      lat: 37.790, lng: -122.400, timestamp: 40_000,
+    }]), { loopDetected: false, interiorHexes: [] });
+    assert.deepEqual(getLoopCapture([
+      square[0]!, square[2]!, square[1]!, square[3]!, square[0]!,
+    ]), { loopDetected: false, interiorHexes: [] });
+    assert.deepEqual(getLoopCapture([
+      { lat: 0, lng: 0, timestamp: 0 },
+      { lat: 0, lng: 2, timestamp: 1 },
+      { lat: 2, lng: 2, timestamp: 2 },
+      { lat: 2, lng: 0, timestamp: 3 },
+      { lat: 0, lng: 0, timestamp: 4 },
+    ]), { loopDetected: false, interiorHexes: [] });
   });
 
   test("saves atomically and retries the same run idempotently", async () => {
@@ -817,6 +847,53 @@ describe("run-saving integration", { concurrency: false }, () => {
         ]),
       );
     assert.equal(persisted.length, 0);
+  });
+
+  test("validates paused wall time while preserving active elapsed time and legacy omission", async () => {
+    const credential = await enroll(TEST_USERS.validation);
+    const validPoint = await unusedPoint(150);
+    const forgedPoint = await unusedPoint(151);
+    const legacyPoint = await unusedPoint(152);
+    const endedAt = new Date(Date.now() - 60_000);
+    const paused = {
+      ...runPayload({
+        clientRunId: TEST_RUNS.pausedValid,
+        lat: validPoint.lat,
+        lng: validPoint.lng,
+        startedAt: new Date(endedAt.getTime() - 600_000),
+        endedAt,
+      }),
+      elapsedSeconds: 480,
+      pausedSeconds: 120,
+    };
+    const saved = await postJson<SaveResponse>("/api/runs", paused, credential);
+    assert.equal(saved.status, 201);
+    const [stored] = await db
+      .select({ elapsedSeconds: hexrunnerRunsTable.elapsedSeconds })
+      .from(hexrunnerRunsTable)
+      .where(eq(hexrunnerRunsTable.id, TEST_RUNS.pausedValid));
+    assert.equal(stored?.elapsedSeconds, 480);
+
+    const forged = await postJson<{ error: string }>("/api/runs", {
+      ...runPayload({
+        clientRunId: TEST_RUNS.pausedForged,
+        lat: forgedPoint.lat,
+        lng: forgedPoint.lng,
+        startedAt: new Date(endedAt.getTime() - 1_200_000),
+        endedAt: new Date(endedAt.getTime() - 600_000),
+      }),
+      pausedSeconds: 120,
+    }, credential);
+    assert.equal(forged.status, 400);
+
+    const legacy = await postJson<SaveResponse>("/api/runs", runPayload({
+      clientRunId: TEST_RUNS.pausedLegacy,
+      lat: legacyPoint.lat,
+      lng: legacyPoint.lng,
+      startedAt: new Date(endedAt.getTime() - 1_800_000),
+      endedAt: new Date(endedAt.getTime() - 1_200_000),
+    }), credential);
+    assert.equal(legacy.status, 201);
   });
 
   test("serializes concurrent claims so a late older run cannot win", async () => {

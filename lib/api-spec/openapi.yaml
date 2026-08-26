@@ -852,6 +852,10 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
+        pausedSeconds:
+          type: number
+          multipleOf: 1
+          minimum: 0
         distanceKm:
           type: number
           minimum: 0
@@ -924,7 +928,9 @@ components:
         coldZoneHexes: { type: number, multipleOf: 1, minimum: 0 }
         dailyBonusCredit: { type: number, multipleOf: 1, minimum: 0 }
         dailyBonusCap: { type: number, multipleOf: 1, minimum: 1 }
-      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, budgetSkippedHexes, dailyClaimedHexes, dailyBudget, currentStreak, antiSpoof, baseCredit, bonusCredit, totalCredit, coldZoneHexes, dailyBonusCredit, dailyBonusCap]
+        loopDetected: { type: boolean }
+        interiorHexes: { type: number, multipleOf: 1, minimum: 0 }
+      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, budgetSkippedHexes, dailyClaimedHexes, dailyBudget, currentStreak, antiSpoof, baseCredit, bonusCredit, totalCredit, coldZoneHexes, dailyBonusCredit, dailyBonusCap, loopDetected, interiorHexes]
     HexOwnershipLookupRequest:
       type: object
       properties:
@@ -953,7 +959,11 @@ components:
           type: [number, "null"]
           minimum: 0
           maximum: 100
-      required: [h3Index, ownerId, claimedAt, freshnessScore]
+        ownerTerritoryColor:
+          oneOf:
+            - $ref: "#/components/schemas/TerritoryColor"
+            - type: "null"
+      required: [h3Index, ownerId, claimedAt, freshnessScore, ownerTerritoryColor]
     HexOwnershipLookupResult:
       type: object
       properties:
@@ -1407,6 +1417,9 @@ components:
     FitnessTier:
       type: string
       enum: [beginner, casual, regular, trained]
+    TerritoryColor:
+      type: string
+      enum: [amber, cyan, emerald, fuchsia, violet]
     LeaderboardScope:
       type: string
       enum: [global, city, friends]
@@ -1423,6 +1436,8 @@ components:
           maxLength: 60
         activityLevel:
           $ref: "#/components/schemas/FitnessTier"
+        territoryColor:
+          $ref: "#/components/schemas/TerritoryColor"
       required: [city, activityLevel]
     UserBaseline:
       type: object
@@ -1436,7 +1451,9 @@ components:
         completedAt:
           type: string
           format: date-time
-      required: [displayName, city, activityLevel, completedAt]
+        territoryColor:
+          $ref: "#/components/schemas/TerritoryColor"
+      required: [displayName, city, activityLevel, completedAt, territoryColor]
     TakeoverAlert:
       type: object
       properties:

@@ -111,6 +111,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
             AsyncStorage.getItem(IDENTITY_NOTICE_KEY),
           ]);
 
+        if (!active) return;
+
         if (
           storedUid &&
           VALID_UID.test(storedUid) &&
@@ -132,7 +134,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
           VALID_ENROLLMENT_SECRET.test(storedEnrollmentSecret)
             ? storedEnrollmentSecret
             : await createEnrollmentSecret();
+        if (!active) return;
         await setSensitiveValue(ENROLLMENT_SECRET_KEY, enrollmentSecret);
+        if (!active) return;
 
         const requestedUserId =
           storedUid && VALID_UID.test(storedUid)
@@ -147,6 +151,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
             enrollmentSecret,
           );
         } catch (registrationError: unknown) {
+          if (!active) return;
           if (!isConflict(registrationError)) {
             throw registrationError;
           }
@@ -163,11 +168,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
           );
         }
 
-        await AsyncStorage.setItem(ANONYMOUS_UID_KEY, identity.userId);
-        await setSensitiveValue(
-          ANONYMOUS_CREDENTIAL_KEY,
-          identity.credential,
-        );
+        if (!active) return;
+        await Promise.all([
+          AsyncStorage.setItem(ANONYMOUS_UID_KEY, identity.userId),
+          setSensitiveValue(
+            ANONYMOUS_CREDENTIAL_KEY,
+            identity.credential,
+          ),
+        ]);
+        if (!active) return;
         setAuthTokenGetter(() => identity.credential);
 
         if (active) {

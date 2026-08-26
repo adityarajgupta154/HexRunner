@@ -36,6 +36,8 @@ export type TerritoryPaintProps = {
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
   onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
+  myColor?: string;
+  otherColors?: ReadonlyMap<string, string>;
 };
 
 type CanvasPoint = { x: number; y: number };
@@ -77,6 +79,8 @@ export default function TerritoryPaint({
   exactRunners = [],
   anonymousRunners = [],
   onRunnerPress,
+  myColor,
+  otherColors,
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -229,15 +233,19 @@ export default function TerritoryPaint({
             origin,
           );
           const isRival = spot.ownerKind === 'rival';
+          const hexColor = isRival
+            ? (otherColors?.get(spot.id) ?? colors.destructive)
+            : (myColor ?? colors.primary);
+
           return (
             <Circle
               key={spot.id}
               cx={point.x}
               cy={point.y}
               r={Math.max(14, spot.radiusMeters * spotScale)}
-              fill={isRival ? colors.destructive : colors.primary}
+              fill={hexColor}
               fillOpacity={isRival ? 0.22 : 0.3}
-              stroke={isRival ? colors.destructive : colors.primary}
+              stroke={hexColor}
               strokeOpacity={0.62}
               strokeWidth={10}
             />
@@ -249,7 +257,7 @@ export default function TerritoryPaint({
             <Polyline
               points={routeValue}
               fill="none"
-              stroke={colors.primary}
+              stroke={myColor ?? colors.primary}
               strokeOpacity={0.18}
               strokeWidth={34}
               strokeLinecap="round"
@@ -258,7 +266,7 @@ export default function TerritoryPaint({
             <Polyline
               points={routeValue}
               fill="none"
-              stroke={colors.primary}
+              stroke={myColor ?? colors.primary}
               strokeOpacity={0.9}
               strokeWidth={16}
               strokeLinecap="round"

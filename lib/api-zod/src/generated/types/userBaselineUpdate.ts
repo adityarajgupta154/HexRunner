@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FitnessTier } from './fitnessTier';
+import type { TerritoryColor } from './territoryColor';
 
 export interface UserBaselineUpdate {
   /**
@@ -19,4 +20,5 @@ export interface UserBaselineUpdate {
      */
   city: string;
   activityLevel: FitnessTier;
+  territoryColor?: TerritoryColor;
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,8 +11,10 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/src/context/AuthContext';
-import { useGetUserStats, getGetUserStatsQueryKey } from '@workspace/api-client-react';
+import { useGetUserStats, getGetUserStatsQueryKey, useUpdateUserBaseline, type TerritoryColor } from '@workspace/api-client-react';
 import { predictFitnessProfile } from '@/src/services/fitnessModel';
+import { useQueryClient } from '@tanstack/react-query';
+import { TERRITORY_COLORS, getTerritoryColor } from '@/src/services/territoryColor';
 
 function formatPace(paceMinPerKm: number | null): string {
   if (paceMinPerKm === null || paceMinPerKm <= 0) return '--:--';
@@ -30,6 +32,9 @@ export default function ProfileScreen() {
     loading: identityLoading,
     error: identityError,
   } = useAuth();
+
+  const queryClient = useQueryClient();
+  const updateBaseline = useUpdateUserBaseline();
 
   const {
     data,
@@ -53,6 +58,23 @@ export default function ProfileScreen() {
       data.baseline?.activityLevel ?? 'casual',
     );
   }, [data]);
+
+  const handleColorSelect = useCallback((c: TerritoryColor) => {
+    if (!uid || !data?.baseline) return;
+    updateBaseline.mutate({
+      userId: uid,
+      data: {
+        city: data.baseline.city,
+        activityLevel: data.baseline.activityLevel,
+        displayName: data.displayName ?? undefined,
+        territoryColor: c,
+      }
+    }, {
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: getGetUserStatsQueryKey(uid) });
+      }
+    });
+  }, [data, uid, updateBaseline, queryClient]);
 
   const onRetry = useCallback(() => {
     void refetch();
@@ -146,6 +168,45 @@ export default function ProfileScreen() {
                 </Text>
               </View>
             </View>
+
+            {data?.baseline ? (
+              <View
+                accessible
+                accessibilityLabel={`Territory colour. ${data.baseline.territoryColor} selected.`}
+                style={styles.colorSection}
+              >
+                <Text style={[styles.colorTitle, { color: colors.primary }]}>TERRITORY COLOUR</Text>
+                {updateBaseline.isError ? <Text style={{color: colors.destructive, fontSize: 11, marginBottom: 8}}>Failed to save colour</Text> : null}
+                <View style={styles.colorGrid}>
+                  {Object.entries(TERRITORY_COLORS).map(([key, hexValue]) => {
+                    const c = key as TerritoryColor;
+                    const isSelected = data.baseline?.territoryColor === c;
+                    return (
+                      <Pressable
+                        key={key}
+                        accessibilityLabel={`Set territory colour ${key}`}
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: isSelected }}
+                        disabled={updateBaseline.isPending}
+                        onPress={() => handleColorSelect(c)}
+                        style={[
+                          styles.colorSwatch,
+                          { backgroundColor: hexValue },
+                          isSelected && styles.colorSwatchSelected
+                        ]}
+                      >
+                        {isSelected && !updateBaseline.isPending && (
+                          <Feather name="check" size={16} color="#000" style={styles.colorCheck} />
+                        )}
+                        {isSelected && updateBaseline.isPending && (
+                          <ActivityIndicator size="small" color="#000" style={styles.colorCheck} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
 
             <View style={styles.statsGrid}>
               <View style={[styles.statBoxFull, { backgroundColor: colors.card, borderColor: colors.primary }]}>
@@ -481,6 +542,34 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 16,
     fontVariant: ['tabular-nums'],
+  },
+  colorSection: {
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  colorTitle: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  colorSwatch: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorSwatchSelected: {
+    borderWidth: 3,
+    borderColor: '#FFF',
+  },
+  colorCheck: {
+    position: 'absolute',
   },
   errorText: {
     fontFamily: 'Inter_700Bold',

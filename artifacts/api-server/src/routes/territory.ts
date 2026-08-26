@@ -3,16 +3,27 @@ import {
   LookupHexOwnershipBody,
   LookupHexOwnershipResponse,
 } from "@workspace/api-zod";
-import { inArray } from "drizzle-orm";
-import { db, hexrunnerHexOwnershipTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
+import {
+  db,
+  hexrunnerHexOwnershipTable,
+  hexrunnerUsersTable,
+} from "@workspace/db";
 
 const router: IRouter = Router();
 const FRESHNESS_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
+const territoryColors = ["amber", "cyan", "emerald", "fuchsia", "violet"] as const;
 
 function calculateFreshnessScore(claimedAt: Date | null): number | null {
   if (!claimedAt) return null;
   const age = Math.max(0, Date.now() - claimedAt.getTime());
   return Math.max(0, Math.round(100 * (1 - age / FRESHNESS_WINDOW_MS)));
+}
+
+function safeTerritoryColor(value: string | null): (typeof territoryColors)[number] {
+  return territoryColors.includes(value as (typeof territoryColors)[number])
+    ? (value as (typeof territoryColors)[number])
+    : "amber";
 }
 
 router.post("/hex-ownership/lookup", async (req, res) => {
@@ -29,8 +40,13 @@ router.post("/hex-ownership/lookup", async (req, res) => {
         h3Index: hexrunnerHexOwnershipTable.h3Index,
         ownerId: hexrunnerHexOwnershipTable.ownerId,
         claimedAt: hexrunnerHexOwnershipTable.claimedAt,
+        ownerTerritoryColor: hexrunnerUsersTable.territoryColor,
       })
       .from(hexrunnerHexOwnershipTable)
+      .leftJoin(
+        hexrunnerUsersTable,
+        eq(hexrunnerUsersTable.id, hexrunnerHexOwnershipTable.ownerId),
+      )
       .where(
         inArray(
           hexrunnerHexOwnershipTable.h3Index,
@@ -48,6 +64,9 @@ router.post("/hex-ownership/lookup", async (req, res) => {
           ownerId: ownership?.ownerId ?? null,
           claimedAt: ownership?.claimedAt ?? null,
           freshnessScore: calculateFreshnessScore(ownership?.claimedAt ?? null),
+          ownerTerritoryColor: ownership
+            ? safeTerritoryColor(ownership.ownerTerritoryColor)
+            : null,
         };
       }),
     });

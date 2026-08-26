@@ -12,7 +12,7 @@ import type { LocationObject } from 'expo-location';
 import type { MapStyleElement, Region } from 'react-native-maps';
 import MapView from 'react-native-maps/lib/MapView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import HexGrid from '@/src/components/HexGrid';
 import TerritoryPaint from '@/src/components/TerritoryPaint';
 import PresenceOverlay from '@/src/components/PresenceOverlay';
@@ -37,6 +37,8 @@ import { pointToHex } from '@/src/services/hexEngine';
 import { useLiveInteractions } from '@/src/hooks/useLiveInteractions';
 import { LiveInteractionsOverlay } from '@/src/components/LiveInteractionsOverlay';
 import { WaveActionModal } from '@/src/components/WaveActionModal';
+import { CoachTour } from '@/src/components/CoachTour';
+import { getTerritoryColor } from '@/src/services/territoryColor';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -99,6 +101,7 @@ function LiveMap() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { uid } = useAuth();
+  const router = useRouter();
 
   const mapRef = useRef<MapView | null>(null);
   const lastHexRegionRef = useRef<Region | null>(null);
@@ -111,6 +114,7 @@ function LiveMap() {
 
   const [myHexes, setMyHexes] = useState<Set<string>>(new Set());
   const [otherHexes, setOtherHexes] = useState<Set<string>>(new Set());
+  const [otherColors, setOtherColors] = useState<Map<string, string>>(new Map());
   const [territoryFreshness, setTerritoryFreshness] = useState<number | null>(null);
   const [safetyAreas, setSafetyAreas] = useState<SafetyAreaSignal[]>([]);
   const [civicAreas, setCivicAreas] = useState<CivicAreaSignal[]>([]);
@@ -118,6 +122,7 @@ function LiveMap() {
   const [showCivicLayer, setShowCivicLayer] = useState(true);
   const [cityIntelExpanded, setCityIntelExpanded] = useState(false);
   const [communityExpanded, setCommunityExpanded] = useState(false);
+  const [mapMode, setMapMode] = useState<'live' | 'target'>('live');
   const [civicNotice, setCivicNotice] = useState<string | null>(null);
 
   const lookupMutation = useLookupHexOwnership();
@@ -176,6 +181,7 @@ function LiveMap() {
         onSuccess: (res) => {
           const newMyHexes = new Set<string>();
           const newOtherHexes = new Set<string>();
+          const newOtherColors = new Map<string, string>();
           const freshnessScores: number[] = [];
 
           if (!Array.isArray(res.ownership)) {
@@ -194,11 +200,16 @@ function LiveMap() {
               if (hex.freshnessScore !== null) freshnessScores.push(hex.freshnessScore);
             } else {
               newOtherHexes.add(hex.h3Index);
+              if (hex.ownerTerritoryColor) {
+                const colorHex = getTerritoryColor(hex.ownerTerritoryColor);
+                if (colorHex) newOtherColors.set(hex.h3Index, colorHex);
+              }
             }
           });
 
           setMyHexes(newMyHexes);
           setOtherHexes(newOtherHexes);
+          setOtherColors(newOtherColors);
           setTerritoryFreshness(
             freshnessScores.length
               ? Math.round(freshnessScores.reduce((sum, score) => sum + score, 0) / freshnessScores.length)
@@ -410,6 +421,8 @@ function LiveMap() {
     !territoryFailed &&
     (userStats?.totals.totalHexesOwned ?? 0) === 0;
 
+  const myColor = getTerritoryColor(userStats?.baseline?.territoryColor);
+
   return (
     <View style={styles.container}>
       {Platform.OS === 'web' ? (
@@ -418,6 +431,8 @@ function LiveMap() {
             center={coordinate}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            myColor={myColor}
+            otherColors={otherColors}
             showOwnershipPaint={false}
             safetyAreas={safetyAreas}
             civicAreas={showCivicLayer ? civicAreas : []}
@@ -433,6 +448,8 @@ function LiveMap() {
             hexIndexes={visibleHexes}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            myColor={myColor}
+            otherColors={otherColors}
           />
         </View>
       ) : (
@@ -454,11 +471,15 @@ function LiveMap() {
             hexIndexes={visibleHexes}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            myColor={myColor}
+            otherColors={otherColors}
           />
           <TerritoryPaint
             center={coordinate}
             claimedHexIndexes={myHexes}
             otherHexIndexes={otherHexes}
+            myColor={myColor}
+            otherColors={otherColors}
             showOwnershipPaint={false}
             safetyAreas={safetyAreas}
             civicAreas={showCivicLayer ? civicAreas : []}
@@ -472,22 +493,85 @@ function LiveMap() {
         </MapView>
       )}
 
-      <View pointerEvents="none" style={[styles.topBar, { top: insets.top + 14 }]}>
-        <View style={[styles.liveBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[styles.liveDot, { backgroundColor: colors.primary }]} />
-          <Text style={[styles.liveText, { color: colors.foreground }]}>CITY / LIVE</Text>
+      <View pointerEvents="box-none" style={[styles.topBar, { top: insets.top + 14 }]}>
+        {/* Top Left: Territory Area */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open territory profile"
+          onPress={() => router.push('/profile')}
+          style={[styles.pill, { backgroundColor: colors.card, flexDirection: 'column', alignItems: 'flex-start', paddingVertical: 6 }]}
+        >
+          <Text style={[styles.pillText, { color: '#FFF' }]}>{((userStats?.totals.totalHexesOwned ?? 0) * 0.01).toFixed(2)} km²</Text>
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 8, height: 2, backgroundColor: colors.primary }} />
+              <Text style={{ fontSize: 9, fontFamily: 'Inter_600SemiBold', color: colors.mutedForeground }}>YOU</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 8, height: 2, borderWidth: 1, borderColor: colors.destructive, borderStyle: 'dashed' }} />
+              <Text style={{ fontSize: 9, fontFamily: 'Inter_600SemiBold', color: colors.mutedForeground }}>RIVAL</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        {/* Top Center: Segmented Controls */}
+        <View style={[styles.segmentedPill, { backgroundColor: '#161920' }]}>
+           <Pressable
+             accessibilityRole="tab"
+             accessibilityState={{ selected: mapMode === 'live' }}
+             onPress={() => setMapMode('live')}
+             style={[styles.segmentOption, mapMode === 'live' && { backgroundColor: colors.primary }]}
+           >
+              <Text style={[styles.segmentText, { color: mapMode === 'live' ? colors.primaryForeground : colors.foreground }]}>LIVE</Text>
+           </Pressable>
+           <Pressable
+             accessibilityRole="tab"
+             accessibilityState={{ selected: mapMode === 'target' }}
+             onPress={() => setMapMode('target')}
+             style={[styles.segmentOption, mapMode === 'target' && { backgroundColor: colors.primary }]}
+           >
+              <Text style={[styles.segmentText, { color: mapMode === 'target' ? colors.primaryForeground : colors.foreground }]}>TARGET</Text>
+           </Pressable>
         </View>
 
-        <View
-          accessibilityLabel={`Today's target: ${userStats?.totals.todayClaimedHexes ?? 0} of ${userStats?.totals.dailyBudget ?? 10} territory zones`}
-          style={[styles.tierBadge, { backgroundColor: colors.card, borderColor: colors.border }]}
-        >
-          <Feather name="target" size={14} color={colors.primary} />
-          <Text style={[styles.tierText, { color: colors.foreground }]}>
-            {userStats?.totals.todayClaimedHexes ?? 0}/{userStats?.totals.dailyBudget ?? 10} MARKS
-          </Text>
+        {/* Top Right: Modes */}
+        <View style={[styles.pill, { backgroundColor: colors.sheet }]}>
+          <Feather name="activity" size={14} color={colors.sheetForeground} />
+          <Text style={[styles.pillText, { color: colors.sheetForeground, marginLeft: 5 }]}>RUN</Text>
         </View>
       </View>
+
+      {mapMode === 'target' ? (
+        <View
+          style={[
+            styles.targetPreview,
+            {
+              top: insets.top + 72,
+              backgroundColor: colors.card,
+              borderColor: colors.primary,
+            },
+          ]}
+        >
+          <View style={styles.targetPreviewCopy}>
+            <Text style={[styles.targetPreviewLabel, { color: colors.primary }]}>SCOUTING TARGET</Text>
+            <Text style={[styles.targetPreviewText, { color: colors.foreground }]}>
+              Pan to a zone. This is a static intention marker, not turn-by-turn navigation.
+            </Text>
+          </View>
+          <Pressable accessibilityLabel="Scout this target area" onPress={() => {
+            const currentCenter = lastHexRegionRef.current || coordinate;
+            router.push({
+              pathname: '/run',
+              params: {
+                targetLatitude: currentCenter.latitude,
+                targetLongitude: currentCenter.longitude
+              }
+            });
+          }}>
+            <Feather name="arrow-up-right" size={22} color={colors.primary} />
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={[styles.aqiPanel, { top: insets.top + 62 }]}>
         <AirQualityCard
@@ -540,7 +624,7 @@ function LiveMap() {
         style={[
           styles.communityControls,
           {
-            bottom: Math.max(insets.bottom, 12) + 82,
+            bottom: Math.max(insets.bottom, 12) + 150,
             backgroundColor: colors.card,
             borderColor: colors.border,
           },
@@ -663,7 +747,7 @@ function LiveMap() {
           style={[
             styles.civicNotice,
             {
-              bottom: Math.max(insets.bottom, 12) + 202,
+              bottom: Math.max(insets.bottom, 12) + 278,
               backgroundColor: colors.card,
               borderColor: colors.border,
             },
@@ -733,20 +817,36 @@ function LiveMap() {
         style={({ pressed }) => [
           styles.recenterButton,
           {
-            bottom: Math.max(insets.bottom, 12) + 82,
-            backgroundColor: colors.card,
-            borderColor: colors.border,
+            bottom: Math.max(insets.bottom, 12) + 216,
+            backgroundColor: '#161920',
+            borderColor: '#303440',
             opacity: pressed ? 0.82 : 1,
           },
         ]}
       >
-        <Feather name="crosshair" size={22} color={colors.primary} />
+        <Feather name="crosshair" size={22} color={colors.foreground} />
+      </Pressable>
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/run')}
+        style={({ pressed }) => [
+          styles.startButton,
+          {
+            bottom: Math.max(insets.bottom, 12) + 82,
+            opacity: pressed ? 0.82 : 1,
+          }
+        ]}
+      >
+        <Text style={styles.startButtonText}>Start</Text>
       </Pressable>
 
       <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
       <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
 
       {userStats && !userStats.baseline ? <BaselineOnboarding /> : null}
+
+      <CoachTour />
     </View>
   );
 }
@@ -963,6 +1063,33 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 12,
   },
+  targetPreview: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    minHeight: 68,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  targetPreviewCopy: {
+    flex: 1,
+  },
+  targetPreviewLabel: {
+    fontFamily: 'Inter_800ExtraBold',
+    fontSize: 10,
+    letterSpacing: 1.2,
+  },
+  targetPreviewText: {
+    marginTop: 3,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 17,
+  },
   territoryNoticeCopy: {
     flex: 1,
   },
@@ -992,4 +1119,61 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1,
   },
+  pill: {
+    height: 38,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  pillText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+  },
+  segmentedPill: {
+    height: 38,
+    borderRadius: 20,
+    flexDirection: 'row',
+    padding: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  segmentOption: {
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  segmentText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+  },
+  startButton: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    height: 56,
+    paddingHorizontal: 32,
+    backgroundColor: '#00FF00',
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  startButtonText: {
+    color: '#000',
+    fontFamily: 'Inter_800ExtraBold',
+    fontSize: 16,
+    textTransform: 'uppercase',
+  }
 });

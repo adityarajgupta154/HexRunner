@@ -38,4 +38,7 @@ export interface SaveRunResult {
   dailyBonusCredit: number;
   /** @minimum 1 */
   dailyBonusCap: number;
+  loopDetected: boolean;
+  /** @minimum 0 */
+  interiorHexes: number;
 }

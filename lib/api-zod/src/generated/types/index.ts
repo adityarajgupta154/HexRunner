@@ -76,6 +76,7 @@ export * from './saveRunResult';
 export * from './sendWaveInput';
 export * from './sendWaveResult';
 export * from './takeoverAlert';
+export * from './territoryColor';
 export * from './userBaseline';
 export * from './userBaselineUpdate';
 export * from './userId';

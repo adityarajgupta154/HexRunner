@@ -78,6 +78,8 @@ function savedResult(clientRunId: string): SaveRunResult {
     dailyBonusCredit: 0,
     dailyBonusCap: 5,
     currentStreak: 1,
+    loopDetected: false,
+    interiorHexes: 0,
     antiSpoof: {
       flaggedSuspicious: false,
       reason: null,

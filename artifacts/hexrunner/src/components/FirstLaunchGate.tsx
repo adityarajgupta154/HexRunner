@@ -1,232 +1,292 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { type PropsWithChildren, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { type PropsWithChildren, useEffect, useState } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import * as Location from 'expo-location';
 import {
   ONBOARDING_COMPLETE_KEY,
   saveOnboardingPace,
+  saveOnboardingTerritoryColor,
   type OnboardingPace,
 } from '@/src/services/onboardingPreferences';
+import type { TerritoryColor } from '@workspace/api-client-react';
 
-const heroAsset = require('../../assets/images/cinematic-urban-runner.jpg');
 const WEB_TOP_INSET = 67;
 const WEB_BOTTOM_INSET = 34;
+
+type Step = 'loop' | 'take' | 'grow' | 'colour' | 'location';
+
+const colourOptions: {
+  key: TerritoryColor;
+  color: string;
+  label: string;
+}[] = [
+  { key: 'emerald', color: '#00FF78', label: 'Signal green' },
+  { key: 'cyan', color: '#00D7FF', label: 'Electric cyan' },
+  { key: 'amber', color: '#FFD60A', label: 'Arena amber' },
+  { key: 'fuchsia', color: '#FF2D92', label: 'Hot fuchsia' },
+  { key: 'violet', color: '#A970FF', label: 'Volt violet' },
+];
+
 const paces: {
   id: OnboardingPace;
   label: string;
-  note: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
 }[] = [
-  { id: 'stride', label: 'STRIDE', note: 'Run the grid', icon: 'shoe-sneaker' },
-  { id: 'roam', label: 'ROAM', note: 'Walk it down', icon: 'navigation-variant-outline' },
-  { id: 'surge', label: 'SURGE', note: 'Race the line', icon: 'lightning-bolt-outline' },
+  { id: 'stride', label: 'STRIDE' },
+  { id: 'roam', label: 'ROAM' },
+  { id: 'surge', label: 'SURGE' },
 ];
 
 export default function FirstLaunchGate({ children }: PropsWithChildren) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [ready, setReady] = useState(false);
+  const [step, setStep] = useState<Step>('loop');
   const [pace, setPace] = useState<OnboardingPace>('stride');
   const [showIdentityNotice, setShowIdentityNotice] = useState(false);
-  const intro = useRef(new Animated.Value(0)).current;
-  const scan = useRef(new Animated.Value(0)).current;
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedColour, setSelectedColour] =
+    useState<TerritoryColor>('emerald');
+  const selectedColourHex =
+    colourOptions.find(option => option.key === selectedColour)?.color ??
+    '#00FF78';
 
   useEffect(() => {
     void AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY).then(value =>
       setReady(value === 'yes'),
     );
-    Animated.timing(intro, {
-      toValue: 1,
-      duration: 650,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-    const scanLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scan, {
-          toValue: 1,
-          duration: 3800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(scan, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ]),
-    );
-    scanLoop.start();
-    return () => {
-      scanLoop.stop();
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    };
-  }, [intro, scan]);
+  }, []);
 
   const finish = async (persistPace: boolean) => {
     if (persistPace) await saveOnboardingPace(pace);
+    await saveOnboardingTerritoryColor(selectedColour);
     await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'yes');
     setReady(true);
   };
 
+  const handleNext = () => {
+    switch (step) {
+      case 'loop': setStep('take'); break;
+      case 'take': setStep('grow'); break;
+      case 'grow': setStep('colour'); break;
+      case 'colour': setStep('location'); break;
+      case 'location': void handleLocationPermission(); break;
+    }
+  };
+
+  const handleBack = () => {
+    switch (step) {
+      case 'take': setStep('loop'); break;
+      case 'grow': setStep('take'); break;
+      case 'colour': setStep('grow'); break;
+      case 'location': setStep('colour'); break;
+    }
+  };
+
+  const handleLocationPermission = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Even if denied, we let them proceed so they aren't stuck
+    }
+    void finish(true);
+  };
+
   const explainIdentityRecovery = () => {
     setShowIdentityNotice(true);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setShowIdentityNotice(false), 3200);
+    setTimeout(() => setShowIdentityNotice(false), 3200);
   };
 
   if (ready) return <>{children}</>;
 
   const topInset = Platform.OS === 'web' ? Math.max(insets.top, WEB_TOP_INSET) : insets.top;
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, WEB_BOTTOM_INSET) : insets.bottom;
-  const activeIndex = paces.findIndex(item => item.id === pace);
-  const activePace = paces[activeIndex];
+
+  const renderGraphic = () => {
+    // A simplified visual representation for the map concepts
+    if (step === 'loop') {
+      return (
+        <View style={styles.graphicContainer}>
+          <View style={[styles.fakeMapLine, { top: '30%', left: '20%', width: '60%', height: 2, transform: [{ rotate: '15deg' }] }]} />
+          <View style={[styles.fakeMapLine, { top: '50%', left: '10%', width: '80%', height: 2, transform: [{ rotate: '-10deg' }] }]} />
+          <View style={[styles.fakeMapLine, { top: '70%', left: '30%', width: '40%', height: 2, transform: [{ rotate: '45deg' }] }]} />
+
+          <View style={[styles.loopShape, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
+        </View>
+      );
+    }
+    if (step === 'take') {
+      return (
+        <View style={styles.graphicContainer}>
+           <View style={[styles.fakeMapLine, { top: '40%', left: '0%', width: '100%', height: 2, transform: [{ rotate: '0deg' }] }]} />
+           <View style={[styles.fakeMapLine, { top: '0%', left: '50%', width: 2, height: '100%', transform: [{ rotate: '0deg' }] }]} />
+
+           <View style={[styles.takeShapeRed, { borderColor: '#FF3B30', backgroundColor: '#FF3B3033' }]} />
+            <View style={[styles.takeShapeGreen, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
+        </View>
+      );
+    }
+    if (step === 'grow') {
+      return (
+        <View style={styles.graphicContainer}>
+          <View style={[styles.growShape1, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
+          <View style={[styles.growShape2, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
+          <View style={[styles.growShape3, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
+        </View>
+      );
+    }
+    if (step === 'colour') {
+       return (
+         <View style={styles.graphicContainer}>
+            <View style={[styles.growShape1, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33`, width: 140, height: 140, borderRadius: 70 }]} />
+         </View>
+       );
+    }
+    if (step === 'location') {
+       return (
+         <View style={styles.graphicContainer}>
+           <View style={styles.locationBlipContainer}>
+               <View style={[styles.locationBlipRing, { borderColor: selectedColourHex }]} />
+               <View style={[styles.locationBlipCore, { backgroundColor: selectedColourHex }]} />
+           </View>
+         </View>
+       );
+    }
+    return null;
+  };
 
   return (
-    <View
-      testID="onboarding-root"
-      style={[styles.screen, { backgroundColor: colors.background }]}
-    >
+    <View testID="onboarding-root" style={[styles.screen, { backgroundColor: '#1A1D24' }]}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
-      <Image
-        source={heroAsset}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        contentPosition={{ left: '57%', top: '50%' }}
-        transition={0}
-        accessibilityLabel="Runner moving through a rain-lit city street at night"
-      />
-      <LinearGradient
-        colors={['rgba(3,5,9,0.12)', 'rgba(5,7,11,0.08)', 'rgba(5,7,11,0.58)', '#080a0f']}
-        locations={[0, 0.25, 0.58, 0.91]}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.atmosphere} pointerEvents="none" />
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.scanLine,
-          {
-            opacity: scan.interpolate({ inputRange: [0, 0.15, 0.75, 1], outputRange: [0, 0.8, 0.8, 0] }),
-            transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [0, 430] }) }],
-          },
-        ]}
-      />
 
-      <View style={[styles.header, { paddingTop: topInset + 18 }]}>
-        <View style={styles.brand}>
-          <View style={[styles.brandMark, { backgroundColor: colors.cinematicAccent }]}>
-            <MaterialCommunityIcons name="hexagon-outline" size={19} color={colors.cinematicAccentForeground} />
-          </View>
-          <Text style={styles.brandText}>HEXRUNNER</Text>
-        </View>
-        <Pressable
-          testID="onboarding-skip"
-          onPress={() => void finish(false)}
-          accessibilityRole="button"
-          accessibilityLabel="Skip setup"
-          hitSlop={12}
-          style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
-        >
-          <Text style={[styles.skipText, { borderBottomColor: colors.cinematicAccent }]}>SKIP SETUP</Text>
-        </Pressable>
+      {/* Background Graphic Area */}
+      <View style={styles.mapArea}>
+        {renderGraphic()}
       </View>
 
-      <Animated.View
-        style={[
-          styles.heroCopy,
-          {
-            opacity: intro,
-            transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }],
-          },
-        ]}
-      >
-        <View style={styles.gridStatus}>
-          <View style={[styles.statusDot, { backgroundColor: colors.cinematicAccent }]} />
-          <Text style={[styles.eyebrow, { color: colors.cinematicAccent }]}>CITY GRID / ARMED</Text>
-        </View>
-        <Text adjustsFontSizeToFit minimumFontScale={0.82} numberOfLines={3} style={styles.title}>
-          RUN THE{'\n'}<Text style={{ color: colors.cinematicAccent }}>CITY.</Text>{'\n'}KEEP IT.
-        </Text>
-        <Text style={styles.description}>
-          Every route cuts a line. Close the loop to claim real blocks before another runner does.
-        </Text>
-      </Animated.View>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topInset + 10 }]}>
+        {step !== 'loop' ? (
+          <Pressable onPress={handleBack} hitSlop={12} style={styles.backButton}>
+             <Feather name="chevron-left" size={24} color="#FFF" />
+             <Text style={styles.backText}>BACK</Text>
+          </Pressable>
+        ) : <View style={{width: 80}} />}
 
-      <View style={[styles.controls, { paddingBottom: bottomInset + 18 }]}>
-        <View style={styles.paceHeading}>
-          <View>
-            <Text style={styles.paceLabel}>PICK YOUR PACE</Text>
-            <Text style={styles.paceNote}>{activePace.note}</Text>
-          </View>
-          <Text style={[styles.counter, { color: colors.cinematicAccent }]}>0{activeIndex + 1} / 03</Text>
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+           {/* Simulate steps via dots or just hide it. INTVL doesn't always show it clearly, but let's hide it for cleanliness. */}
         </View>
-        <View accessibilityRole="radiogroup" accessibilityLabel="Choose your movement style" style={styles.segmented}>
-          {paces.map(item => {
-            const selected = item.id === pace;
-            return (
-              <Pressable
-                key={item.id}
-                testID={`onboarding-pace-${item.id}`}
-                onPress={() => setPace(item.id)}
-                accessibilityRole="radio"
-                accessibilityLabel={`${item.label}. ${item.note}`}
-                accessibilityState={{ checked: selected }}
-                style={({ pressed }) => [
-                  styles.paceOption,
-                  selected && { backgroundColor: colors.cinematicAccent },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={item.icon}
-                  size={16}
-                  color={selected ? colors.cinematicAccentForeground : '#f3f2e9'}
-                />
-                <Text style={[styles.paceOptionText, selected && styles.selectedPaceText]}>{item.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Pressable
-          testID="onboarding-enter-arena"
-          onPress={() => void finish(true)}
-          accessibilityRole="button"
-          accessibilityLabel={`Enter the arena with ${activePace.label.toLowerCase()} pace`}
-          style={({ pressed }) => [
-            styles.enterButton,
-            { backgroundColor: colors.cinematicAccent },
-            pressed && styles.enterPressed,
-          ]}
-        >
-          <Text style={styles.enterText}>ENTER THE ARENA</Text>
-          <View style={styles.enterIcon}>
-            <Feather name="arrow-up-right" size={19} color={colors.cinematicAccent} />
+        <View style={{width: 80}} />
+      </View>
+
+      {/* Bottom Sheet */}
+      <View style={[styles.sheet, { paddingBottom: bottomInset + 18 }]}>
+        {step === 'loop' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>CLOSE THE LOOP</Text>
+            <Text style={styles.description}>As you move, your route draws a shape on the map. Close the loop to claim everything inside. Even a small block counts.</Text>
           </View>
-        </Pressable>
-        <Pressable
-          testID="onboarding-sign-in"
-          onPress={explainIdentityRecovery}
-          accessibilityRole="button"
-          accessibilityLabel="Already running? Sign in"
-          hitSlop={10}
-          style={({ pressed }) => [styles.signIn, pressed && styles.pressed]}
-        >
-          <Feather name="log-in" size={14} color="#e5e4db" />
-          <Text style={[styles.signInText, { textDecorationColor: colors.cinematicAccent }]}>
-            Already running? Sign in
-          </Text>
-        </Pressable>
-        {showIdentityNotice ? (
-          <View
-            testID="onboarding-identity-notice"
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite"
-            style={styles.identityNotice}
+        )}
+        {step === 'take' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>TAKE IT</Text>
+            <Text style={styles.description}>Move through their area to take it. They can take yours too.</Text>
+          </View>
+        )}
+        {step === 'grow' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>GROW YOUR TERRITORY</Text>
+            <Text style={styles.description}>Block by block. Or all at once. Avoid out and back runs as they capture less territory.</Text>
+          </View>
+        )}
+        {step === 'colour' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>CLAIM YOUR COLOUR</Text>
+            <Text style={styles.description}>This is your territory.</Text>
+
+            <View style={styles.colourGrid}>
+                {colourOptions.map(option => (
+                 <Pressable
+                    key={option.key}
+                    testID={`onboarding-colour-${option.key}`}
+                    accessibilityRole="radio"
+                    accessibilityLabel={option.label}
+                    accessibilityState={{ checked: selectedColour === option.key }}
+                    onPress={() => setSelectedColour(option.key)}
+                    style={[
+                      styles.colourSwatch,
+                      {
+                        backgroundColor: option.color,
+                        borderWidth: selectedColour === option.key ? 3 : 0,
+                        borderColor: '#000',
+                      },
+                    ]}
+                 />
+               ))}
+            </View>
+
+            <View style={{marginTop: 20}}>
+              <Text style={[styles.description, {fontSize: 12, marginBottom: 8}]}>Select a pace profile:</Text>
+              <View style={styles.segmented}>
+                {paces.map(item => (
+                  <Pressable
+                    key={item.id}
+                    testID={`onboarding-pace-${item.id}`}
+                    onPress={() => setPace(item.id)}
+                    style={[
+                      styles.paceOption,
+                      item.id === pace && { backgroundColor: '#000' }
+                    ]}
+                  >
+                    <Text style={[styles.paceOptionText, item.id === pace && { color: '#FFF' }]}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+        {step === 'location' && (
+          <View style={styles.stepContent}>
+            <Text style={styles.title}>TO PLAY, TURN ON LOCATION</Text>
+            <Text style={styles.description}>Let's see what's happening in your area.</Text>
+          </View>
+        )}
+
+        <View style={styles.footerRow}>
+           <Pressable
+            testID="onboarding-skip"
+            onPress={() => void finish(false)}
+            hitSlop={12}
           >
-            <Feather name="shield" size={15} color={colors.cinematicAccent} />
+            <Text style={styles.skipText}>SKIP</Text>
+          </Pressable>
+
+          <Pressable
+            testID="onboarding-next"
+            onPress={handleNext}
+            style={({ pressed }) => [
+              styles.nextButton,
+              { backgroundColor: selectedColourHex },
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <Text style={styles.nextText}>{step === 'location' ? 'TURN ON LOCATION' : 'NEXT'}</Text>
+          </Pressable>
+        </View>
+
+        {step === 'loop' && (
+           <Pressable
+             testID="onboarding-sign-in"
+             onPress={explainIdentityRecovery}
+             style={styles.signIn}
+           >
+              <Text style={styles.signInText}>Already running? Sign in</Text>
+           </Pressable>
+        )}
+        {showIdentityNotice ? (
+          <View testID="onboarding-identity-notice" style={styles.identityNotice}>
+            <Feather name="shield" size={15} color="#000" />
             <Text style={styles.identityNoticeText}>
               Your existing territory restores automatically on this device.
             </Text>
@@ -239,17 +299,94 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, width: '100%', height: '100%', overflow: 'hidden' },
-  atmosphere: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(16, 42, 52, 0.14)',
+  mapArea: {
+    flex: 1,
+    backgroundColor: '#1A1D24', // Map-like color
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  scanLine: {
+  graphicContainer: {
+    width: '100%',
+    height: '100%',
     position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 150,
-    height: 1,
-    backgroundColor: 'rgba(215,255,62,0.42)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fakeMapLine: {
+    position: 'absolute',
+    backgroundColor: '#2A2E39',
+  },
+  loopShape: {
+    width: 200,
+    height: 160,
+    borderWidth: 4,
+    borderRadius: 8,
+    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
+  },
+  takeShapeRed: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderWidth: 4,
+    borderRadius: 8,
+    left: '20%',
+    top: '30%',
+    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
+  },
+  takeShapeGreen: {
+    position: 'absolute',
+    width: 160,
+    height: 120,
+    borderWidth: 4,
+    borderRadius: 8,
+    left: '40%',
+    top: '40%',
+    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
+  },
+  growShape1: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderWidth: 4,
+    borderRadius: 8,
+    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
+  },
+  growShape2: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderWidth: 4,
+    borderRadius: 8,
+    top: '25%',
+    left: '25%',
+    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
+  },
+  growShape3: {
+    position: 'absolute',
+    width: 140,
+    height: 100,
+    borderWidth: 4,
+    borderRadius: 8,
+    bottom: '25%',
+    right: '25%',
+    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
+  },
+  locationBlipContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationBlipRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    opacity: 0.3,
+    position: 'absolute',
+  },
+  locationBlipCore: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   header: {
     position: 'absolute',
@@ -257,141 +394,137 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 26,
+    paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandMark: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  brandText: {
-    color: '#f3f2e9',
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingRight: 16,
+    paddingLeft: 8,
+    paddingVertical: 8,
+    borderRadius: 24,
+  },
+  backText: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 20,
-    letterSpacing: -1,
+    fontSize: 12,
+    color: '#000',
   },
-  skip: { minHeight: 44, justifyContent: 'center' },
-  skipText: {
-    color: '#f3f2e9',
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 1,
-    borderBottomWidth: 1,
-    paddingBottom: 4,
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 24,
+    minHeight: 280,
   },
-  heroCopy: {
-    position: 'absolute',
-    zIndex: 3,
-    left: 27,
-    right: 24,
-    top: '30%',
+  stepContent: {
+    alignItems: 'center',
+    minHeight: 120,
   },
-  gridStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 13 },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  eyebrow: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 2 },
   title: {
-    color: '#f3f2e9',
     fontFamily: 'Inter_700Bold',
-    fontSize: 57,
-    lineHeight: 51,
-    letterSpacing: -3.4,
-    maxWidth: 340,
+    fontSize: 24,
+    color: '#000000',
+    fontStyle: 'italic',
+    letterSpacing: -0.5,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   description: {
-    color: '#e8e7de',
     fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 18,
-    maxWidth: 280,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#1A1D24',
+    textAlign: 'center',
   },
-  controls: {
-    position: 'absolute',
-    zIndex: 5,
-    left: 20,
-    right: 20,
-    bottom: 0,
-  },
-  paceHeading: {
+  colourGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: 4,
-    marginBottom: 11,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 24,
   },
-  paceLabel: { color: '#aeb1af', fontFamily: 'Inter_500Medium', fontSize: 9, letterSpacing: 1.7 },
-  paceNote: { color: '#f3f2e9', fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 4 },
-  counter: { fontFamily: 'Inter_600SemiBold', fontSize: 10, letterSpacing: 1 },
+  colourSwatch: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+  },
   segmented: {
     flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: 'rgba(233,234,223,0.55)',
-    backgroundColor: 'rgba(8,10,15,0.78)',
+    backgroundColor: '#F2F2F7',
     borderRadius: 30,
-    padding: 5,
+    padding: 4,
   },
   paceOption: {
     flex: 1,
-    height: 46,
-    borderRadius: 24,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    height: 36,
+    borderRadius: 20,
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
   },
-  paceOptionText: { color: '#e9eadf', fontFamily: 'Inter_700Bold', fontSize: 13 },
-  selectedPaceText: { color: '#090b10' },
-  enterButton: {
-    height: 60,
-    marginTop: 14,
-    paddingHorizontal: 19,
+  paceOptionText: {
+    color: '#8E8E93',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+  },
+  footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: 32,
   },
-  enterText: { color: '#090b10', fontFamily: 'Inter_700Bold', fontSize: 20, letterSpacing: -0.6 },
-  enterIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#090b10',
+  skipText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 14,
+    color: '#000000',
+    letterSpacing: 0.5,
+  },
+  nextButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 30,
+    minWidth: 140,
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  nextText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 15,
+    color: '#000000',
   },
   signIn: {
-    minHeight: 42,
-    alignSelf: 'center',
-    flexDirection: 'row',
+    marginTop: 24,
     alignItems: 'center',
-    gap: 6,
   },
   signInText: {
-    color: '#e5e4db',
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
+    fontSize: 14,
+    color: '#8E8E93',
     textDecorationLine: 'underline',
   },
   identityNotice: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 78,
-    minHeight: 48,
-    paddingHorizontal: 14,
+    top: -60,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    borderWidth: 1,
-    borderColor: 'rgba(215,255,62,0.55)',
-    backgroundColor: 'rgba(16,21,26,0.96)',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
   },
   identityNoticeText: {
-    flex: 1,
-    color: '#f3f2e9',
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 13,
+    color: '#000',
   },
-  pressed: { opacity: 0.72 },
-  enterPressed: { transform: [{ scale: 0.985 }] },
 });

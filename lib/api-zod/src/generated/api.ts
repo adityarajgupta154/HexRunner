@@ -66,6 +66,9 @@ export const saveRunBodyClientRunIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
 export const saveRunBodyElapsedSecondsMin = 0;
 export const saveRunBodyElapsedSecondsMultipleOf = 1;
 
+export const saveRunBodyPausedSecondsMin = 0;
+export const saveRunBodyPausedSecondsMultipleOf = 1;
+
 export const saveRunBodyDistanceKmMin = 0;
 
 export const saveRunBodyPointsItemLatMin = -90;
@@ -103,6 +106,7 @@ export const SaveRunBody = zod.object({
   "startedAt": zod.coerce.date(),
   "endedAt": zod.coerce.date(),
   "elapsedSeconds": zod.number().min(saveRunBodyElapsedSecondsMin).multipleOf(saveRunBodyElapsedSecondsMultipleOf),
+  "pausedSeconds": zod.number().min(saveRunBodyPausedSecondsMin).multipleOf(saveRunBodyPausedSecondsMultipleOf).optional(),
   "distanceKm": zod.number().min(saveRunBodyDistanceKmMin),
   "points": zod.array(zod.object({
   "lat": zod.number().min(saveRunBodyPointsItemLatMin).max(saveRunBodyPointsItemLatMax),
@@ -159,6 +163,9 @@ export const saveRunResponseDailyBonusCreditMultipleOf = 1;
 
 export const saveRunResponseDailyBonusCapMultipleOf = 1;
 
+export const saveRunResponseInteriorHexesMin = 0;
+export const saveRunResponseInteriorHexesMultipleOf = 1;
+
 
 
 export const SaveRunResponse = zod.object({
@@ -184,7 +191,9 @@ export const SaveRunResponse = zod.object({
   "totalCredit": zod.number().min(saveRunResponseTotalCreditMin).multipleOf(saveRunResponseTotalCreditMultipleOf),
   "coldZoneHexes": zod.number().min(saveRunResponseColdZoneHexesMin).multipleOf(saveRunResponseColdZoneHexesMultipleOf),
   "dailyBonusCredit": zod.number().min(saveRunResponseDailyBonusCreditMin).multipleOf(saveRunResponseDailyBonusCreditMultipleOf),
-  "dailyBonusCap": zod.number().min(1).multipleOf(saveRunResponseDailyBonusCapMultipleOf)
+  "dailyBonusCap": zod.number().min(1).multipleOf(saveRunResponseDailyBonusCapMultipleOf),
+  "loopDetected": zod.boolean(),
+  "interiorHexes": zod.number().min(saveRunResponseInteriorHexesMin).multipleOf(saveRunResponseInteriorHexesMultipleOf)
 })
 
 
@@ -233,7 +242,8 @@ export const LookupHexOwnershipResponse = zod.object({
   "h3Index": zod.string(),
   "ownerId": zod.string().nullable(),
   "claimedAt": zod.coerce.date().nullable(),
-  "freshnessScore": zod.number().min(lookupHexOwnershipResponseOwnershipItemFreshnessScoreMin).max(lookupHexOwnershipResponseOwnershipItemFreshnessScoreMax).nullable()
+  "freshnessScore": zod.number().min(lookupHexOwnershipResponseOwnershipItemFreshnessScoreMin).max(lookupHexOwnershipResponseOwnershipItemFreshnessScoreMax).nullable(),
+  "ownerTerritoryColor": zod.union([zod.enum(['amber', 'cyan', 'emerald', 'fuchsia', 'violet']),zod.null()])
 })).max(lookupHexOwnershipResponseOwnershipMax)
 })
 
@@ -593,14 +603,16 @@ export const updateUserBaselineBodyCityMax = 60;
 export const UpdateUserBaselineBody = zod.object({
   "displayName": zod.string().min(1).max(updateUserBaselineBodyDisplayNameMax).optional(),
   "city": zod.string().min(1).max(updateUserBaselineBodyCityMax),
-  "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained'])
+  "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained']),
+  "territoryColor": zod.enum(['amber', 'cyan', 'emerald', 'fuchsia', 'violet']).optional()
 })
 
 export const UpdateUserBaselineResponse = zod.object({
   "displayName": zod.string(),
   "city": zod.string(),
   "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained']),
-  "completedAt": zod.coerce.date()
+  "completedAt": zod.coerce.date(),
+  "territoryColor": zod.enum(['amber', 'cyan', 'emerald', 'fuchsia', 'violet'])
 })
 
 
@@ -685,7 +697,8 @@ export const GetUserStatsResponse = zod.object({
   "displayName": zod.string(),
   "city": zod.string(),
   "activityLevel": zod.enum(['beginner', 'casual', 'regular', 'trained']),
-  "completedAt": zod.coerce.date()
+  "completedAt": zod.coerce.date(),
+  "territoryColor": zod.enum(['amber', 'cyan', 'emerald', 'fuchsia', 'violet'])
 }),zod.null()]),
   "totals": zod.object({
   "totalRuns": zod.number().min(getUserStatsResponseTotalsTotalRunsMin).multipleOf(getUserStatsResponseTotalsTotalRunsMultipleOf),

@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 const ONBOARDING_COMPLETE_KEY = '@hexrunner/paint-school-complete';
 const ONBOARDING_PACE_KEY = '@hexrunner/onboarding-pace';
+const ONBOARDING_COLOR_KEY = '@hexrunner/onboarding-territory-color';
 const TEST_UID = 'device_first_launch_test';
 const TEST_CREDENTIAL = `hr1.test.${'a'.repeat(43)}`;
 
@@ -37,16 +38,18 @@ async function prepareFirstLaunch(context: BrowserContext) {
     accuracy: 8,
   });
   await context.addInitScript(
-    ({ completeKey, paceKey, uid, credential }) => {
+    ({ completeKey, paceKey, colorKey, uid, credential }) => {
       localStorage.clear();
       localStorage.removeItem(completeKey);
       localStorage.removeItem(paceKey);
+      localStorage.removeItem(colorKey);
       localStorage.setItem('@hexrunner/anonymous-uid', uid);
       localStorage.setItem('hexrunner.anonymous-credential', credential);
     },
     {
       completeKey: ONBOARDING_COMPLETE_KEY,
       paceKey: ONBOARDING_PACE_KEY,
+      colorKey: ONBOARDING_COLOR_KEY,
       uid: TEST_UID,
       credential: TEST_CREDENTIAL,
     },
@@ -61,10 +64,11 @@ async function openOnboarding(page: Page) {
   await page.goto('/');
   await expect(page.getByTestId('onboarding-root')).toBeVisible();
   await expect(page.getByTestId('onboarding-skip')).toBeVisible();
-  await expect(page.getByTestId('onboarding-enter-arena')).toBeVisible();
+  await expect(page.getByTestId('onboarding-next')).toBeVisible();
+  await expect(page.getByTestId('onboarding-sign-in')).toBeVisible();
 }
 
-test('Skip leaves first-launch setup without saving a pace', async ({ context, page }) => {
+test('Skip leaves first-launch setup without saving a pace and keeps the default colour', async ({ context, page }) => {
   await prepareFirstLaunch(context);
   await openOnboarding(page);
 
@@ -74,14 +78,19 @@ test('Skip leaves first-launch setup without saving a pace', async ({ context, p
   await expect
     .poll(() =>
       page.evaluate(
-        ({ completeKey, paceKey }) => ({
+        ({ completeKey, paceKey, colorKey }) => ({
           complete: localStorage.getItem(completeKey),
           pace: localStorage.getItem(paceKey),
+          color: localStorage.getItem(colorKey),
         }),
-        { completeKey: ONBOARDING_COMPLETE_KEY, paceKey: ONBOARDING_PACE_KEY },
+        {
+          completeKey: ONBOARDING_COMPLETE_KEY,
+          paceKey: ONBOARDING_PACE_KEY,
+          colorKey: ONBOARDING_COLOR_KEY,
+        },
       ),
     )
-    .toEqual({ complete: 'yes', pace: null });
+    .toEqual({ complete: 'yes', pace: null, color: 'emerald' });
 });
 
 test('protected-device identity guidance is available before entry', async ({ context, page }) => {
@@ -107,12 +116,29 @@ for (const { pace, tier } of [
     await prepareFirstLaunch(context);
     await openOnboarding(page);
 
+    let baselineBody: Record<string, unknown> | null = null;
+    await context.route('**/api/users/*/baseline', async route => {
+      baselineBody = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          displayName: 'Runner',
+          city: baselineBody.city,
+          activityLevel: baselineBody.activityLevel,
+          territoryColor: baselineBody.territoryColor,
+          completedAt: new Date().toISOString(),
+        }),
+      });
+    });
+
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
     await page.getByTestId(`onboarding-pace-${pace}`).click();
-    await expect(page.getByTestId('onboarding-enter-arena')).toHaveAttribute(
-      'aria-label',
-      `Enter the arena with ${pace} pace`,
-    );
-    await page.getByTestId('onboarding-enter-arena').click();
+    await page.getByTestId('onboarding-colour-cyan').click();
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
 
     await expect(page.getByTestId('baseline-onboarding')).toHaveAttribute(
       'aria-label',
@@ -121,13 +147,26 @@ for (const { pace, tier } of [
     await expect
       .poll(() =>
         page.evaluate(
-          ({ completeKey, paceKey }) => ({
+          ({ completeKey, paceKey, colorKey }) => ({
             complete: localStorage.getItem(completeKey),
             pace: localStorage.getItem(paceKey),
+            color: localStorage.getItem(colorKey),
           }),
-          { completeKey: ONBOARDING_COMPLETE_KEY, paceKey: ONBOARDING_PACE_KEY },
+          {
+            completeKey: ONBOARDING_COMPLETE_KEY,
+            paceKey: ONBOARDING_PACE_KEY,
+            colorKey: ONBOARDING_COLOR_KEY,
+          },
         ),
       )
-      .toEqual({ complete: 'yes', pace });
+      .toEqual({ complete: 'yes', pace, color: 'cyan' });
+
+    await page.getByTestId('baseline-city-input').fill('Bengaluru');
+    await page.getByTestId('baseline-submit').click();
+    await expect.poll(() => baselineBody).toMatchObject({
+      city: 'Bengaluru',
+      activityLevel: tier,
+      territoryColor: 'cyan',
+    });
   });
 }

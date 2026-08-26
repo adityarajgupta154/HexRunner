@@ -28,6 +28,8 @@ export type TerritoryPaintProps = {
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
   onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
+  myColor?: string;
+  otherColors?: ReadonlyMap<string, string>;
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -56,6 +58,8 @@ export default function TerritoryPaint({
   exactRunners = [],
   anonymousRunners = [],
   onRunnerPress,
+  myColor,
+  otherColors,
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -115,10 +119,10 @@ export default function TerritoryPaint({
         const isRival = spot.ownerKind === 'rival';
         const isClaimReady = spot.ownerKind === 'claim-ready';
         const paintColor = isRival
-          ? colors.destructive
+          ? (otherColors?.get(spot.id) ?? colors.destructive)
           : isClaimReady
-            ? colors.primary
-            : colors.primary;
+            ? (myColor ?? colors.primary)
+            : (myColor ?? colors.primary);
 
         return (
           <Circle
@@ -211,7 +215,7 @@ export default function TerritoryPaint({
         <>
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor={hexToRgba(colors.primary, 0.2)}
+            strokeColor={hexToRgba(myColor ?? colors.primary, 0.2)}
             strokeWidth={30}
             lineCap="round"
             lineJoin="round"
@@ -219,7 +223,7 @@ export default function TerritoryPaint({
           />
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor={hexToRgba(colors.primary, 0.86)}
+            strokeColor={hexToRgba(myColor ?? colors.primary, 0.86)}
             strokeWidth={15}
             lineCap="round"
             lineJoin="round"

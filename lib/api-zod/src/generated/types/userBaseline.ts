@@ -6,10 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FitnessTier } from './fitnessTier';
+import type { TerritoryColor } from './territoryColor';
 
 export interface UserBaseline {
   displayName: string;
   city: string;
   activityLevel: FitnessTier;
   completedAt: Date;
+  territoryColor: TerritoryColor;
 }

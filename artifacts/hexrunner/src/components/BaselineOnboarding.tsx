@@ -21,7 +21,11 @@ import {
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/src/context/AuthContext';
 import type { FitnessTier } from '@/src/services/fitnessModel';
-import { getOnboardingFitnessTier } from '@/src/services/onboardingPreferences';
+import {
+  getOnboardingFitnessTier,
+  getOnboardingTerritoryColor,
+} from '@/src/services/onboardingPreferences';
+import type { TerritoryColor } from '@workspace/api-client-react';
 
 const setupReference = require('../../assets/images/arena-setup-reference.png');
 
@@ -145,6 +149,8 @@ export default function BaselineOnboarding() {
   const mutation = useUpdateUserBaseline();
   const [activityLevel, setActivityLevel] =
     useState<FitnessTier>('regular');
+  const [territoryColor, setTerritoryColor] =
+    useState<TerritoryColor>('emerald');
   const [city, setCity] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [focusedField, setFocusedField] = useState<'tag' | 'city' | null>(
@@ -154,8 +160,13 @@ export default function BaselineOnboarding() {
 
   useEffect(() => {
     let active = true;
-    void getOnboardingFitnessTier().then(tier => {
-      if (active && tier) setActivityLevel(tier);
+    void Promise.all([
+      getOnboardingFitnessTier(),
+      getOnboardingTerritoryColor(),
+    ]).then(([tier, color]) => {
+      if (!active) return;
+      if (tier) setActivityLevel(tier);
+      setTerritoryColor(color);
     });
     return () => {
       active = false;
@@ -173,6 +184,7 @@ export default function BaselineOnboarding() {
         data: {
           city: city.trim(),
           activityLevel,
+          territoryColor,
           ...(displayName.trim()
             ? { displayName: displayName.trim() }
             : {}),

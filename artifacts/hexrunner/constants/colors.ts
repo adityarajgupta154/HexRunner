@@ -9,46 +9,49 @@
  */
 
 const palette = {
-  // Legacy aliases (kept for backward compatibility)
-  text: '#F2E8D5',
-  tint: '#F04B23',
+  // Legacy aliases
+  text: '#FFFFFF',
+  tint: '#00FF00',
 
   // Core surfaces
-  background: '#151414',
-  foreground: '#F2E8D5',
+  background: '#0B0D12',
+  foreground: '#FFFFFF',
 
-  // Cards / elevated surfaces
-  card: '#242120',
-  cardForeground: '#F2E8D5',
+  // Cards / elevated surfaces (Darker grey/black for popovers)
+  card: '#161920',
+  cardForeground: '#FFFFFF',
 
-  // Primary action color (buttons, links, active states) — claimed-hex teal
-  primary: '#F04B23',
-  primaryForeground: '#1C1411',
+  // Bright surfaces (like the white bottom sheets in the references)
+  sheet: '#FFFFFF',
+  sheetForeground: '#000000',
+
+  // Primary action color — Fluorescent Lime Green
+  primary: '#00FF00',
+  primaryForeground: '#000000',
 
   // Secondary / less-emphasis interactive surfaces
-  secondary: '#342D29',
-  secondaryForeground: '#F2E8D5',
+  secondary: '#232730',
+  secondaryForeground: '#FFFFFF',
 
-  // Muted / subdued elements (dividers, timestamps, placeholders)
-  // Kept deliberately bright enough to stay readable on dark surfaces.
-  muted: '#302B28',
-  mutedForeground: '#B8ACA0',
+  // Muted / subdued elements
+  muted: '#2A2E39',
+  mutedForeground: '#90949F',
 
-  // Accent highlights (badges, selected items, focus rings)
-  accent: '#4A2119',
-  accentForeground: '#FF9B72',
+  // Accent highlights (e.g. for user location, specific badges)
+  accent: '#007AFF',
+  accentForeground: '#FFFFFF',
 
   // First-launch cinematic treatment
-  cinematicAccent: '#D7FF3E',
-  cinematicAccentForeground: '#090B10',
+  cinematicAccent: '#00FF00',
+  cinematicAccentForeground: '#000000',
 
-  // Destructive actions (delete, error states, "hex under attack")
-  destructive: '#C93425',
-  destructiveForeground: '#F9EEDC',
+  // Destructive actions (contested territory, errors)
+  destructive: '#FF3B30',
+  destructiveForeground: '#FFFFFF',
 
-  // Borders and input outlines
-  border: '#554944',
-  input: '#554944',
+  // Borders
+  border: '#2A2E39',
+  input: '#2A2E39',
 };
 
 const colors = {
