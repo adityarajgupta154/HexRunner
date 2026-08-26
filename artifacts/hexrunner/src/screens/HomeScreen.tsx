@@ -30,8 +30,13 @@ import {
   useAdoptCivicZone,
   useFlagCivicReport,
   useLookupCivicMap,
+  type ExactPresence,
+  type AnonymousPresence,
 } from '@workspace/api-client-react';
 import { pointToHex } from '@/src/services/hexEngine';
+import { useLiveInteractions } from '@/src/hooks/useLiveInteractions';
+import { LiveInteractionsOverlay } from '@/src/components/LiveInteractionsOverlay';
+import { WaveActionModal } from '@/src/components/WaveActionModal';
 
 const MAP_DELTA = {
   latitudeDelta: 0.008,
@@ -139,6 +144,9 @@ function LiveMap() {
     location: presenceLocation,
     mode: 'home'
   });
+
+  const interactions = useLiveInteractions(isFocused, presence.hasSnapshot);
+  const [selectedRunner, setSelectedRunner] = useState<ExactPresence | AnonymousPresence | null>(null);
 
   const {
     data: userStats,
@@ -416,6 +424,7 @@ function LiveMap() {
             }
             exactRunners={presence.exactRunners}
             anonymousRunners={presence.anonymousRunners}
+            onRunnerPress={setSelectedRunner}
           />
           <HexGrid
             center={coordinate}
@@ -456,6 +465,7 @@ function LiveMap() {
             }
             exactRunners={presence.exactRunners}
             anonymousRunners={presence.anonymousRunners}
+            onRunnerPress={setSelectedRunner}
           />
         </MapView>
       )}
@@ -724,6 +734,10 @@ function LiveMap() {
         <Feather name="crosshair" size={22} color={colors.primary} />
         <Text style={[styles.recenterText, { color: colors.foreground }]}>Recenter</Text>
       </Pressable>
+
+      <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
+      <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
+
       {userStats && !userStats.baseline ? <BaselineOnboarding /> : null}
     </View>
   );

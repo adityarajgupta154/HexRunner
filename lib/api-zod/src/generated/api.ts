@@ -751,9 +751,15 @@ export const GetNearbyPresenceQueryParams = zod.object({
   "limit": zod.coerce.number().min(1).max(getNearbyPresenceQueryLimitMax).multipleOf(getNearbyPresenceQueryLimitMultipleOf).default(getNearbyPresenceQueryLimitDefault)
 })
 
+export const getNearbyPresenceResponseRunnersItemOneInteractionTokenMin = 22;
+export const getNearbyPresenceResponseRunnersItemOneInteractionTokenMax = 128;
+
 export const getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMin = 250;
 export const getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMax = 5000;
 export const getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMultipleOf = 250;
+
+export const getNearbyPresenceResponseRunnersItemTwoInteractionTokenMin = 22;
+export const getNearbyPresenceResponseRunnersItemTwoInteractionTokenMax = 128;
 
 export const getNearbyPresenceResponseRunnersMax = 100;
 
@@ -769,12 +775,16 @@ export const GetNearbyPresenceResponse = zod.object({
   "displayName": zod.string(),
   "lat": zod.number(),
   "lng": zod.number(),
-  "distanceMeters": zod.number()
+  "distanceMeters": zod.number(),
+  "interactionToken": zod.string().min(getNearbyPresenceResponseRunnersItemOneInteractionTokenMin).max(getNearbyPresenceResponseRunnersItemOneInteractionTokenMax),
+  "waveAvailable": zod.boolean()
 }),zod.object({
   "visibility": zod.enum(['anonymous']),
   "lat": zod.number(),
   "lng": zod.number(),
-  "distanceBandMeters": zod.number().min(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMin).max(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMax).multipleOf(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMultipleOf)
+  "distanceBandMeters": zod.number().min(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMin).max(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMax).multipleOf(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMultipleOf),
+  "interactionToken": zod.string().min(getNearbyPresenceResponseRunnersItemTwoInteractionTokenMin).max(getNearbyPresenceResponseRunnersItemTwoInteractionTokenMax),
+  "waveAvailable": zod.boolean()
 })])).max(getNearbyPresenceResponseRunnersMax),
   "ambientCount": zod.number().min(getNearbyPresenceResponseAmbientCountMin).multipleOf(getNearbyPresenceResponseAmbientCountMultipleOf)
 })
@@ -853,5 +863,86 @@ export const BlockConnectionResponse = zod.object({
   "status": zod.enum(['pending_outgoing', 'pending_incoming', 'accepted', 'blocked']),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary Send a short-lived one-way wave using an opaque nearby grant
+ */
+export const sendWaveBodyInteractionTokenMin = 22;
+export const sendWaveBodyInteractionTokenMax = 128;
+
+
+export const sendWaveBodyInteractionTokenRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const sendWaveBodyIdempotencyKeyMax = 128;
+
+
+export const sendWaveBodyIdempotencyKeyRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const SendWaveBody = zod.object({
+  "interactionToken": zod.string().min(sendWaveBodyInteractionTokenMin).max(sendWaveBodyInteractionTokenMax).regex(sendWaveBodyInteractionTokenRegExp),
+  "idempotencyKey": zod.string().min(1).max(sendWaveBodyIdempotencyKeyMax).regex(sendWaveBodyIdempotencyKeyRegExp)
+})
+
+export const sendWaveResponseWaveIdMin = 16;
+export const sendWaveResponseWaveIdMax = 128;
+
+
+
+export const SendWaveResponse = zod.object({
+  "waveId": zod.string().min(sendWaveResponseWaveIdMin).max(sendWaveResponseWaveIdMax),
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Poll focused unacknowledged live interactions
+ */
+export const getLiveInteractionsResponseEventsItemIdMin = 16;
+export const getLiveInteractionsResponseEventsItemIdMax = 128;
+
+export const getLiveInteractionsResponseEventsItemCopyMax = 120;
+
+export const getLiveInteractionsResponseEventsItemDisplayNameMax = 40;
+
+export const getLiveInteractionsResponseEventsItemH3IndexRegExp = new RegExp('^89[0-9a-f]{13}$');
+export const getLiveInteractionsResponseEventsMax = 100;
+
+
+
+export const GetLiveInteractionsResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string().min(getLiveInteractionsResponseEventsItemIdMin).max(getLiveInteractionsResponseEventsItemIdMax),
+  "kind": zod.enum(['contest', 'wave']),
+  "copy": zod.string().max(getLiveInteractionsResponseEventsItemCopyMax),
+  "displayName": zod.string().min(1).max(getLiveInteractionsResponseEventsItemDisplayNameMax).optional(),
+  "h3Index": zod.string().regex(getLiveInteractionsResponseEventsItemH3IndexRegExp).optional(),
+  "createdAt": zod.coerce.date(),
+  "expiresAt": zod.coerce.date()
+})).max(getLiveInteractionsResponseEventsMax)
+})
+
+
+/**
+ * @summary Acknowledge recipient-owned current interactions
+ */
+export const acknowledgeLiveInteractionsBodyContestEventIdsItemMin = 16;
+export const acknowledgeLiveInteractionsBodyContestEventIdsItemMax = 128;
+
+export const acknowledgeLiveInteractionsBodyContestEventIdsMax = 50;
+
+export const acknowledgeLiveInteractionsBodyWaveIdsItemMin = 16;
+export const acknowledgeLiveInteractionsBodyWaveIdsItemMax = 128;
+
+export const acknowledgeLiveInteractionsBodyWaveIdsMax = 50;
+
+
+
+export const AcknowledgeLiveInteractionsBody = zod.object({
+  "contestEventIds": zod.array(zod.string().min(acknowledgeLiveInteractionsBodyContestEventIdsItemMin).max(acknowledgeLiveInteractionsBodyContestEventIdsItemMax)).max(acknowledgeLiveInteractionsBodyContestEventIdsMax),
+  "waveIds": zod.array(zod.string().min(acknowledgeLiveInteractionsBodyWaveIdsItemMin).max(acknowledgeLiveInteractionsBodyWaveIdsItemMax)).max(acknowledgeLiveInteractionsBodyWaveIdsMax)
+})
+
+export const AcknowledgeLiveInteractionsResponse = zod.void()
 
 

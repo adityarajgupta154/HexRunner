@@ -28,9 +28,12 @@ import {
 } from '@/src/services/runStorage';
 import { checkSession } from '@/src/services/antiSpoof';
 import { runPresence } from '@/src/services/runPresence';
-import { useLookupHexOwnership } from '@workspace/api-client-react';
+import { useLookupHexOwnership, type ExactPresence, type AnonymousPresence } from '@workspace/api-client-react';
 import SafetyTools from '@/src/components/SafetyTools';
 import CivicReportTools from '@/src/components/CivicReportTools';
+import { useLiveInteractions } from '@/src/hooks/useLiveInteractions';
+import { LiveInteractionsOverlay } from '@/src/components/LiveInteractionsOverlay';
+import { WaveActionModal } from '@/src/components/WaveActionModal';
 
 type RunPoint = {
   lat: number;
@@ -139,6 +142,9 @@ export default function RunSessionScreen() {
     location: presenceLocation,
     mode: 'run'
   });
+
+  const interactions = useLiveInteractions(isFocused && isRunning, presence.hasSnapshot);
+  const [selectedRunner, setSelectedRunner] = useState<ExactPresence | AnonymousPresence | null>(null);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -467,6 +473,7 @@ export default function RunSessionScreen() {
               contestedHexIndexes={contestedHexes}
               exactRunners={presence.exactRunners}
               anonymousRunners={presence.anonymousRunners}
+              onRunnerPress={setSelectedRunner}
             />
           </View>
 
@@ -560,6 +567,9 @@ export default function RunSessionScreen() {
               Stop Run
             </Text>
           </Pressable>
+
+          <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
+          <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
         </View>
       ) : (
         <View style={styles.readyContent}>

@@ -184,6 +184,133 @@ export const hexrunnerConnectionsTable = pgTable(
   ],
 );
 
+// Opaque, short-overlap capabilities issued after privacy filtering. A brief
+// overlap prevents polling from invalidating a marker while its action is open.
+// Raw tokens and locations are deliberately never persisted.
+export const hexrunnerInteractionGrantsTable = pgTable(
+  "hexrunner_interaction_grants",
+  {
+    viewerId: text("viewer_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    targetId: text("target_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("hexrunner_interaction_grants_pair_expiry_idx").on(
+      table.viewerId,
+      table.targetId,
+      table.expiresAt,
+    ),
+    index("hexrunner_interaction_grants_expiry_idx").on(table.expiresAt),
+    check("hexrunner_interaction_grants_not_self_check", sql`${table.viewerId} <> ${table.targetId}`),
+    check("hexrunner_interaction_grants_hash_check", sql`char_length(${table.tokenHash}) = 64`),
+    check("hexrunner_interaction_grants_expiry_check", sql`${table.expiresAt} > ${table.createdAt}`),
+  ],
+);
+
+export const hexrunnerWavesTable = pgTable(
+  "hexrunner_waves",
+  {
+    id: text("id").primaryKey(),
+    senderId: text("sender_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    recipientId: text("recipient_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("hexrunner_waves_sender_idempotency_unique").on(
+      table.senderId,
+      table.idempotencyKey,
+    ),
+    index("hexrunner_waves_pair_created_idx").on(
+      table.senderId,
+      table.recipientId,
+      table.createdAt,
+    ),
+    index("hexrunner_waves_sender_created_idx").on(table.senderId, table.createdAt),
+    index("hexrunner_waves_recipient_read_idx").on(
+      table.recipientId,
+      table.acknowledgedAt,
+      table.expiresAt,
+    ),
+    check("hexrunner_waves_not_self_check", sql`${table.senderId} <> ${table.recipientId}`),
+    check("hexrunner_waves_id_check", sql`char_length(${table.id}) BETWEEN 16 AND 128`),
+    check("hexrunner_waves_idempotency_check", sql`char_length(${table.idempotencyKey}) BETWEEN 1 AND 128`),
+    check("hexrunner_waves_expiry_check", sql`${table.expiresAt} > ${table.createdAt}`),
+    check("hexrunner_waves_ack_check", sql`${table.acknowledgedAt} IS NULL OR ${table.acknowledgedAt} >= ${table.createdAt}`),
+  ],
+);
+
+export const hexrunnerContestOccupancyTable = pgTable(
+  "hexrunner_contest_occupancy",
+  {
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    h3Index: text("h3_index").notNull(),
+    ownershipRunId: text("ownership_run_id").notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.ownerId, table.actorId, table.h3Index] }),
+    index("hexrunner_contest_occupancy_expiry_idx").on(table.expiresAt),
+    check("hexrunner_contest_occupancy_not_self_check", sql`${table.ownerId} <> ${table.actorId}`),
+    check("hexrunner_contest_occupancy_h3_check", sql`char_length(${table.h3Index}) BETWEEN 15 AND 16`),
+    check("hexrunner_contest_occupancy_run_check", sql`char_length(${table.ownershipRunId}) BETWEEN 8 AND 160`),
+    check("hexrunner_contest_occupancy_expiry_check", sql`${table.expiresAt} > ${table.lastSeenAt}`),
+  ],
+);
+
+export const hexrunnerContestEventsTable = pgTable(
+  "hexrunner_contest_events",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    h3Index: text("h3_index").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("hexrunner_contest_events_owner_read_idx").on(
+      table.ownerId,
+      table.acknowledgedAt,
+      table.expiresAt,
+    ),
+    index("hexrunner_contest_events_dedupe_idx").on(
+      table.ownerId,
+      table.actorId,
+      table.h3Index,
+      table.createdAt,
+    ),
+    check("hexrunner_contest_events_not_self_check", sql`${table.ownerId} <> ${table.actorId}`),
+    check("hexrunner_contest_events_id_check", sql`char_length(${table.id}) BETWEEN 16 AND 128`),
+    check("hexrunner_contest_events_h3_check", sql`char_length(${table.h3Index}) BETWEEN 15 AND 16`),
+    check("hexrunner_contest_events_expiry_check", sql`${table.expiresAt} > ${table.createdAt}`),
+    check("hexrunner_contest_events_ack_check", sql`${table.acknowledgedAt} IS NULL OR ${table.acknowledgedAt} >= ${table.createdAt}`),
+  ],
+);
+
 export const hexrunnerRunsTable = pgTable(
   "hexrunner_runs",
   {
@@ -435,6 +562,16 @@ export const insertHexrunnerPresenceTerminationSchema = createInsertSchema(
 export const insertHexrunnerConnectionSchema = createInsertSchema(
   hexrunnerConnectionsTable,
 );
+export const insertHexrunnerInteractionGrantSchema = createInsertSchema(
+  hexrunnerInteractionGrantsTable,
+);
+export const insertHexrunnerWaveSchema = createInsertSchema(hexrunnerWavesTable);
+export const insertHexrunnerContestOccupancySchema = createInsertSchema(
+  hexrunnerContestOccupancyTable,
+);
+export const insertHexrunnerContestEventSchema = createInsertSchema(
+  hexrunnerContestEventsTable,
+);
 export const insertHexrunnerRunSchema = createInsertSchema(hexrunnerRunsTable);
 export const insertHexrunnerRunPointSchema = createInsertSchema(
   hexrunnerRunPointsTable,
@@ -489,6 +626,23 @@ export type InsertHexrunnerPresenceTermination = z.infer<
 export type HexrunnerConnection = typeof hexrunnerConnectionsTable.$inferSelect;
 export type InsertHexrunnerConnection = z.infer<
   typeof insertHexrunnerConnectionSchema
+>;
+export type HexrunnerInteractionGrant =
+  typeof hexrunnerInteractionGrantsTable.$inferSelect;
+export type InsertHexrunnerInteractionGrant = z.infer<
+  typeof insertHexrunnerInteractionGrantSchema
+>;
+export type HexrunnerWave = typeof hexrunnerWavesTable.$inferSelect;
+export type InsertHexrunnerWave = z.infer<typeof insertHexrunnerWaveSchema>;
+export type HexrunnerContestOccupancy =
+  typeof hexrunnerContestOccupancyTable.$inferSelect;
+export type InsertHexrunnerContestOccupancy = z.infer<
+  typeof insertHexrunnerContestOccupancySchema
+>;
+export type HexrunnerContestEvent =
+  typeof hexrunnerContestEventsTable.$inferSelect;
+export type InsertHexrunnerContestEvent = z.infer<
+  typeof insertHexrunnerContestEventSchema
 >;
 export type HexrunnerRun = typeof hexrunnerRunsTable.$inferSelect;
 export type InsertHexrunnerRun = z.infer<typeof insertHexrunnerRunSchema>;

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './acknowledgeLiveInteractionsInput';
 export * from './adoptCivicZoneRequest';
 export * from './adoptCivicZoneResult';
 export * from './airQualityLevel';
@@ -50,6 +51,9 @@ export * from './hexOwnershipLookupResult';
 export * from './leaderboardEntry';
 export * from './leaderboardResult';
 export * from './leaderboardScope';
+export * from './liveInteraction';
+export * from './liveInteractionKind';
+export * from './liveInteractionsResult';
 export * from './nearbyPresenceResult';
 export * from './presenceEndInput';
 export * from './presenceHeartbeatInput';
@@ -64,6 +68,8 @@ export * from './safetyAreaSignal';
 export * from './safetyAreaSignalConfidence';
 export * from './saveRunRequest';
 export * from './saveRunResult';
+export * from './sendWaveInput';
+export * from './sendWaveResult';
 export * from './takeoverAlert';
 export * from './userBaseline';
 export * from './userBaselineUpdate';

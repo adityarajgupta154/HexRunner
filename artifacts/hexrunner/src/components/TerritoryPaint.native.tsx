@@ -27,6 +27,7 @@ export type TerritoryPaintProps = {
   caretakerH3Indexes?: ReadonlySet<string>;
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
+  onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -54,6 +55,7 @@ export default function TerritoryPaint({
   caretakerH3Indexes,
   exactRunners = [],
   anonymousRunners = [],
+  onRunnerPress,
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -131,45 +133,57 @@ export default function TerritoryPaint({
         );
       })}
 
-      {exactRunners.map((runner) => (
-        <Marker
-          key={`exact-${runner.userId}`}
-          coordinate={{ latitude: runner.lat, longitude: runner.lng }}
-          anchor={{ x: 0.5, y: 0.5 }}
-          tracksViewChanges={false}
-          zIndex={10}
-        >
-          <View style={{ alignItems: 'center' }}>
-            <View
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: 7,
-                backgroundColor: colors.foreground,
-                borderWidth: 2,
-                borderColor: colors.background,
-              }}
-            />
-            <View style={{ marginTop: 4, backgroundColor: colors.background, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
-              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 10, color: colors.foreground }}>
-                {runner.displayName.toUpperCase()}
-              </Text>
+      {exactRunners.map((runner) => {
+        const interactive = !!onRunnerPress && runner.waveAvailable && !!runner.interactionToken;
+        return (
+          <Marker
+            key={`exact-${runner.userId}`}
+            coordinate={{ latitude: runner.lat, longitude: runner.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            zIndex={10}
+            onPress={interactive ? () => onRunnerPress(runner) : undefined}
+            tappable={interactive}
+            accessibilityLabel={interactive ? `Wave at ${runner.displayName}` : `Runner ${runner.displayName}`}
+            accessibilityRole={interactive ? "button" : "none"}
+          >
+            <View style={{ alignItems: 'center' }}>
+              <View
+                style={{
+                  width: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  backgroundColor: colors.foreground,
+                  borderWidth: 2,
+                  borderColor: colors.background,
+                }}
+              />
+              <View style={{ marginTop: 4, backgroundColor: colors.background, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
+                <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 10, color: colors.foreground }}>
+                  {runner.displayName.toUpperCase()}
+                </Text>
+              </View>
             </View>
-          </View>
-        </Marker>
-      ))}
+          </Marker>
+        );
+      })}
 
-      {anonymousRunners.map((runner, i) => {
+      {anonymousRunners.map((runner) => {
+        const interactive = !!onRunnerPress && runner.waveAvailable && !!runner.interactionToken;
         const formattedDistance = runner.distanceBandMeters >= 1000
           ? `~${(runner.distanceBandMeters / 1000).toFixed(1)} km`
           : `~${runner.distanceBandMeters} m`;
         return (
           <Marker
-            key={`anon-${i}`}
+            key={`anon-${runner.interactionToken}`}
             coordinate={{ latitude: runner.lat, longitude: runner.lng }}
             anchor={{ x: 0.5, y: 0.5 }}
             tracksViewChanges={false}
             zIndex={9}
+            onPress={interactive ? () => onRunnerPress(runner) : undefined}
+            tappable={interactive}
+            accessibilityLabel={interactive ? `Wave at cloaked runner` : `Cloaked runner`}
+            accessibilityRole={interactive ? "button" : "none"}
           >
             <View style={{ alignItems: 'center' }}>
               <View

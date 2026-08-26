@@ -8,6 +8,7 @@ import {
   hexrunnerDiscoveryAnchorContinuityTable,
   hexrunnerDiscoveryAnchorTerminationsTable,
   hexrunnerDiscoveryAnchorsTable,
+  hexrunnerInteractionGrantsTable,
   hexrunnerLivePresenceTable,
   hexrunnerPresenceTerminationsTable,
   hexrunnerUsersTable,
@@ -35,6 +36,17 @@ async function request<T>(
   credential?: string,
   body?: unknown,
 ): Promise<Result<T>> {
+  if (method === "GET" && path.startsWith("/api/presence/nearby") && credential) {
+    const viewerId = [...credentials.entries()].find(
+      ([, storedCredential]) => storedCredential === credential,
+    )?.[0];
+    if (viewerId) {
+      await db
+        .update(hexrunnerInteractionGrantsTable)
+        .set({ createdAt: new Date(Date.now() - 3_000) })
+        .where(eq(hexrunnerInteractionGrantsTable.viewerId, viewerId));
+    }
+  }
   const response = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
@@ -467,7 +479,8 @@ describe("live presence and connections integration", { concurrency: false }, ()
     assert.equal(runner?.visibility, "anonymous");
     assert.ok(Number(runner?.distanceBandMeters) >= 250);
     assert.deepEqual(Object.keys(runner ?? {}).sort(), [
-      "distanceBandMeters", "lat", "lng", "visibility",
+      "distanceBandMeters", "interactionToken", "lat", "lng", "visibility",
+      "waveAvailable",
     ]);
     for (const forbidden of ["userId", "uid", "displayName", "clientRunId", "distanceMeters", "latitude", "longitude"]) {
       assert.equal(forbidden in (runner ?? {}), false);

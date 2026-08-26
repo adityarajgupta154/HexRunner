@@ -14,4 +14,10 @@ export interface ExactPresence {
   lat: number;
   lng: number;
   distanceMeters: number;
+  /**
+     * @minLength 22
+     * @maxLength 128
+     */
+  interactionToken: string;
+  waveAvailable: boolean;
 }

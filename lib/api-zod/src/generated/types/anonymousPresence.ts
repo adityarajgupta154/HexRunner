@@ -16,4 +16,10 @@ export interface AnonymousPresence {
      * @maximum 5000
      */
   distanceBandMeters: number;
+  /**
+     * @minLength 22
+     * @maxLength 128
+     */
+  interactionToken: string;
+  waveAvailable: boolean;
 }

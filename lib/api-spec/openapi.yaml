@@ -28,6 +28,8 @@ tags:
     description: Ephemeral privacy-preserving live runner presence
   - name: connections
     description: Explicit runner connection and blocking controls
+  - name: interactions
+    description: Ephemeral one-way waves and territory-entry alerts
 paths:
   /healthz:
     get:
@@ -664,6 +666,50 @@ paths:
       responses:
         "200": { description: User blocked, content: { application/json: { schema: { $ref: "#/components/schemas/Connection" } } } }
         "400": { description: Invalid action, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /waves:
+    post:
+      operationId: sendWave
+      tags: [interactions]
+      summary: Send a short-lived one-way wave using an opaque nearby grant
+      security: [{ anonymousDeviceCredential: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendWaveInput" }
+      responses:
+        "200": { description: Idempotent replay, content: { application/json: { schema: { $ref: "#/components/schemas/SendWaveResult" } } } }
+        "201": { description: Wave created, content: { application/json: { schema: { $ref: "#/components/schemas/SendWaveResult" } } } }
+        "400": { description: Invalid request, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "403": { description: Interaction unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "409": { description: Idempotency key resolved to another interaction, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "429": { description: Wave limit reached, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /live-interactions:
+    get:
+      operationId: getLiveInteractions
+      tags: [interactions]
+      summary: Poll focused unacknowledged live interactions
+      security: [{ anonymousDeviceCredential: [] }]
+      responses:
+        "200": { description: Current live interactions, content: { application/json: { schema: { $ref: "#/components/schemas/LiveInteractionsResult" } } } }
+        "400": { description: Current app-active location is required, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /live-interactions/ack:
+    post:
+      operationId: acknowledgeLiveInteractions
+      tags: [interactions]
+      summary: Acknowledge recipient-owned current interactions
+      security: [{ anonymousDeviceCredential: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AcknowledgeLiveInteractionsInput" }
+      responses:
+        "204": { description: Acknowledgement applied idempotently }
+        "400": { description: Invalid acknowledgement, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
         "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
 components:
   securitySchemes:
@@ -1426,7 +1472,7 @@ components:
         expiresAt: { type: string, format: date-time }
     ExactPresence:
       type: object
-      required: [visibility, userId, displayName, lat, lng, distanceMeters]
+      required: [visibility, userId, displayName, lat, lng, distanceMeters, interactionToken, waveAvailable]
       properties:
         visibility: { type: string, enum: [exact] }
         userId: { type: string }
@@ -1434,14 +1480,18 @@ components:
         lat: { type: number }
         lng: { type: number }
         distanceMeters: { type: number }
+        interactionToken: { type: string, minLength: 22, maxLength: 128 }
+        waveAvailable: { type: boolean }
     AnonymousPresence:
       type: object
-      required: [visibility, lat, lng, distanceBandMeters]
+      required: [visibility, lat, lng, distanceBandMeters, interactionToken, waveAvailable]
       properties:
         visibility: { type: string, enum: [anonymous] }
         lat: { type: number }
         lng: { type: number }
         distanceBandMeters: { type: number, minimum: 250, maximum: 5000, multipleOf: 250 }
+        interactionToken: { type: string, minLength: 22, maxLength: 128 }
+        waveAvailable: { type: boolean }
     NearbyPresenceResult:
       type: object
       required: [runners, ambientCount]
@@ -1461,4 +1511,52 @@ components:
         userId: { type: string }
         status: { type: string, enum: [pending_outgoing, pending_incoming, accepted, blocked] }
         updatedAt: { type: string, format: date-time }
+    SendWaveInput:
+      type: object
+      additionalProperties: false
+      required: [interactionToken, idempotencyKey]
+      properties:
+        interactionToken: { type: string, minLength: 22, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" }
+    SendWaveResult:
+      type: object
+      required: [waveId, expiresAt]
+      properties:
+        waveId: { type: string, minLength: 16, maxLength: 128 }
+        expiresAt: { type: string, format: date-time }
+    LiveInteraction:
+      type: object
+      additionalProperties: false
+      required: [id, kind, copy, createdAt, expiresAt]
+      properties:
+        id: { type: string, minLength: 16, maxLength: 128 }
+        kind: { type: string, enum: [contest, wave] }
+        copy: { type: string, maxLength: 120 }
+        displayName: { type: string, minLength: 1, maxLength: 40 }
+        h3Index: { type: string, pattern: "^89[0-9a-f]{13}$" }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    LiveInteractionsResult:
+      type: object
+      required: [events]
+      properties:
+        events:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/LiveInteraction" }
+    AcknowledgeLiveInteractionsInput:
+      type: object
+      additionalProperties: false
+      required: [contestEventIds, waveIds]
+      properties:
+        contestEventIds:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 16, maxLength: 128 }
+        waveIds:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: { type: string, minLength: 16, maxLength: 128 }
 

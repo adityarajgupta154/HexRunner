@@ -22,6 +22,7 @@ type RunMapProps = {
   contestedHexIndexes?: ReadonlySet<string>;
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
+  onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
 };
 
 const RUN_MAP_DELTA = {
@@ -57,6 +58,7 @@ export default function RunMap({
   contestedHexIndexes,
   exactRunners,
   anonymousRunners,
+  onRunnerPress,
 }: RunMapProps) {
   const colors = useColors();
   const mapRef = useRef<MapView | null>(null);
@@ -123,6 +125,7 @@ export default function RunMap({
           claimReadyHexIndexes={claimedHexIndexes}
           exactRunners={exactRunners}
           anonymousRunners={anonymousRunners}
+          onRunnerPress={onRunnerPress}
         />
       </MapView>
       <View

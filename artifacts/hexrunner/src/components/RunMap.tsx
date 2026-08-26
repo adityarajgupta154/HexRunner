@@ -18,6 +18,7 @@ type RunMapProps = {
   contestedHexIndexes?: ReadonlySet<string>;
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
+  onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
 };
 
 /** Browser fallback; Expo Go selects RunMap.native.tsx automatically. */
@@ -28,6 +29,7 @@ export default function RunMap({
   contestedHexIndexes,
   exactRunners,
   anonymousRunners,
+  onRunnerPress,
 }: RunMapProps) {
   const colors = useColors();
 
@@ -52,6 +54,7 @@ export default function RunMap({
         claimReadyHexIndexes={claimedHexIndexes}
         exactRunners={exactRunners}
         anonymousRunners={anonymousRunners}
+        onRunnerPress={onRunnerPress}
       />
     </View>
   );

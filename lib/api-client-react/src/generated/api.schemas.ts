@@ -643,6 +643,12 @@ export interface ExactPresence {
   lat: number;
   lng: number;
   distanceMeters: number;
+  /**
+     * @minLength 22
+     * @maxLength 128
+     */
+  interactionToken: string;
+  waveAvailable: boolean;
 }
 
 export type AnonymousPresenceVisibility = typeof AnonymousPresenceVisibility[keyof typeof AnonymousPresenceVisibility];
@@ -661,6 +667,12 @@ export interface AnonymousPresence {
      * @maximum 5000
      */
   distanceBandMeters: number;
+  /**
+     * @minLength 22
+     * @maxLength 128
+     */
+  interactionToken: string;
+  waveAvailable: boolean;
 }
 
 export interface NearbyPresenceResult {
@@ -684,6 +696,78 @@ export interface Connection {
   userId: string;
   status: ConnectionStatus;
   updatedAt: string;
+}
+
+export interface SendWaveInput {
+  /**
+     * @minLength 22
+     * @maxLength 128
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  interactionToken: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  idempotencyKey: string;
+}
+
+export interface SendWaveResult {
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  waveId: string;
+  expiresAt: string;
+}
+
+export type LiveInteractionKind = typeof LiveInteractionKind[keyof typeof LiveInteractionKind];
+
+
+export const LiveInteractionKind = {
+  contest: 'contest',
+  wave: 'wave',
+} as const;
+
+export interface LiveInteraction {
+  /**
+     * @minLength 16
+     * @maxLength 128
+     */
+  id: string;
+  kind: LiveInteractionKind;
+  /** @maxLength 120 */
+  copy: string;
+  /**
+     * @minLength 1
+     * @maxLength 40
+     */
+  displayName?: string;
+  /** @pattern ^89[0-9a-f]{13}$ */
+  h3Index?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface LiveInteractionsResult {
+  /** @maxItems 100 */
+  events: LiveInteraction[];
+}
+
+export interface AcknowledgeLiveInteractionsInput {
+  /**
+     * @maxItems 50
+     * @items.minLength 16
+     * @items.maxLength 128
+     */
+  contestEventIds: string[];
+  /**
+     * @maxItems 50
+     * @items.minLength 16
+     * @items.maxLength 128
+     */
+  waveIds: string[];
 }
 
 export type GetAirQualityParams = {

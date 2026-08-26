@@ -5,6 +5,7 @@ import {
   type Request,
   type Response,
 } from "express";
+import { createHash, randomBytes } from "node:crypto";
 import {
   AcceptConnectionParams,
   AcceptConnectionResponse,
@@ -31,15 +32,17 @@ import {
   hexrunnerDiscoveryAnchorTerminationsTable,
   hexrunnerDiscoveryAnchorsTable,
   hexrunnerLivePresenceTable,
+  hexrunnerInteractionGrantsTable,
   hexrunnerPresenceTerminationsTable,
   hexrunnerUsersTable,
 } from "@workspace/db";
-import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { cellToLatLng, gridDisk, latLngToCell } from "h3-js";
 import { verifyAnonymousCredential } from "../lib/anonymousCredential";
 
 const router: IRouter = Router();
 const PRESENCE_TTL_MS = 30_000;
+const GRANT_ISSUANCE_MIN_INTERVAL_MS = 2_000;
 const TERMINATION_TTL_MS = 60 * 60 * 1_000;
 const PRESENCE_H3_RESOLUTION = 9;
 const MIN_HEARTBEAT_INTERVAL_MS = 3_000;
@@ -410,11 +413,71 @@ router.get("/presence/nearby", async (req, res): Promise<void> => {
   // Blocking is symmetric for discovery and ambient counts, so the count
   // cannot become a presence side channel for either party.
   const visibleNearby = nearby.filter((candidate) => !blocked.has(candidate.userId));
-  const runners = visibleNearby.slice(0, query.data.limit).map((candidate) => {
+  const returnedCandidates = visibleNearby.slice(0, query.data.limit);
+  const grants = returnedCandidates.map((candidate) => {
+    const interactionToken = randomBytes(24).toString("base64url");
+    const expiresAt = new Date(Math.min(
+      now.getTime() + 30_000,
+      searchCenter.expiresAt.getTime(),
+      candidate.expiresAt.getTime(),
+    ));
+    return {
+      candidate,
+      interactionToken,
+      tokenHash: createHash("sha256").update(interactionToken).digest("hex"),
+      expiresAt,
+    };
+  });
+  if (grants.length > 0) {
+    let issuanceThrottled = false;
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`presence-grants:${userId}`}, 0))`,
+      );
+      const [latestGrant] = await tx
+        .select({ createdAt: hexrunnerInteractionGrantsTable.createdAt })
+        .from(hexrunnerInteractionGrantsTable)
+        .where(eq(hexrunnerInteractionGrantsTable.viewerId, userId))
+        .orderBy(desc(hexrunnerInteractionGrantsTable.createdAt))
+        .limit(1);
+      if (
+        latestGrant &&
+        latestGrant.createdAt.getTime() >
+          now.getTime() - GRANT_ISSUANCE_MIN_INTERVAL_MS
+      ) {
+        issuanceThrottled = true;
+        return;
+      }
+      await tx
+        .delete(hexrunnerInteractionGrantsTable)
+        .where(
+          and(
+            eq(hexrunnerInteractionGrantsTable.viewerId, userId),
+            lt(hexrunnerInteractionGrantsTable.expiresAt, now),
+          ),
+        );
+      for (const grant of grants) {
+        await tx.insert(hexrunnerInteractionGrantsTable).values({
+          viewerId: userId,
+          targetId: grant.candidate.userId,
+          tokenHash: grant.tokenHash,
+          createdAt: now,
+          expiresAt: grant.expiresAt,
+        }).onConflictDoNothing({
+          target: hexrunnerInteractionGrantsTable.tokenHash,
+        });
+      }
+    });
+    if (issuanceThrottled) {
+      res.status(429).json({ error: "Nearby refresh is too frequent." });
+      return;
+    }
+  }
+  const runners = grants.map(({ candidate, interactionToken }) => {
     if (accepted.has(candidate.userId)) {
       return { visibility: "exact" as const, userId: candidate.userId,
         displayName: candidate.displayName?.trim() || "Runner", lat: candidate.latitude, lng: candidate.longitude,
-        distanceMeters: Math.round(candidate.distance) };
+        distanceMeters: Math.round(candidate.distance), interactionToken, waveAvailable: true };
     }
     const [lat, lng] = cellToLatLng(latLngToCell(candidate.latitude, candidate.longitude, 10));
     return {
@@ -422,6 +485,8 @@ router.get("/presence/nearby", async (req, res): Promise<void> => {
       lat,
       lng,
       distanceBandMeters: Math.min(5_000, Math.max(250, Math.ceil(candidate.distance / 250) * 250)),
+      interactionToken,
+      waveAvailable: true,
     };
   });
   res.json(GetNearbyPresenceResponse.parse({ runners, ambientCount: visibleNearby.length }));

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, {
   Circle,
   Defs,
@@ -35,6 +35,7 @@ export type TerritoryPaintProps = {
   caretakerH3Indexes?: ReadonlySet<string>;
   exactRunners?: readonly ExactPresence[];
   anonymousRunners?: readonly AnonymousPresence[];
+  onRunnerPress?: (runner: ExactPresence | AnonymousPresence) => void;
 };
 
 type CanvasPoint = { x: number; y: number };
@@ -59,6 +60,10 @@ function project(
   };
 }
 
+function canvasPercent(value: number): `${number}%` {
+  return `${(value / CANVAS_SIZE) * 100}%`;
+}
+
 export default function TerritoryPaint({
   center,
   claimedHexIndexes,
@@ -71,6 +76,7 @@ export default function TerritoryPaint({
   caretakerH3Indexes,
   exactRunners = [],
   anonymousRunners = [],
+  onRunnerPress,
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -261,14 +267,14 @@ export default function TerritoryPaint({
           </>
         ) : null}
 
-        {anonymousRunners.map((runner, i) => {
+        {anonymousRunners.map((runner) => {
           const point = project(runner.lat, runner.lng, origin);
           const formattedDistance = runner.distanceBandMeters >= 1000
             ? `~${(runner.distanceBandMeters / 1000).toFixed(1)} km`
             : `~${runner.distanceBandMeters} m`;
 
           return (
-            <React.Fragment key={`anon-${i}`}>
+            <React.Fragment key={`anon-${runner.interactionToken}`}>
               <Circle
                 cx={point.x}
                 cy={point.y}
@@ -277,6 +283,7 @@ export default function TerritoryPaint({
                 stroke={colors.accentForeground}
                 strokeWidth={1.5}
                 opacity={0.8}
+                pointerEvents="none"
               />
               <TextSVG
                 x={point.x}
@@ -286,6 +293,7 @@ export default function TerritoryPaint({
                 fontWeight="600"
                 fontFamily="Inter_600SemiBold"
                 textAnchor="middle"
+                pointerEvents="none"
               >
                 {formattedDistance}
               </TextSVG>
@@ -304,6 +312,7 @@ export default function TerritoryPaint({
                 fill={colors.foreground}
                 stroke={colors.background}
                 strokeWidth={2}
+                pointerEvents="none"
               />
               <TextSVG
                 x={point.x}
@@ -313,6 +322,7 @@ export default function TerritoryPaint({
                 fontWeight="bold"
                 fontFamily="Inter_700Bold"
                 textAnchor="middle"
+                pointerEvents="none"
               >
                 {runner.displayName.toUpperCase()}
               </TextSVG>
@@ -329,6 +339,60 @@ export default function TerritoryPaint({
           strokeWidth={5}
         />
       </Svg>
+      <View pointerEvents="box-none" style={styles.runnerHitLayer}>
+        {anonymousRunners.map((runner) => {
+          if (
+            !onRunnerPress ||
+            !runner.waveAvailable ||
+            !runner.interactionToken
+          ) {
+            return null;
+          }
+          const point = project(runner.lat, runner.lng, origin);
+          return (
+            <Pressable
+              key={`anon-wave-${runner.interactionToken}`}
+              accessibilityRole="button"
+              accessibilityLabel="Wave at cloaked runner"
+              onPress={() => onRunnerPress(runner)}
+              style={({ pressed }) => [
+                styles.runnerHitTarget,
+                {
+                  left: canvasPercent(point.x),
+                  top: canvasPercent(point.y),
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            />
+          );
+        })}
+        {exactRunners.map((runner) => {
+          if (
+            !onRunnerPress ||
+            !runner.waveAvailable ||
+            !runner.interactionToken
+          ) {
+            return null;
+          }
+          const point = project(runner.lat, runner.lng, origin);
+          return (
+            <Pressable
+              key={`exact-wave-${runner.userId}`}
+              accessibilityRole="button"
+              accessibilityLabel={`Wave at ${runner.displayName}`}
+              onPress={() => onRunnerPress(runner)}
+              style={({ pressed }) => [
+                styles.runnerHitTarget,
+                {
+                  left: canvasPercent(point.x),
+                  top: canvasPercent(point.y),
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
       <View
         pointerEvents="none"
         style={[
@@ -380,6 +444,19 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderWidth: 1,
     borderRadius: 999,
+  },
+  runnerHitLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 4,
+  },
+  runnerHitTarget: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    marginLeft: -22,
+    marginTop: -22,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
   },
   webDot: {
     width: 7,

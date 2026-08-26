@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AcknowledgeLiveInteractionsInput,
   AdoptCivicZoneRequest,
   AdoptCivicZoneResult,
   AirQualityResult,
@@ -47,6 +48,7 @@ import type {
   HexOwnershipLookupRequest,
   HexOwnershipLookupResult,
   LeaderboardResult,
+  LiveInteractionsResult,
   NearbyPresenceResult,
   PresenceEndInput,
   PresenceHeartbeatInput,
@@ -55,6 +57,8 @@ import type {
   SafetyAreaLookupResult,
   SaveRunRequest,
   SaveRunResult,
+  SendWaveInput,
+  SendWaveResult,
   UserBaseline,
   UserBaselineUpdate,
   UserId,
@@ -1947,5 +1951,224 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getBlockConnectionMutationOptions(options));
+    }
+
+export const getSendWaveUrl = () => {
+
+
+
+
+  return `/api/waves`
+}
+
+/**
+ * @summary Send a short-lived one-way wave using an opaque nearby grant
+ */
+export const sendWave = async (sendWaveInput: SendWaveInput, options?: Parameters<typeof customFetch>[1]): Promise<SendWaveResult> => {
+
+  return customFetch<SendWaveResult>(getSendWaveUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sendWaveInput)
+  }
+);}
+
+
+
+
+
+export const getSendWaveMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWave>>, TError,{data: BodyType<SendWaveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendWave>>, TError,{data: BodyType<SendWaveInput>}, TContext> => {
+
+const mutationKey = ['sendWave'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendWave>>, {data: BodyType<SendWaveInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendWave(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendWaveMutationResult = NonNullable<Awaited<ReturnType<typeof sendWave>>>
+    export type SendWaveMutationBody = BodyType<SendWaveInput>
+    export type SendWaveMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Send a short-lived one-way wave using an opaque nearby grant
+ */
+export const useSendWave = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendWave>>, TError,{data: BodyType<SendWaveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendWave>>,
+        TError,
+        {data: BodyType<SendWaveInput>},
+        TContext
+      > => {
+      return useMutation(getSendWaveMutationOptions(options));
+    }
+
+export const getGetLiveInteractionsUrl = () => {
+
+
+
+
+  return `/api/live-interactions`
+}
+
+/**
+ * @summary Poll focused unacknowledged live interactions
+ */
+export const getLiveInteractions = async ( options?: Parameters<typeof customFetch>[1]): Promise<LiveInteractionsResult> => {
+
+  return customFetch<LiveInteractionsResult>(getGetLiveInteractionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetLiveInteractionsQueryKey = () => {
+    return [
+    `/api/live-interactions`
+    ] as const;
+    }
+
+
+export const getGetLiveInteractionsQueryOptions = <TData = Awaited<ReturnType<typeof getLiveInteractions>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveInteractions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetLiveInteractionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getLiveInteractions>>> = ({ signal }) => getLiveInteractions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getLiveInteractions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetLiveInteractionsQueryResult = NonNullable<Awaited<ReturnType<typeof getLiveInteractions>>>
+export type GetLiveInteractionsQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Poll focused unacknowledged live interactions
+ */
+
+export function useGetLiveInteractions<TData = Awaited<ReturnType<typeof getLiveInteractions>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getLiveInteractions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetLiveInteractionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAcknowledgeLiveInteractionsUrl = () => {
+
+
+
+
+  return `/api/live-interactions/ack`
+}
+
+/**
+ * @summary Acknowledge recipient-owned current interactions
+ */
+export const acknowledgeLiveInteractions = async (acknowledgeLiveInteractionsInput: AcknowledgeLiveInteractionsInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getAcknowledgeLiveInteractionsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(acknowledgeLiveInteractionsInput)
+  }
+);}
+
+
+
+
+
+export const getAcknowledgeLiveInteractionsMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeLiveInteractions>>, TError,{data: BodyType<AcknowledgeLiveInteractionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeLiveInteractions>>, TError,{data: BodyType<AcknowledgeLiveInteractionsInput>}, TContext> => {
+
+const mutationKey = ['acknowledgeLiveInteractions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acknowledgeLiveInteractions>>, {data: BodyType<AcknowledgeLiveInteractionsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  acknowledgeLiveInteractions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcknowledgeLiveInteractionsMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeLiveInteractions>>>
+    export type AcknowledgeLiveInteractionsMutationBody = BodyType<AcknowledgeLiveInteractionsInput>
+    export type AcknowledgeLiveInteractionsMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Acknowledge recipient-owned current interactions
+ */
+export const useAcknowledgeLiveInteractions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeLiveInteractions>>, TError,{data: BodyType<AcknowledgeLiveInteractionsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acknowledgeLiveInteractions>>,
+        TError,
+        {data: BodyType<AcknowledgeLiveInteractionsInput>},
+        TContext
+      > => {
+      return useMutation(getAcknowledgeLiveInteractionsMutationOptions(options));
     }
 

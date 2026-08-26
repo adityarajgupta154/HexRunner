@@ -28,8 +28,26 @@ function runSyncTests() {
 
   const loc = { latitude: 0, longitude: 0, accuracy: 10, mocked: false };
   const exactRunners: ExactPresence[] = [
-    { visibility: 'exact', userId: '1', displayName: 'A', lat: 1, lng: 0, distanceMeters: 50 },
-    { visibility: 'exact', userId: '2', displayName: 'B', lat: -1, lng: 0, distanceMeters: 20 }
+    {
+      visibility: 'exact',
+      userId: '1',
+      displayName: 'A',
+      lat: 1,
+      lng: 0,
+      distanceMeters: 50,
+      interactionToken: 'token_exact_runner_1',
+      waveAvailable: true,
+    },
+    {
+      visibility: 'exact',
+      userId: '2',
+      displayName: 'B',
+      lat: -1,
+      lng: 0,
+      distanceMeters: 20,
+      interactionToken: 'token_exact_runner_2',
+      waveAvailable: true,
+    }
   ];
 
   const target = selectGhostTarget(exactRunners, loc);
