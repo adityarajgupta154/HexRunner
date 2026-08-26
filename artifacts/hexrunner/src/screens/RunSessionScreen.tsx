@@ -619,34 +619,43 @@ export default function RunSessionScreen() {
     }
   }, [isRunning, isPaused, voiceAvailable, voiceEnabled]);
 
-  const togglePause = useCallback(() => {
-    const nextPaused = !isPaused;
-    setIsPaused(nextPaused);
-    isPausedRef.current = nextPaused;
+  const togglePause = useCallback(async () => {
     const clientRunId = clientRunIdRef.current;
 
-    if (nextPaused) {
+    if (!isPausedRef.current) {
       stopWatching();
       pauseStartTimeRef.current = Date.now();
+      setIsPaused(true);
+      isPausedRef.current = true;
       if (clientRunId) runPresence.pauseRun(clientRunId);
       voiceCompanion.pause();
       lastPointRef.current = null;
-    } else {
-      if (pauseStartTimeRef.current !== null) {
-        totalPausedMsRef.current += (Date.now() - pauseStartTimeRef.current);
-        pauseStartTimeRef.current = null;
-      }
-      lastPointRef.current = null;
-      if (clientRunId) runPresence.resumeRun(clientRunId);
-      if (voiceEnabledRef.current) voiceCompanion.resume();
-
-      startWatching((location) => locationCallbackRef.current?.(location)).catch((err) => {
-        setError('Failed to restart GPS on resume.');
-        setIsPaused(true);
-        isPausedRef.current = true;
-      });
+      return;
     }
-  }, [isPaused]);
+
+    try {
+      await startWatching((location) => locationCallbackRef.current?.(location));
+    } catch {
+      setError('Failed to restart GPS on resume. Check location access and try again.');
+      return;
+    }
+
+    if (!runningRef.current || clientRunIdRef.current !== clientRunId) {
+      stopWatching();
+      return;
+    }
+
+    if (pauseStartTimeRef.current !== null) {
+      totalPausedMsRef.current += (Date.now() - pauseStartTimeRef.current);
+      pauseStartTimeRef.current = null;
+    }
+    lastPointRef.current = null;
+    setError(null);
+    setIsPaused(false);
+    isPausedRef.current = false;
+    if (clientRunId) runPresence.resumeRun(clientRunId);
+    if (voiceEnabledRef.current) voiceCompanion.resume();
+  }, []);
 
   const isLocationReady = Platform.OS === 'web' || locationPermission?.granted;
 
@@ -725,7 +734,7 @@ export default function RunSessionScreen() {
 
            <Pressable
              accessibilityRole="button"
-             onPress={togglePause}
+             onPress={() => void togglePause()}
              style={({ pressed }) => [
                styles.pauseButton,
                { backgroundColor: isPaused ? '#00FF00' : '#FF9500' },
