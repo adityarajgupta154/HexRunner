@@ -18,3 +18,7 @@ export const logger = pino({
         },
       }),
 });
+
+export const airQualityOperationsLogger = logger.child({
+  component: "open-meteo-air-quality",
+});

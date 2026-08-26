@@ -2,10 +2,109 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   AirQualityAreaCache,
+  AirQualityOutageTracker,
   buildAirQualityResponse,
   coarseAirQualityArea,
   type AirQualitySnapshot,
 } from "../lib/airQuality";
+
+describe("air-quality outage signals", { concurrency: false }, () => {
+  test("records repeated failures and stale fallbacks without location data", () => {
+    let now = Date.parse("2026-08-25T10:00:00.000Z");
+    const tracker = new AirQualityOutageTracker({
+      now: () => now,
+      sustainedOutageMs: 60_000,
+    });
+
+    const firstFailure = tracker.recordFailure("unavailable", 503);
+    now += 30_000;
+    const fallback = tracker.recordStaleFallback(
+      new Date("2026-08-25T09:45:00.000Z"),
+    );
+    now += 30_000;
+    const repeatedFailure = tracker.recordFailure("timeout");
+    const serializedSignals = JSON.stringify([
+      ...firstFailure,
+      ...fallback,
+      ...repeatedFailure,
+    ]);
+
+    assert.deepEqual(firstFailure, [
+      {
+        event: "air_quality_upstream_failure",
+        occurredAt: "2026-08-25T10:00:00.000Z",
+        sourceFailure: "unavailable",
+        sourceStatus: 503,
+        outageStartedAt: "2026-08-25T10:00:00.000Z",
+        outageDurationMs: 0,
+        upstreamFailureCount: 1,
+        staleFallbackCount: 0,
+      },
+    ]);
+    assert.equal(fallback[0]?.event, "air_quality_stale_fallback");
+    assert.equal(fallback[0]?.staleFallbackCount, 1);
+    assert.equal(repeatedFailure[0]?.upstreamFailureCount, 2);
+    assert.equal(repeatedFailure[0]?.staleFallbackCount, 1);
+    assert.equal(repeatedFailure[1]?.event, "air_quality_outage_sustained");
+    assert.equal(serializedSignals.includes("latitude"), false);
+    assert.equal(serializedSignals.includes("longitude"), false);
+    assert.equal(serializedSignals.includes("area"), false);
+  });
+
+  test("records one sustained signal per outage and closes it on recovery", () => {
+    let now = Date.parse("2026-08-25T10:00:00.000Z");
+    const tracker = new AirQualityOutageTracker({
+      now: () => now,
+      sustainedOutageMs: 10_000,
+    });
+
+    tracker.recordFailure("request-error");
+    now += 10_000;
+    const sustained = tracker.recordStaleFallback(
+      new Date("2026-08-25T09:50:00.000Z"),
+    );
+    now += 10_000;
+    const repeatedFallback = tracker.recordStaleFallback(
+      new Date("2026-08-25T09:50:00.000Z"),
+    );
+    now += 5_000;
+    const recovery = tracker.recordRecovery();
+    const duplicateRecovery = tracker.recordRecovery();
+
+    assert.equal(sustained[1]?.event, "air_quality_outage_sustained");
+    assert.equal(repeatedFallback.length, 1);
+    assert.deepEqual(recovery, [
+      {
+        event: "air_quality_upstream_recovered",
+        recoveredAt: "2026-08-25T10:00:25.000Z",
+        lastFailureAt: "2026-08-25T10:00:00.000Z",
+        outageStartedAt: "2026-08-25T10:00:00.000Z",
+        outageDurationMs: 25_000,
+        upstreamFailureCount: 1,
+        staleFallbackCount: 2,
+      },
+    ]);
+    assert.deepEqual(duplicateRecovery, []);
+  });
+
+  test("starts a fresh outage window after recovery", () => {
+    let now = Date.parse("2026-08-25T10:00:00.000Z");
+    const tracker = new AirQualityOutageTracker({ now: () => now });
+
+    tracker.recordFailure("timeout");
+    now += 1_000;
+    tracker.recordRecovery();
+    now += 1_000;
+    const nextFailure = tracker.recordFailure("missing-observation");
+
+    assert.equal(
+      nextFailure[0]?.outageStartedAt,
+      "2026-08-25T10:00:02.000Z",
+    );
+    assert.equal(nextFailure[0]?.upstreamFailureCount, 1);
+    assert.equal(nextFailure[0]?.staleFallbackCount, 0);
+  });
+});
 
 describe("air-quality coarse-area cache", { concurrency: false }, () => {
   test("uses an opaque coarse area and center instead of exact runner coordinates", () => {

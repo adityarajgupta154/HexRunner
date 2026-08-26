@@ -4,6 +4,7 @@ import { GetAirQualityResponse } from "@workspace/api-zod";
 export const AIR_QUALITY_CACHE_TTL_MS = 10 * 60 * 1_000;
 export const AIR_QUALITY_STALE_IF_ERROR_MS = 30 * 60 * 1_000;
 export const AIR_QUALITY_RETRY_COOLDOWN_MS = 30 * 1_000;
+export const AIR_QUALITY_SUSTAINED_OUTAGE_MS = 5 * 60 * 1_000;
 
 const AIR_QUALITY_AREA_RESOLUTION = 7;
 const STALE_AFTER_MS = 2 * 60 * 60 * 1_000;
@@ -28,6 +29,176 @@ export type CoarseAirQualityArea = {
   latitude: number;
   longitude: number;
 };
+
+type AirQualityOutageState = {
+  startedAt: number;
+  lastFailureAt: number;
+  upstreamFailureCount: number;
+  staleFallbackCount: number;
+  sustainedSignalRecorded: boolean;
+};
+
+type AirQualityOutageSignalBase = {
+  outageStartedAt: string;
+  outageDurationMs: number;
+  upstreamFailureCount: number;
+  staleFallbackCount: number;
+};
+
+export type AirQualityOutageSignal =
+  | (AirQualityOutageSignalBase & {
+      event: "air_quality_upstream_failure";
+      occurredAt: string;
+      sourceFailure:
+        | "unavailable"
+        | "missing-observation"
+        | "timeout"
+        | "request-error";
+      sourceStatus?: number;
+    })
+  | (AirQualityOutageSignalBase & {
+      event: "air_quality_stale_fallback";
+      occurredAt: string;
+      snapshotAgeMs: number;
+    })
+  | (AirQualityOutageSignalBase & {
+      event: "air_quality_outage_sustained";
+      occurredAt: string;
+    })
+  | (AirQualityOutageSignalBase & {
+      event: "air_quality_upstream_recovered";
+      recoveredAt: string;
+      lastFailureAt: string;
+    });
+
+type AirQualityOutageTrackerOptions = {
+  now?: () => number;
+  sustainedOutageMs?: number;
+};
+
+export class AirQualityOutageTracker {
+  private readonly now: () => number;
+  private readonly sustainedOutageMs: number;
+  private activeOutage: AirQualityOutageState | undefined;
+
+  constructor(options: AirQualityOutageTrackerOptions = {}) {
+    this.now = options.now ?? Date.now;
+    this.sustainedOutageMs =
+      options.sustainedOutageMs ?? AIR_QUALITY_SUSTAINED_OUTAGE_MS;
+    if (this.sustainedOutageMs < 0) {
+      throw new Error("Sustained outage period cannot be negative.");
+    }
+  }
+
+  recordFailure(
+    sourceFailure:
+      | "unavailable"
+      | "missing-observation"
+      | "timeout"
+      | "request-error",
+    sourceStatus?: number,
+  ): AirQualityOutageSignal[] {
+    const occurredAt = this.now();
+    const outage =
+      this.activeOutage ??
+      (this.activeOutage = {
+        startedAt: occurredAt,
+        lastFailureAt: occurredAt,
+        upstreamFailureCount: 0,
+        staleFallbackCount: 0,
+        sustainedSignalRecorded: false,
+      });
+    outage.lastFailureAt = occurredAt;
+    outage.upstreamFailureCount += 1;
+
+    return [
+      {
+        event: "air_quality_upstream_failure",
+        occurredAt: new Date(occurredAt).toISOString(),
+        sourceFailure,
+        ...(sourceStatus === undefined ? {} : { sourceStatus }),
+        ...this.summary(outage, occurredAt),
+      },
+      ...this.recordSustainedSignalIfNeeded(outage, occurredAt),
+    ];
+  }
+
+  recordStaleFallback(snapshotFetchedAt: Date): AirQualityOutageSignal[] {
+    const occurredAt = this.now();
+    const outage =
+      this.activeOutage ??
+      (this.activeOutage = {
+        startedAt: occurredAt,
+        lastFailureAt: occurredAt,
+        upstreamFailureCount: 0,
+        staleFallbackCount: 0,
+        sustainedSignalRecorded: false,
+      });
+    outage.staleFallbackCount += 1;
+
+    return [
+      {
+        event: "air_quality_stale_fallback",
+        occurredAt: new Date(occurredAt).toISOString(),
+        snapshotAgeMs: Math.max(
+          0,
+          occurredAt - snapshotFetchedAt.getTime(),
+        ),
+        ...this.summary(outage, occurredAt),
+      },
+      ...this.recordSustainedSignalIfNeeded(outage, occurredAt),
+    ];
+  }
+
+  recordRecovery(): AirQualityOutageSignal[] {
+    const recoveredAt = this.now();
+    const outage = this.activeOutage;
+    if (!outage) return [];
+
+    this.activeOutage = undefined;
+    return [
+      {
+        event: "air_quality_upstream_recovered",
+        recoveredAt: new Date(recoveredAt).toISOString(),
+        lastFailureAt: new Date(outage.lastFailureAt).toISOString(),
+        ...this.summary(outage, recoveredAt),
+      },
+    ];
+  }
+
+  private recordSustainedSignalIfNeeded(
+    outage: AirQualityOutageState,
+    occurredAt: number,
+  ): AirQualityOutageSignal[] {
+    if (
+      outage.sustainedSignalRecorded ||
+      occurredAt - outage.startedAt < this.sustainedOutageMs
+    ) {
+      return [];
+    }
+
+    outage.sustainedSignalRecorded = true;
+    return [
+      {
+        event: "air_quality_outage_sustained",
+        occurredAt: new Date(occurredAt).toISOString(),
+        ...this.summary(outage, occurredAt),
+      },
+    ];
+  }
+
+  private summary(
+    outage: AirQualityOutageState,
+    occurredAt: number,
+  ): AirQualityOutageSignalBase {
+    return {
+      outageStartedAt: new Date(outage.startedAt).toISOString(),
+      outageDurationMs: Math.max(0, occurredAt - outage.startedAt),
+      upstreamFailureCount: outage.upstreamFailureCount,
+      staleFallbackCount: outage.staleFallbackCount,
+    };
+  }
+}
 
 type CacheEntry<T> = {
   value: T;

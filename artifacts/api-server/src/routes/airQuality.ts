@@ -5,11 +5,14 @@ import {
   AIR_QUALITY_RETRY_COOLDOWN_MS,
   AIR_QUALITY_STALE_IF_ERROR_MS,
   AirQualityAreaCache,
+  AirQualityOutageTracker,
   buildAirQualityResponse,
   coarseAirQualityArea,
+  type AirQualityOutageSignal,
   type AirQualitySnapshot,
   type OpenMeteoAirQuality,
 } from "../lib/airQuality";
+import { airQualityOperationsLogger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -20,6 +23,7 @@ const sourceCache = new AirQualityAreaCache<AirQualitySnapshot>(
     retryCooldownMs: AIR_QUALITY_RETRY_COOLDOWN_MS,
   },
 );
+const outageTracker = new AirQualityOutageTracker();
 
 class AirQualitySourceError extends Error {
   constructor(
@@ -27,6 +31,60 @@ class AirQualitySourceError extends Error {
     readonly status?: number,
   ) {
     super(kind);
+  }
+}
+
+function sourceFailureDetails(error: unknown): {
+  sourceFailure:
+    | "unavailable"
+    | "missing-observation"
+    | "timeout"
+    | "request-error";
+  sourceStatus?: number;
+} {
+  if (error instanceof AirQualitySourceError) {
+    return {
+      sourceFailure: error.kind,
+      ...(error.status === undefined ? {} : { sourceStatus: error.status }),
+    };
+  }
+  if (
+    error instanceof Error &&
+    (error.name === "TimeoutError" || error.name === "AbortError")
+  ) {
+    return { sourceFailure: "timeout" };
+  }
+  return { sourceFailure: "request-error" };
+}
+
+function recordOperationalSignals(signals: AirQualityOutageSignal[]): void {
+  for (const signal of signals) {
+    switch (signal.event) {
+      case "air_quality_upstream_recovered":
+        airQualityOperationsLogger.info(
+          signal,
+          "Open-Meteo air-quality source recovered",
+        );
+        break;
+      case "air_quality_outage_sustained":
+        airQualityOperationsLogger.error(
+          signal,
+          "Open-Meteo air-quality outage is sustained",
+        );
+        break;
+      case "air_quality_stale_fallback":
+        airQualityOperationsLogger.warn(
+          signal,
+          "Serving stale air-quality guidance during an upstream outage",
+        );
+        break;
+      case "air_quality_upstream_failure":
+        airQualityOperationsLogger.warn(
+          signal,
+          "Open-Meteo air-quality request failed",
+        );
+        break;
+    }
   }
 }
 
@@ -82,16 +140,28 @@ router.get("/air-quality", async (req, res): Promise<void> => {
   );
 
   try {
-    const cacheResult = await sourceCache.getOrLoad(area.key, () =>
-      fetchAirQualitySnapshot(area.latitude, area.longitude),
-    );
+    const cacheResult = await sourceCache.getOrLoad(area.key, async () => {
+      try {
+        const snapshot = await fetchAirQualitySnapshot(
+          area.latitude,
+          area.longitude,
+        );
+        recordOperationalSignals(outageTracker.recordRecovery());
+        return snapshot;
+      } catch (error) {
+        const failure = sourceFailureDetails(error);
+        recordOperationalSignals(
+          outageTracker.recordFailure(
+            failure.sourceFailure,
+            failure.sourceStatus,
+          ),
+        );
+        throw error;
+      }
+    });
     if (cacheResult.isFallback) {
-      req.log.warn(
-        {
-          fetchedAt: cacheResult.value.fetchedAt,
-          staleIfErrorMs: AIR_QUALITY_STALE_IF_ERROR_MS,
-        },
-        "Serving last-known air quality after an upstream failure",
+      recordOperationalSignals(
+        outageTracker.recordStaleFallback(cacheResult.value.fetchedAt),
       );
     }
     res.json(
@@ -115,7 +185,10 @@ router.get("/air-quality", async (req, res): Promise<void> => {
       });
       return;
     }
-    req.log.warn({ error }, "Air-quality source request failed");
+    req.log.warn(
+      sourceFailureDetails(error),
+      "Air-quality source request failed",
+    );
     res
       .status(503)
       .json({ error: "Air-quality data is temporarily unavailable." });
