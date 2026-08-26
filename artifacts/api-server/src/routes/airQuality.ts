@@ -12,7 +12,14 @@ import {
   type AirQualitySnapshot,
   type OpenMeteoAirQuality,
 } from "../lib/airQuality";
-import { airQualityOperationsLogger } from "../lib/logger";
+import {
+  AirQualityOperatorNotifier,
+  createAirQualityWebhookDelivery,
+} from "../lib/airQualityAlerts";
+import {
+  airQualityAlertLogger,
+  airQualityOperationsLogger,
+} from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -24,6 +31,12 @@ const sourceCache = new AirQualityAreaCache<AirQualitySnapshot>(
   },
 );
 const outageTracker = new AirQualityOutageTracker();
+const operatorNotifier = new AirQualityOperatorNotifier({
+  logger: airQualityAlertLogger,
+  deliver: createAirQualityWebhookDelivery(
+    process.env.AIR_QUALITY_OPERATOR_ALERT_WEBHOOK_URL,
+  ),
+});
 
 class AirQualitySourceError extends Error {
   constructor(
@@ -59,6 +72,7 @@ function sourceFailureDetails(error: unknown): {
 
 function recordOperationalSignals(signals: AirQualityOutageSignal[]): void {
   for (const signal of signals) {
+    operatorNotifier.record(signal);
     switch (signal.event) {
       case "air_quality_upstream_recovered":
         airQualityOperationsLogger.info(

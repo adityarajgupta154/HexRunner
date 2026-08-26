@@ -7,6 +7,21 @@ import {
   coarseAirQualityArea,
   type AirQualitySnapshot,
 } from "../lib/airQuality";
+import {
+  AirQualityOperatorNotifier,
+  createAirQualityWebhookDelivery,
+  type AirQualityOperatorNotification,
+} from "../lib/airQualityAlerts";
+import type { Logger } from "pino";
+
+function recordingLogger(errors: unknown[] = []): Logger {
+  return {
+    info() {},
+    error(context: unknown) {
+      errors.push(context);
+    },
+  } as unknown as Logger;
+}
 
 describe("air-quality outage signals", { concurrency: false }, () => {
   test("records repeated failures and stale fallbacks without location data", () => {
@@ -103,6 +118,130 @@ describe("air-quality outage signals", { concurrency: false }, () => {
     );
     assert.equal(nextFailure[0]?.upstreamFailureCount, 1);
     assert.equal(nextFailure[0]?.staleFallbackCount, 0);
+  });
+});
+
+describe("air-quality operator notifications", { concurrency: false }, () => {
+  test("delivers one trigger and one resolution per sustained outage", async () => {
+    const delivered: AirQualityOperatorNotification[] = [];
+    const notifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(),
+      deliver: async (notification) => {
+        delivered.push(notification);
+      },
+    });
+    const sustained = {
+      event: "air_quality_outage_sustained",
+      occurredAt: "2026-08-25T10:05:00.000Z",
+      outageStartedAt: "2026-08-25T10:00:00.000Z",
+      outageDurationMs: 300_000,
+      upstreamFailureCount: 4,
+      staleFallbackCount: 7,
+    } as const;
+    const recovered = {
+      event: "air_quality_upstream_recovered",
+      recoveredAt: "2026-08-25T10:08:00.000Z",
+      lastFailureAt: "2026-08-25T10:07:30.000Z",
+      outageStartedAt: "2026-08-25T10:00:00.000Z",
+      outageDurationMs: 480_000,
+      upstreamFailureCount: 5,
+      staleFallbackCount: 9,
+    } as const;
+
+    notifier.record(sustained);
+    notifier.record(sustained);
+    notifier.record(recovered);
+    notifier.record(recovered);
+    await notifier.waitForIdle();
+
+    assert.deepEqual(delivered, [
+      {
+        alertType: "air_quality_upstream_outage",
+        status: "triggered",
+        outageStartedAt: "2026-08-25T10:00:00.000Z",
+        outageDurationMs: 300_000,
+        upstreamFailureCount: 4,
+        staleFallbackCount: 7,
+        occurredAt: "2026-08-25T10:05:00.000Z",
+      },
+      {
+        alertType: "air_quality_upstream_outage",
+        status: "resolved",
+        outageStartedAt: "2026-08-25T10:00:00.000Z",
+        outageDurationMs: 480_000,
+        upstreamFailureCount: 5,
+        staleFallbackCount: 9,
+        occurredAt: "2026-08-25T10:08:00.000Z",
+      },
+    ]);
+    assert.equal(JSON.stringify(delivered).includes("latitude"), false);
+    assert.equal(JSON.stringify(delivered).includes("longitude"), false);
+  });
+
+  test("ignores recovery when no sustained alert was opened", async () => {
+    const delivered: AirQualityOperatorNotification[] = [];
+    const notifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(),
+      deliver: async (notification) => {
+        delivered.push(notification);
+      },
+    });
+
+    notifier.record({
+      event: "air_quality_upstream_recovered",
+      recoveredAt: "2026-08-25T10:01:00.000Z",
+      lastFailureAt: "2026-08-25T10:00:30.000Z",
+      outageStartedAt: "2026-08-25T10:00:00.000Z",
+      outageDurationMs: 60_000,
+      upstreamFailureCount: 1,
+      staleFallbackCount: 0,
+    });
+    await notifier.waitForIdle();
+
+    assert.deepEqual(delivered, []);
+  });
+
+  test("logs delivery failures without rejecting the signal path", async () => {
+    const errors: unknown[] = [];
+    const notifier = new AirQualityOperatorNotifier({
+      logger: recordingLogger(errors),
+      deliver: async () => {
+        throw new Error("notification provider unavailable");
+      },
+    });
+
+    assert.doesNotThrow(() => {
+      notifier.record({
+        event: "air_quality_outage_sustained",
+        occurredAt: "2026-08-25T10:05:00.000Z",
+        outageStartedAt: "2026-08-25T10:00:00.000Z",
+        outageDurationMs: 300_000,
+        upstreamFailureCount: 4,
+        staleFallbackCount: 7,
+      });
+    });
+    await assert.doesNotReject(notifier.waitForIdle());
+    assert.equal(errors.length, 1);
+  });
+
+  test("requires an HTTPS webhook URL without failing API startup", async () => {
+    assert.equal(createAirQualityWebhookDelivery(undefined), undefined);
+    const deliver = createAirQualityWebhookDelivery(
+      "http://alerts.example.test/aqi",
+    );
+    assert.ok(deliver);
+    await assert.rejects(
+      deliver({
+        alertType: "air_quality_upstream_outage",
+        status: "triggered",
+        outageStartedAt: "2026-08-25T10:00:00.000Z",
+        outageDurationMs: 300_000,
+        upstreamFailureCount: 4,
+        staleFallbackCount: 7,
+        occurredAt: "2026-08-25T10:05:00.000Z",
+      }),
+      /must use HTTPS/,
+    );
   });
 });
 
