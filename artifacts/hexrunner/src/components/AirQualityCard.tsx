@@ -16,6 +16,8 @@ import { useColors } from '@/hooks/useColors';
 type AirQualityCardProps = {
   latitude: number;
   longitude: number;
+  expanded: boolean;
+  onToggle: () => void;
 };
 
 const LEVEL_LABELS = {
@@ -74,6 +76,8 @@ function formatWindowTime(value: string): string | null {
 export default function AirQualityCard({
   latitude,
   longitude,
+  expanded,
+  onToggle,
 }: AirQualityCardProps) {
   const colors = useColors();
   const queryParams = {
@@ -168,123 +172,122 @@ export default function AirQualityCard({
 
   return (
     <View style={[cardStyle, data.isStale && { borderColor: levelColor }]}>
-      <View style={styles.header}>
-        <View style={styles.eyebrow}>
-          <Feather name="wind" size={15} color={colors.primary} />
-          <Text style={[styles.eyebrowText, { color: colors.mutedForeground }]}>
-            CURRENT AIR
-          </Text>
-        </View>
-        <View
-          accessibilityLabel={`Air quality level: ${levelLabel}`}
-          style={[styles.levelBadge, { backgroundColor: `${levelColor}1F` }]}
-        >
-          <View style={[styles.levelDot, { backgroundColor: levelColor }]} />
-          <Text style={[styles.levelText, { color: levelColor }]}>
-            {levelLabel}
-          </Text>
-        </View>
-      </View>
-
-      {data.isStale ? (
-        <View
-          accessibilityLabel={`Warning: air quality observation is stale. ${formatFreshness(data.observationTime)}. Use caution.`}
-          accessibilityLiveRegion="polite"
-          style={[
-            styles.staleBanner,
-            {
-              backgroundColor: `${levelColor}20`,
-              borderColor: `${levelColor}55`,
-            },
-          ]}
-        >
-          <Feather name="alert-triangle" size={15} color={levelColor} />
-          <Text style={[styles.staleText, { color: levelColor }]}>
-            {formatStaleWarning(data.observationTime)}
-          </Text>
-        </View>
-      ) : null}
-
-      <View style={styles.readingRow}>
-        <View
-          accessibilityLabel={`Current US air quality index: ${data.aqi}`}
-          style={styles.aqiReading}
-        >
-          <Text style={[styles.aqiNumber, { color: colors.foreground }]}>
-            {data.aqi}
-          </Text>
-          <View style={styles.aqiLabelWrap}>
-            <Text style={[styles.aqiLabel, { color: colors.mutedForeground }]}>
-              US AQI
-            </Text>
-            <Text style={[styles.aqiLevel, { color: levelColor }]}>
-              {levelLabel}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View
-        accessibilityLabel={`${formatFreshness(data.observationTime)}. Source: ${data.sourceName}`}
-        style={styles.sourceRow}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${expanded ? 'Collapse' : 'Expand'} city air quality details. Current AQI ${data.aqi}, ${levelLabel}`}
+        accessibilityState={{ expanded }}
+        onPress={onToggle}
+        style={({ pressed }) => [
+          styles.compactHeader,
+          { opacity: pressed ? 0.72 : 1 },
+        ]}
       >
+        <View style={[styles.compactIcon, { backgroundColor: `${levelColor}1F` }]}>
+          <Feather name="wind" size={16} color={levelColor} />
+        </View>
+        <View style={styles.compactCopy}>
+          <Text style={[styles.compactLabel, { color: colors.mutedForeground }]}>
+            CITY INTEL
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={[styles.compactValue, { color: colors.foreground }]}
+          >
+            AQI {data.aqi}
+            <Text style={{ color: levelColor }}> · {levelLabel}</Text>
+          </Text>
+        </View>
         <Feather
-          name={data.isStale ? 'alert-circle' : 'clock'}
-          size={13}
-          color={data.isStale ? levelColor : colors.mutedForeground}
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={colors.mutedForeground}
         />
-        <Text
-          numberOfLines={2}
-          style={[
-            styles.sourceText,
-            { color: data.isStale ? levelColor : colors.mutedForeground },
-          ]}
-        >
-          {formatFreshness(data.observationTime)} · {data.sourceName}
-        </Text>
-      </View>
+      </Pressable>
 
-      <View style={[styles.contextBox, { backgroundColor: colors.muted }]}>
-        <Feather name="heart" size={15} color={levelColor} />
-        <Text style={[styles.contextText, { color: colors.foreground }]}>
-          {data.healthContext}
-        </Text>
-      </View>
+      {expanded ? (
+        <View style={styles.expandedContent}>
+          {data.isStale ? (
+            <View
+              accessibilityLabel={`Warning: air quality observation is stale. ${formatFreshness(data.observationTime)}. Use caution.`}
+              accessibilityLiveRegion="polite"
+              style={[
+                styles.staleBanner,
+                {
+                  backgroundColor: `${levelColor}20`,
+                  borderColor: `${levelColor}55`,
+                },
+              ]}
+            >
+              <Feather name="alert-triangle" size={15} color={levelColor} />
+              <Text style={[styles.staleText, { color: levelColor }]}>
+                {formatStaleWarning(data.observationTime)}
+              </Text>
+            </View>
+          ) : null}
 
-      {data.suggestedWindow ? (
-        <View
-          accessibilityLabel={`Suggested exercise window${windowStart && windowEnd ? ` from ${windowStart} to ${windowEnd}` : ''}. Expected US AQI ${data.suggestedWindow.expectedAqi}. ${data.suggestedWindow.reason}`}
-          style={[styles.windowRow, { borderTopColor: colors.border }]}
-        >
-          <View style={[styles.windowIcon, { backgroundColor: colors.accent }]}>
-            <Feather name="sunrise" size={16} color={colors.accentForeground} />
-          </View>
-          <View style={styles.windowCopy}>
-            <Text style={[styles.windowLabel, { color: colors.mutedForeground }]}>
-              SUGGESTED EXERCISE WINDOW
+          <View
+            accessibilityLabel={`${formatFreshness(data.observationTime)}. Source: ${data.sourceName}`}
+            style={styles.sourceRow}
+          >
+            <Feather
+              name={data.isStale ? 'alert-circle' : 'clock'}
+              size={13}
+              color={data.isStale ? levelColor : colors.mutedForeground}
+            />
+            <Text
+              numberOfLines={2}
+              style={[
+                styles.sourceText,
+                { color: data.isStale ? levelColor : colors.mutedForeground },
+              ]}
+            >
+              {formatFreshness(data.observationTime)} · {data.sourceName}
             </Text>
-            {windowStart && windowEnd ? (
-              <Text style={[styles.windowTitle, { color: colors.foreground }]}>
-                {windowStart}–{windowEnd}
-                <Text style={{ color: colors.mutedForeground }}>
-                  {' '}· expected AQI {data.suggestedWindow.expectedAqi}
+          </View>
+
+          <View style={[styles.contextBox, { backgroundColor: colors.muted }]}>
+            <Feather name="heart" size={15} color={levelColor} />
+            <Text style={[styles.contextText, { color: colors.foreground }]}>
+              {data.healthContext}
+            </Text>
+          </View>
+
+          {data.suggestedWindow ? (
+            <View
+              accessibilityLabel={`Suggested exercise window${windowStart && windowEnd ? ` from ${windowStart} to ${windowEnd}` : ''}. Expected US AQI ${data.suggestedWindow.expectedAqi}. ${data.suggestedWindow.reason}`}
+              style={[styles.windowRow, { borderTopColor: colors.border }]}
+            >
+              <View style={[styles.windowIcon, { backgroundColor: colors.accent }]}>
+                <Feather name="sunrise" size={16} color={colors.accentForeground} />
+              </View>
+              <View style={styles.windowCopy}>
+                <Text style={[styles.windowLabel, { color: colors.mutedForeground }]}>
+                  BEST TIME TO MOVE
                 </Text>
-              </Text>
-            ) : (
-              <Text style={[styles.windowTitle, { color: colors.foreground }]}>
-                Expected AQI {data.suggestedWindow.expectedAqi}
-              </Text>
-            )}
-            <Text style={[styles.windowReason, { color: colors.mutedForeground }]}>
-              {data.suggestedWindow.reason}
-            </Text>
-          </View>
+                {windowStart && windowEnd ? (
+                  <Text style={[styles.windowTitle, { color: colors.foreground }]}>
+                    {windowStart}–{windowEnd}
+                    <Text style={{ color: colors.mutedForeground }}>
+                      {' '}· AQI {data.suggestedWindow.expectedAqi}
+                    </Text>
+                  </Text>
+                ) : (
+                  <Text style={[styles.windowTitle, { color: colors.foreground }]}>
+                    Expected AQI {data.suggestedWindow.expectedAqi}
+                  </Text>
+                )}
+                <Text style={[styles.windowReason, { color: colors.mutedForeground }]}>
+                  {data.suggestedWindow.reason}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+
+          <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
+            {data.disclaimer}
+          </Text>
         </View>
       ) : null}
-
-      <Text style={[styles.disclaimer, { color: colors.mutedForeground }]}>
-        {data.disclaimer}
-      </Text>
     </View>
   );
 }
@@ -297,7 +300,38 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderRadius: 18,
-    padding: 14,
+    padding: 6,
+  },
+  compactHeader: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+  },
+  compactIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  compactCopy: {
+    flex: 1,
+  },
+  compactLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.8,
+  },
+  compactValue: {
+    marginTop: 2,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+  },
+  expandedContent: {
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
   staleBanner: {
     marginTop: 10,

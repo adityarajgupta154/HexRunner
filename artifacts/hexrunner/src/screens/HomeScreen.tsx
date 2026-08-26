@@ -116,6 +116,8 @@ function LiveMap() {
   const [civicAreas, setCivicAreas] = useState<CivicAreaSignal[]>([]);
   const [caretakerHexes, setCaretakerHexes] = useState<Set<string>>(new Set());
   const [showCivicLayer, setShowCivicLayer] = useState(true);
+  const [cityIntelExpanded, setCityIntelExpanded] = useState(false);
+  const [communityExpanded, setCommunityExpanded] = useState(false);
   const [civicNotice, setCivicNotice] = useState<string | null>(null);
 
   const lookupMutation = useLookupHexOwnership();
@@ -491,16 +493,18 @@ function LiveMap() {
         <AirQualityCard
           latitude={coordinate.latitude}
           longitude={coordinate.longitude}
+          expanded={cityIntelExpanded}
+          onToggle={() => setCityIntelExpanded((current) => !current)}
         />
       </View>
 
-      {territoryFreshness !== null ? (
+      {!cityIntelExpanded && territoryFreshness !== null && territoryFreshness < 60 ? (
         <View
           pointerEvents="none"
           style={[
             styles.freshnessBadge,
             {
-              top: insets.top + 108,
+              top: insets.top + 126,
               backgroundColor: colors.card,
               borderColor: colors.border,
             },
@@ -513,117 +517,143 @@ function LiveMap() {
         </View>
       ) : null}
 
-      <View pointerEvents="box-none" style={[styles.presenceContainer, { top: insets.top + (territoryFreshness !== null ? 154 : 108) }]}>
-        <PresenceOverlay
-          isLoading={presence.isLoading}
-          hasSnapshot={presence.hasSnapshot}
-          isOffline={presence.isOffline}
-          isStale={presence.isStale}
-          ambientCount={presence.ambientCount}
-          nearestExactRunner={presence.nearestExactRunner}
-          targetDirection={presence.targetDirection}
-          anonymousCount={presence.anonymousRunners.length}
-        />
-      </View>
-
-      <View
-        pointerEvents="none"
-        style={[
-          styles.safetyAdvisory,
-          {
-            bottom: Math.max(insets.bottom, 12) + 82,
-            backgroundColor: colors.card,
-            borderColor: safetyLookup.isError ? colors.destructive : colors.border,
-          },
-        ]}
-      >
-        <Feather name="shield" size={15} color={colors.destructive} />
-        <View style={styles.safetyAdvisoryCopy}>
-          <Text style={[styles.safetyAdvisoryTitle, { color: colors.foreground }]}>
-            {safetyLookup.isPending
-              ? 'Loading safety signals…'
-              : safetyLookup.isError
-                ? 'Safety signals unavailable'
-                : safetyAreas.some((area) => area.concernScore !== null)
-                  ? 'Crowdsourced caution nearby'
-                   : civicAreas.length > 0
-                     ? `${civicAreas.reduce((sum, area) => sum + area.totalReports, 0)} civic issue${civicAreas.reduce((sum, area) => sum + area.totalReports, 0) === 1 ? '' : 's'} nearby`
-                     : 'Not enough safety data nearby'}
-          </Text>
-          <Text style={[styles.safetyAdvisoryText, { color: colors.mutedForeground }]}>
-            {civicAreas.length > 0
-              ? 'Coarse community reports · may be unreviewed'
-              : 'Coarse community signals · not a safety guarantee'}
-          </Text>
+      {!cityIntelExpanded &&
+      (presence.isOffline ||
+        presence.isStale ||
+        presence.nearestExactRunner ||
+        presence.anonymousRunners.length > 0) ? (
+        <View pointerEvents="box-none" style={[styles.presenceContainer, { top: insets.top + 126 }]}>
+          <PresenceOverlay
+            isLoading={presence.isLoading}
+            hasSnapshot={presence.hasSnapshot}
+            isOffline={presence.isOffline}
+            isStale={presence.isStale}
+            ambientCount={presence.ambientCount}
+            nearestExactRunner={presence.nearestExactRunner}
+            targetDirection={presence.targetDirection}
+            anonymousCount={presence.anonymousRunners.length}
+          />
         </View>
-      </View>
+      ) : null}
 
       <View
         style={[
           styles.communityControls,
           {
-            bottom: Math.max(insets.bottom, 12) + 146,
+            bottom: Math.max(insets.bottom, 12) + 82,
             backgroundColor: colors.card,
             borderColor: colors.border,
           },
         ]}
       >
         <Pressable
-          accessibilityRole="switch"
-          accessibilityState={{ checked: showCivicLayer }}
-          onPress={() => setShowCivicLayer((current) => !current)}
-          style={[
-            styles.communityAction,
-            {
-              backgroundColor: showCivicLayer ? colors.accent : colors.muted,
-            },
-          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`${communityExpanded ? 'Collapse' : 'Expand'} community and safety controls`}
+          accessibilityState={{ expanded: communityExpanded }}
+          onPress={() => setCommunityExpanded((current) => !current)}
+          style={styles.communityHeader}
         >
-          <Feather name="map-pin" size={15} color={colors.primary} />
-          <Text style={[styles.communityActionText, { color: colors.foreground }]}>
-            Civic {showCivicLayer ? 'on' : 'off'}
-          </Text>
-        </Pressable>
-        {canAdoptCurrentZone && !currentZoneIsAdopted ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={adoptZone.isPending}
-            onPress={adoptCurrentZone}
-            style={[styles.communityAction, { backgroundColor: colors.muted }]}
-          >
-            {adoptZone.isPending ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Feather name="heart" size={15} color={colors.primary} />
-            )}
-            <Text style={[styles.communityActionText, { color: colors.foreground }]}>
-              Adopt zone
+          <View style={[styles.communityIcon, { backgroundColor: colors.accent }]}>
+            <Feather name="shield" size={16} color={colors.primary} />
+          </View>
+          <View style={styles.communityHeaderCopy}>
+            <Text style={[styles.communityHeaderLabel, { color: colors.mutedForeground }]}>
+              COMMUNITY
             </Text>
-          </Pressable>
-        ) : null}
-        {latestCivicArea ? (
+            <Text numberOfLines={1} style={[styles.communityHeaderValue, { color: colors.foreground }]}>
+              {safetyLookup.isError
+                ? 'Signals unavailable'
+                : civicAreas.length > 0
+                  ? `${civicAreas.reduce((sum, area) => sum + area.totalReports, 0)} nearby report${civicAreas.reduce((sum, area) => sum + area.totalReports, 0) === 1 ? '' : 's'}`
+                  : `Civic layer ${showCivicLayer ? 'on' : 'off'}`}
+            </Text>
+          </View>
+          <Feather
+            name={communityExpanded ? 'chevron-down' : 'chevron-up'}
+            size={18}
+            color={colors.mutedForeground}
+          />
+        </Pressable>
+
+        {communityExpanded ? (
           <>
-            <Pressable
-              accessibilityLabel="Confirm latest civic report as valid community information"
-              onPress={() => moderateLatestCivicReport('confirmed_valid')}
-              style={[styles.iconAction, { backgroundColor: colors.muted }]}
-            >
-              <Feather name="check" size={15} color={colors.primary} />
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Flag latest civic report as a duplicate"
-              onPress={() => moderateLatestCivicReport('duplicate')}
-              style={[styles.iconAction, { backgroundColor: colors.muted }]}
-            >
-              <Feather name="copy" size={15} color={colors.mutedForeground} />
-            </Pressable>
-            <Pressable
-              accessibilityLabel="Flag latest civic report as inappropriate"
-              onPress={() => moderateLatestCivicReport('inappropriate')}
-              style={[styles.iconAction, { backgroundColor: colors.muted }]}
-            >
-              <Feather name="flag" size={15} color={colors.destructive} />
-            </Pressable>
+            <View style={[styles.safetyAdvisory, { borderTopColor: colors.border }]}>
+              <Feather name="shield" size={15} color={colors.destructive} />
+              <View style={styles.safetyAdvisoryCopy}>
+                <Text style={[styles.safetyAdvisoryTitle, { color: colors.foreground }]}>
+                  {safetyLookup.isPending
+                    ? 'Loading safety signals…'
+                    : safetyLookup.isError
+                      ? 'Safety signals unavailable'
+                      : safetyAreas.some((area) => area.concernScore !== null)
+                        ? 'Crowdsourced caution nearby'
+                        : 'No reviewed caution nearby'}
+                </Text>
+                <Text style={[styles.safetyAdvisoryText, { color: colors.mutedForeground }]}>
+                  Community signals are coarse and may be unreviewed.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.communityActionsRow}>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: showCivicLayer }}
+                onPress={() => setShowCivicLayer((current) => !current)}
+                style={[
+                  styles.communityAction,
+                  {
+                    backgroundColor: showCivicLayer ? colors.accent : colors.muted,
+                  },
+                ]}
+              >
+                <Feather name="map-pin" size={15} color={colors.primary} />
+                <Text style={[styles.communityActionText, { color: colors.foreground }]}>
+                  Civic {showCivicLayer ? 'on' : 'off'}
+                </Text>
+              </Pressable>
+              {canAdoptCurrentZone && !currentZoneIsAdopted ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={adoptZone.isPending}
+                  onPress={adoptCurrentZone}
+                  style={[styles.communityAction, { backgroundColor: colors.muted }]}
+                >
+                  {adoptZone.isPending ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Feather name="heart" size={15} color={colors.primary} />
+                  )}
+                  <Text style={[styles.communityActionText, { color: colors.foreground }]}>
+                    Adopt zone
+                  </Text>
+                </Pressable>
+              ) : null}
+              {latestCivicArea ? (
+                <>
+                  <Pressable
+                    accessibilityLabel="Confirm latest civic report as valid community information"
+                    onPress={() => moderateLatestCivicReport('confirmed_valid')}
+                    style={[styles.iconAction, { backgroundColor: colors.muted }]}
+                  >
+                    <Feather name="check" size={15} color={colors.primary} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Flag latest civic report as a duplicate"
+                    onPress={() => moderateLatestCivicReport('duplicate')}
+                    style={[styles.iconAction, { backgroundColor: colors.muted }]}
+                  >
+                    <Feather name="copy" size={15} color={colors.mutedForeground} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel="Flag latest civic report as inappropriate"
+                    onPress={() => moderateLatestCivicReport('inappropriate')}
+                    style={[styles.iconAction, { backgroundColor: colors.muted }]}
+                  >
+                    <Feather name="flag" size={15} color={colors.destructive} />
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
           </>
         ) : null}
       </View>
@@ -694,27 +724,6 @@ function LiveMap() {
             <Feather name="refresh-cw" size={16} color={colors.primary} />
           </Pressable>
         </View>
-      ) : hasNoTerritory ? (
-        <View
-          style={[
-            styles.territoryNotice,
-            {
-              top: insets.top + 64,
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-           <Feather name="edit-3" size={18} color={colors.primary} />
-          <View style={styles.territoryNoticeCopy}>
-            <Text style={[styles.territoryNoticeText, { color: colors.foreground }]}>
-               Your city is waiting
-            </Text>
-            <Text style={[styles.territoryNoticeSub, { color: colors.mutedForeground }]}>
-               Start a run and paint your first route.
-            </Text>
-          </View>
-        </View>
       ) : null}
 
       <Pressable
@@ -732,7 +741,6 @@ function LiveMap() {
         ]}
       >
         <Feather name="crosshair" size={22} color={colors.primary} />
-        <Text style={[styles.recenterText, { color: colors.foreground }]}>Recenter</Text>
       </Pressable>
 
       <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
@@ -760,14 +768,43 @@ const styles = StyleSheet.create({
   communityControls: {
     position: 'absolute',
     left: 16,
-    right: 16,
-    minHeight: 46,
+    right: 78,
+    padding: 6,
+    borderWidth: 1,
+    borderRadius: 16,
+  },
+  communityHeader: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 6,
+  },
+  communityIcon: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+  },
+  communityHeaderCopy: {
+    flex: 1,
+  },
+  communityHeaderLabel: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.7,
+  },
+  communityHeaderValue: {
+    marginTop: 2,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 12,
+  },
+  communityActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    padding: 6,
-    borderWidth: 1,
-    borderRadius: 3,
+    paddingTop: 6,
   },
   communityAction: {
     minHeight: 34,
@@ -803,16 +840,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   safetyAdvisory: {
-    position: 'absolute',
-    left: 16,
-    right: 118,
     minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderRadius: 3,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
   },
   safetyAdvisoryCopy: { flex: 1 },
   safetyAdvisoryTitle: { fontFamily: 'Inter_700Bold', fontSize: 12 },
@@ -952,17 +985,11 @@ const styles = StyleSheet.create({
   recenterButton: {
     position: 'absolute',
     right: 16,
-    minHeight: 48,
-    flexDirection: 'row',
+    width: 50,
+    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 9,
-    borderRadius: 16,
+    borderRadius: 25,
     borderWidth: 1,
-    paddingHorizontal: 16,
-  },
-  recenterText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 14,
   },
 });
