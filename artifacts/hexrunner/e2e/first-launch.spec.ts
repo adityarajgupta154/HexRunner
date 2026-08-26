@@ -113,6 +113,23 @@ test('Skip leaves first-launch setup without saving a pace and keeps the default
     .toEqual({ complete: 'yes', pace: null, color: 'emerald' });
 });
 
+test('reduced motion uses still onboarding scenes instead of autoplaying video', async ({
+  context,
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await prepareFirstLaunch(context);
+  await openOnboarding(page);
+
+  await expect(page.getByTestId('onboarding-poster')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+
+  await page.getByTestId('onboarding-next').click();
+  await expect(page.getByText('TAKE IT', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('onboarding-poster')).toBeVisible();
+  await expect(page.locator('video')).toHaveCount(0);
+});
+
 test('protected-device identity guidance is available before entry', async ({ context, page }) => {
   await prepareFirstLaunch(context);
   await openOnboarding(page);

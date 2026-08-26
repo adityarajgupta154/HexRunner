@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { type PropsWithChildren, useEffect, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { type PropsWithChildren, useCallback, useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/hooks/useColors';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import {
@@ -13,6 +13,13 @@ import {
   type OnboardingPace,
 } from '@/src/services/onboardingPreferences';
 import type { TerritoryColor } from '@workspace/api-client-react';
+
+import BrandReveal from './onboarding/BrandReveal';
+import OnboardingVideo from './onboarding/OnboardingVideo';
+import {
+  VIDEO_POSTERS,
+  VIDEO_SOURCES,
+} from './onboarding/onboardingMedia';
 
 const WEB_TOP_INSET = 67;
 const WEB_BOTTOM_INSET = 34;
@@ -41,29 +48,33 @@ const paces: {
 ];
 
 export default function FirstLaunchGate({ children }: PropsWithChildren) {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [ready, setReady] = useState(false);
+  const reducedMotion = useReducedMotion();
+  const [onboardingReady, setOnboardingReady] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [brandRevealComplete, setBrandRevealComplete] = useState(false);
+
   const [step, setStep] = useState<Step>('loop');
   const [pace, setPace] = useState<OnboardingPace>('stride');
   const [showIdentityNotice, setShowIdentityNotice] = useState(false);
-  const [selectedColour, setSelectedColour] =
-    useState<TerritoryColor>('emerald');
+  const [selectedColour, setSelectedColour] = useState<TerritoryColor>('emerald');
+
   const selectedColourHex =
     colourOptions.find(option => option.key === selectedColour)?.color ??
     '#00FF78';
 
   useEffect(() => {
-    void AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY).then(value =>
-      setReady(value === 'yes'),
-    );
+    void AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY).then(value => {
+      setNeedsOnboarding(value !== 'yes');
+      setOnboardingReady(true);
+    });
   }, []);
 
   const finish = async (persistPace: boolean) => {
     if (persistPace) await saveOnboardingPace(pace);
     await saveOnboardingTerritoryColor(selectedColour);
     await AsyncStorage.setItem(ONBOARDING_COMPLETE_KEY, 'yes');
-    setReady(true);
+    setNeedsOnboarding(false);
   };
 
   const handleNext = () => {
@@ -98,71 +109,24 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
     setTimeout(() => setShowIdentityNotice(false), 3200);
   };
 
-  if (ready) return <>{children}</>;
+  const completeBrandReveal = useCallback(() => {
+    setBrandRevealComplete(true);
+  }, []);
 
   const topInset = Platform.OS === 'web' ? Math.max(insets.top, WEB_TOP_INSET) : insets.top;
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, WEB_BOTTOM_INSET) : insets.bottom;
 
-  const renderGraphic = () => {
-    // A simplified visual representation for the map concepts
-    if (step === 'loop') {
-      return (
-        <View style={styles.graphicContainer}>
-          <View style={[styles.fakeMapLine, { top: '30%', left: '20%', width: '60%', height: 2, transform: [{ rotate: '15deg' }] }]} />
-          <View style={[styles.fakeMapLine, { top: '50%', left: '10%', width: '80%', height: 2, transform: [{ rotate: '-10deg' }] }]} />
-          <View style={[styles.fakeMapLine, { top: '70%', left: '30%', width: '40%', height: 2, transform: [{ rotate: '45deg' }] }]} />
-
-          <View style={[styles.loopShape, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
-        </View>
-      );
-    }
-    if (step === 'take') {
-      return (
-        <View style={styles.graphicContainer}>
-           <View style={[styles.fakeMapLine, { top: '40%', left: '0%', width: '100%', height: 2, transform: [{ rotate: '0deg' }] }]} />
-           <View style={[styles.fakeMapLine, { top: '0%', left: '50%', width: 2, height: '100%', transform: [{ rotate: '0deg' }] }]} />
-
-           <View style={[styles.takeShapeRed, { borderColor: '#FF3B30', backgroundColor: '#FF3B3033' }]} />
-            <View style={[styles.takeShapeGreen, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
-        </View>
-      );
-    }
-    if (step === 'grow') {
-      return (
-        <View style={styles.graphicContainer}>
-          <View style={[styles.growShape1, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
-          <View style={[styles.growShape2, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
-          <View style={[styles.growShape3, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33` }]} />
-        </View>
-      );
-    }
-    if (step === 'colour') {
-       return (
-         <View style={styles.graphicContainer}>
-            <View style={[styles.growShape1, { borderColor: selectedColourHex, backgroundColor: `${selectedColourHex}33`, width: 140, height: 140, borderRadius: 70 }]} />
-         </View>
-       );
-    }
-    if (step === 'location') {
-       return (
-         <View style={styles.graphicContainer}>
-           <View style={styles.locationBlipContainer}>
-               <View style={[styles.locationBlipRing, { borderColor: selectedColourHex }]} />
-               <View style={[styles.locationBlipCore, { backgroundColor: selectedColourHex }]} />
-           </View>
-         </View>
-       );
-    }
-    return null;
-  };
-
-  return (
-    <View testID="onboarding-root" style={[styles.screen, { backgroundColor: '#1A1D24' }]}>
+  const renderOnboarding = () => (
+    <View testID="onboarding-root" style={[styles.screen, { backgroundColor: '#0B0D12' }]}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
 
-      {/* Background Graphic Area */}
+      {/* Background Video Area */}
       <View style={styles.mapArea}>
-        {renderGraphic()}
+        <OnboardingVideo
+          key={step}
+          poster={VIDEO_POSTERS[step]}
+          source={VIDEO_SOURCES[step]}
+        />
       </View>
 
       {/* Header */}
@@ -173,85 +137,86 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
              <Text style={styles.backText}>BACK</Text>
           </Pressable>
         ) : <View style={{width: 80}} />}
-
-        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-           {/* Simulate steps via dots or just hide it. INTVL doesn't always show it clearly, but let's hide it for cleanliness. */}
-        </View>
-        <View style={{width: 80}} />
       </View>
 
       {/* Bottom Sheet */}
       <View style={[styles.sheet, { paddingBottom: bottomInset + 18 }]}>
-        {step === 'loop' && (
-          <View style={styles.stepContent}>
-            <Text style={styles.title}>CLOSE THE LOOP</Text>
-            <Text style={styles.description}>As you move, your route draws a shape on the map. Close the loop to claim everything inside. Even a small block counts.</Text>
-          </View>
-        )}
-        {step === 'take' && (
-          <View style={styles.stepContent}>
-            <Text style={styles.title}>TAKE IT</Text>
-            <Text style={styles.description}>Move through their area to take it. They can take yours too.</Text>
-          </View>
-        )}
-        {step === 'grow' && (
-          <View style={styles.stepContent}>
-            <Text style={styles.title}>GROW YOUR TERRITORY</Text>
-            <Text style={styles.description}>Block by block. Or all at once. Avoid out and back runs as they capture less territory.</Text>
-          </View>
-        )}
-        {step === 'colour' && (
-          <View style={styles.stepContent}>
-            <Text style={styles.title}>CLAIM YOUR COLOUR</Text>
-            <Text style={styles.description}>This is your territory.</Text>
-
-            <View style={styles.colourGrid}>
-                {colourOptions.map(option => (
-                 <Pressable
-                    key={option.key}
-                    testID={`onboarding-colour-${option.key}`}
-                    accessibilityRole="radio"
-                    accessibilityLabel={option.label}
-                    accessibilityState={{ checked: selectedColour === option.key }}
-                    onPress={() => setSelectedColour(option.key)}
-                    style={[
-                      styles.colourSwatch,
-                      {
-                        backgroundColor: option.color,
-                        borderWidth: selectedColour === option.key ? 3 : 0,
-                        borderColor: '#000',
-                      },
-                    ]}
-                 />
-               ))}
+        <Animated.View
+          key={step}
+          entering={reducedMotion ? undefined : FadeIn.duration(400).delay(100)}
+          style={styles.stepContent}
+        >
+          {step === 'loop' && (
+            <View style={styles.stepContentInner}>
+              <Text style={styles.title}>CLOSE THE LOOP</Text>
+              <Text style={styles.description}>As you move, your route draws a shape on the map. Close the loop to claim everything inside. Even a small block counts.</Text>
             </View>
+          )}
+          {step === 'take' && (
+            <View style={styles.stepContentInner}>
+              <Text style={styles.title}>TAKE IT</Text>
+              <Text style={styles.description}>Move through their area to take it. They can take yours too.</Text>
+            </View>
+          )}
+          {step === 'grow' && (
+            <View style={styles.stepContentInner}>
+              <Text style={styles.title}>GROW YOUR TERRITORY</Text>
+              <Text style={styles.description}>Block by block. Or all at once. Avoid out and back runs as they capture less territory.</Text>
+            </View>
+          )}
+          {step === 'colour' && (
+            <View style={styles.stepContentInner}>
+              <Text style={styles.title}>CLAIM YOUR COLOUR</Text>
+              <Text style={styles.description}>This is your territory.</Text>
 
-            <View style={{marginTop: 20}}>
-              <Text style={[styles.description, {fontSize: 12, marginBottom: 8}]}>Select a pace profile:</Text>
-              <View style={styles.segmented}>
-                {paces.map(item => (
-                  <Pressable
-                    key={item.id}
-                    testID={`onboarding-pace-${item.id}`}
-                    onPress={() => setPace(item.id)}
-                    style={[
-                      styles.paceOption,
-                      item.id === pace && { backgroundColor: '#000' }
-                    ]}
-                  >
-                    <Text style={[styles.paceOptionText, item.id === pace && { color: '#FFF' }]}>{item.label}</Text>
-                  </Pressable>
-                ))}
+              <View style={styles.colourGrid}>
+                  {colourOptions.map(option => (
+                   <Pressable
+                      key={option.key}
+                      testID={`onboarding-colour-${option.key}`}
+                      accessibilityRole="radio"
+                      accessibilityLabel={option.label}
+                      accessibilityState={{ checked: selectedColour === option.key }}
+                      onPress={() => setSelectedColour(option.key)}
+                      style={[
+                        styles.colourSwatch,
+                        {
+                          backgroundColor: option.color,
+                          borderWidth: selectedColour === option.key ? 3 : 0,
+                          borderColor: '#000',
+                        },
+                      ]}
+                   />
+                 ))}
+              </View>
+
+              <View style={{marginTop: 20, width: '100%'}}>
+                <Text style={[styles.description, {fontSize: 12, marginBottom: 8}]}>Select a pace profile:</Text>
+                <View style={styles.segmented}>
+                  {paces.map(item => (
+                    <Pressable
+                      key={item.id}
+                      testID={`onboarding-pace-${item.id}`}
+                      onPress={() => setPace(item.id)}
+                      style={[
+                        styles.paceOption,
+                        item.id === pace && { backgroundColor: '#000' }
+                      ]}
+                    >
+                      <Text style={[styles.paceOptionText, item.id === pace && { color: '#FFF' }]}>{item.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
-        )}
-        {step === 'location' && (
-          <View style={styles.stepContent}>
-            <Text style={styles.title}>TO PLAY, TURN ON LOCATION</Text>
-            <Text style={styles.description}>Let's see what's happening in your area.</Text>
-          </View>
-        )}
+          )}
+          {step === 'location' && (
+            <View style={styles.stepContentInner}>
+              <Text style={styles.title}>TO PLAY, TURN ON LOCATION</Text>
+              <Text style={styles.description}>Let's see what's happening in your area.</Text>
+            </View>
+          )}
+        </Animated.View>
 
         <View style={styles.footerRow}>
            <Pressable
@@ -295,98 +260,28 @@ export default function FirstLaunchGate({ children }: PropsWithChildren) {
       </View>
     </View>
   );
+
+  return (
+    <>
+      {onboardingReady ? (
+        needsOnboarding ? renderOnboarding() : children
+      ) : (
+        <View style={[styles.screen, { backgroundColor: '#0A0F14' }]} />
+      )}
+      {!brandRevealComplete && (
+        <BrandReveal onComplete={completeBrandReveal} />
+      )}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, width: '100%', height: '100%', overflow: 'hidden' },
   mapArea: {
     flex: 1,
-    backgroundColor: '#1A1D24', // Map-like color
+    backgroundColor: '#0B0D12',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  graphicContainer: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fakeMapLine: {
-    position: 'absolute',
-    backgroundColor: '#2A2E39',
-  },
-  loopShape: {
-    width: 200,
-    height: 160,
-    borderWidth: 4,
-    borderRadius: 8,
-    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
-  },
-  takeShapeRed: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderWidth: 4,
-    borderRadius: 8,
-    left: '20%',
-    top: '30%',
-    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
-  },
-  takeShapeGreen: {
-    position: 'absolute',
-    width: 160,
-    height: 120,
-    borderWidth: 4,
-    borderRadius: 8,
-    left: '40%',
-    top: '40%',
-    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
-  },
-  growShape1: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderWidth: 4,
-    borderRadius: 8,
-    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
-  },
-  growShape2: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderWidth: 4,
-    borderRadius: 8,
-    top: '25%',
-    left: '25%',
-    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
-  },
-  growShape3: {
-    position: 'absolute',
-    width: 140,
-    height: 100,
-    borderWidth: 4,
-    borderRadius: 8,
-    bottom: '25%',
-    right: '25%',
-    transform: [{ perspective: 800 }, { rotateX: '45deg' }, { rotateZ: '-20deg' }],
-  },
-  locationBlipContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationBlipRing: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    opacity: 0.3,
-    position: 'absolute',
-  },
-  locationBlipCore: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
   },
   header: {
     position: 'absolute',
@@ -423,8 +318,11 @@ const styles = StyleSheet.create({
     minHeight: 280,
   },
   stepContent: {
+    minHeight: 200,
+  },
+  stepContentInner: {
     alignItems: 'center',
-    minHeight: 120,
+    width: '100%',
   },
   title: {
     fontFamily: 'Inter_700Bold',
