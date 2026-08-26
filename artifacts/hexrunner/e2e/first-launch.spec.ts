@@ -1,5 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
+test.use({ trace: 'off' });
+
 const ONBOARDING_COMPLETE_KEY = '@hexrunner/paint-school-complete';
 const ONBOARDING_PACE_KEY = '@hexrunner/onboarding-pace';
 const ONBOARDING_COLOR_KEY = '@hexrunner/onboarding-territory-color';
@@ -13,6 +15,7 @@ const emptyStats = {
     totalRuns: 0,
     totalDistanceKm: 0,
     totalElapsedSeconds: 0,
+    averagePaceMinPerKm: null,
     totalClaimedHexes: 0,
     totalHexesOwned: 0,
     totalNewHexes: 0,
@@ -29,6 +32,23 @@ const emptyStats = {
   baseline: null,
   takeoverAlerts: [],
 };
+
+function statsFor(
+  userId: string,
+  baseline: {
+    displayName: string;
+    city: string;
+    activityLevel: string;
+    territoryColor: string;
+    completedAt: string;
+  } | null,
+) {
+  return {
+    ...emptyStats,
+    userId,
+    baseline,
+  };
+}
 
 async function prepareFirstLaunch(context: BrowserContext) {
   await context.grantPermissions(['geolocation']);
@@ -170,3 +190,140 @@ for (const { pace, tier } of [
     });
   });
 }
+
+test.describe('fresh identity persistence', () => {
+  test('keeps the runner UID and saved territory colour after reload', async ({
+    context,
+    page,
+  }) => {
+    await context.grantPermissions(['geolocation']);
+    await context.setGeolocation({
+      latitude: 12.9716,
+      longitude: 77.5946,
+      accuracy: 8,
+    });
+
+    let registeredUid: string | null = null;
+    let registrationCount = 0;
+    let baseline: {
+      displayName: string;
+      city: string;
+      activityLevel: string;
+      territoryColor: string;
+      completedAt: string;
+    } | null = null;
+
+    await context.route('**/api/anonymous-identities', async route => {
+      const requestBody = route.request().postDataJSON() as {
+        requestedUserId: string;
+      };
+      registeredUid = requestBody.requestedUserId;
+      registrationCount += 1;
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          userId: registeredUid,
+          credential: `hr1.test.${'b'.repeat(43)}`,
+        }),
+      });
+    });
+
+    await context.route('**/api/users/*/stats', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'cache-control': 'no-store',
+          'x-hexrunner-test-color': baseline?.territoryColor ?? 'none',
+        },
+        body: JSON.stringify(statsFor(registeredUid ?? 'unregistered', baseline)),
+      }),
+    );
+
+    await context.route('**/api/users/*/baseline', async route => {
+      const requestBody = route.request().postDataJSON() as {
+        city: string;
+        activityLevel: string;
+        territoryColor: string;
+      };
+      baseline = {
+        displayName: 'Runner',
+        city: requestBody.city,
+        activityLevel: requestBody.activityLevel,
+        territoryColor: requestBody.territoryColor,
+        completedAt: new Date().toISOString(),
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(baseline),
+      });
+    });
+
+    await openOnboarding(page);
+    await expect.poll(() => registeredUid).toMatch(/^device_[A-Za-z0-9_]+$/);
+
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-pace-stride').click();
+    await page.getByTestId('onboarding-colour-cyan').click();
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
+
+    await page.getByTestId('baseline-city-input').fill('Bengaluru');
+    await page.getByTestId('baseline-submit').click();
+    await expect.poll(() => baseline?.territoryColor).toBe('cyan');
+    await expect(page.getByTestId('baseline-onboarding')).toBeHidden();
+
+    await page.goto('/profile');
+    await expect(page.getByTestId('profile-activity-list')).toBeVisible();
+    const savedStatsResponse = page.waitForResponse(
+      response =>
+        response.url().includes('/api/users/') &&
+        response.url().endsWith('/stats') &&
+        response.headers()['x-hexrunner-test-color'] === 'violet',
+    );
+    await page.getByRole('radio', { name: 'Set territory colour violet' }).click();
+    await expect.poll(() => baseline?.territoryColor).toBe('violet');
+    await savedStatsResponse;
+
+    const uidBeforeReload = await page.evaluate(() =>
+      localStorage.getItem('@hexrunner/anonymous-uid'),
+    );
+    expect(uidBeforeReload).toBe(registeredUid);
+
+    const reloadedStatsPayload = page
+      .waitForResponse(response =>
+        response.url().includes('/api/users/') &&
+        response.url().endsWith('/stats') &&
+        response.request().method() === 'GET' &&
+        response.headers()['x-hexrunner-test-color'] === 'violet',
+      )
+      .then(response => response.json());
+    await page.reload();
+    await expect(reloadedStatsPayload).resolves.toMatchObject({
+      userId: uidBeforeReload,
+      baseline: { territoryColor: 'violet' },
+    });
+
+    await expect(page.getByTestId('onboarding-root')).toBeHidden();
+    await expect(page.getByTestId('baseline-onboarding')).toBeHidden();
+    await expect(page.getByTestId('profile-activity-list')).toBeVisible();
+    await expect(
+      page.getByLabel('Territory colour. violet selected.'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('radio', { name: 'Set territory colour violet' }),
+    ).toHaveCSS('border-width', '3px');
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          localStorage.getItem('@hexrunner/anonymous-uid'),
+        ),
+      )
+      .toBe(uidBeforeReload);
+    expect(registrationCount).toBe(1);
+  });
+});

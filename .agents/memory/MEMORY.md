@@ -10,3 +10,4 @@
 - [Voice event authority](voice-event-authority.md) — spoken run events must use authoritative confirmations and reject stale asynchronous context.
 - [First-launch browser checks](first-launch-browser-checks.md) — baseline handoff checks need both protected identity state and an available location.
 - [Anonymous identity bootstrap](anonymous-identity-bootstrap.md) — keep fresh web identity setup cancellation-aware and persist each UID/credential pair atomically.
+- [React Native Web radio checks](react-native-web-radio-checks.md) — verify selected Pressables through visual/accessibility labels when aria-checked is absent.
