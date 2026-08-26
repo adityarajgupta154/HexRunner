@@ -344,26 +344,54 @@ function LiveMap() {
 
   const recenterMap = useCallback(() => {
     if (!location) return;
+    const localRegion = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      ...MAP_DELTA,
+    };
+    if (reducedMotion) {
+      mapRef.current?.animateToRegion(localRegion, 240);
+      calculateVisibleHexes(localRegion, true);
+      return;
+    }
+    setShowGlobeArrival(true);
+    if (Platform.OS !== 'web') {
+      mapRef.current?.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 70,
+          longitudeDelta: 70,
+        },
+        420,
+      );
+    }
+  }, [calculateVisibleHexes, location, reducedMotion]);
+
+  const startGlobeDescent = useCallback(() => {
+    if (Platform.OS === 'web' || !location || reducedMotion) return;
     mapRef.current?.animateToRegion(
       {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         ...MAP_DELTA,
       },
-      450,
+      1200,
     );
-  }, [location]);
+  }, [location, reducedMotion]);
 
   const completeGlobeArrival = useCallback(() => {
     hasShownGlobeArrivalThisSession = true;
     setShowGlobeArrival(false);
-    if (Platform.OS !== 'web' && location) {
+    if (location) {
       const localRegion = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         ...MAP_DELTA,
       };
-      if (!reducedMotion) mapRef.current?.animateToRegion(localRegion, 900);
+      if (Platform.OS !== 'web' && reducedMotion) {
+        mapRef.current?.animateToRegion(localRegion, 240);
+      }
       calculateVisibleHexes(localRegion, true);
     }
   }, [calculateVisibleHexes, location, reducedMotion]);
@@ -881,6 +909,7 @@ function LiveMap() {
         <GlobeArrival
           latitude={coordinate.latitude}
           longitude={coordinate.longitude}
+          onZoomStart={startGlobeDescent}
           onComplete={completeGlobeArrival}
         />
       ) : null}
