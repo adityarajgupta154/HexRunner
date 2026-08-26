@@ -1,0 +1,39 @@
+#40 - Match INTVL Scroll Choreography
+What & Why
+Rebuild the HexRunner marketing website’s scroll presentation so its pacing, stacked full-screen cards, pinned scenes, layered transitions, and content swaps closely match the live INTVL reference. The reference is interaction inspiration only: all shipped branding, copy, imagery, video, and product UI remain original HexRunner material.
+
+Done looks like
+A fresh desktop browser audit records the live reference from hero to footer, including intermediate scroll states and approximate viewport-length timing
+The page feels like one continuous rounded, outlined card deck rather than unrelated sections
+Hero, handset, world-stage, gameplay, activity, feature, FAQ, and closing CTA transitions visibly hold, overlap, and hand off at reference-like moments
+The gameplay phone has four coordinated product states, including leaderboard, while the corresponding numbered step becomes visually active
+Feature cards use active-card layering and meaningful fan/stack movement over HexRunner video footage
+Existing prototype download modal behavior remains accessible and unchanged
+Desktop, tablet, short-phone, and reduced-motion experiences remain complete, readable, and free of clipped or blank scroll ranges
+Full-page browser verification confirms no broken HexRunner assets, uncaught errors, or scroll-animation startup failures
+Out of scope
+Copying INTVL trademarks, wording, source code, font files, images, videos, or other proprietary media
+Changes to the Expo mobile app, API server, gameplay backend, or database
+Publishing the website
+Steps
+Audit the live reference -- Scroll the current INTVL homepage from top to footer in a fresh desktop browser and capture representative intermediate states, timings, sticky boundaries, and layer behavior.
+Build the shared card deck -- Replace isolated section stacking with a continuous full-viewport card framework that preserves rounded outlines, overlap, and clear scene-to-scene handoffs.
+Choreograph the opening scenes -- Tune hero hold, rising handset, and world-stage sequences with reference-like pin durations, independent depth layers, media scaling, and staged metrics.
+Rebuild the product walkthrough -- Coordinate four phone states and active numbered steps across a long pinned runway, using HexRunner videos/posters and smooth cross-fade/translation transitions.
+Rebuild conversion scenes -- Give the activity split, feature card fan, FAQ handoff, and lime finale the same persistent, layered scroll behavior and active-card depth ordering.
+Adapt accessibility and responsive motion -- Preserve the detailed desktop choreography while providing deliberate tablet/mobile sequencing and a complete reduced-motion path without clipping or empty scroll space.
+Verify the full journey -- Run production checks and browser tests across desktop, short mobile, keyboard/modal interactions, reduced motion, and the complete top-to-footer scroll.
+Relevant files
+artifacts/hexrunner-web/docs/research/intvl-motion-analysis.md
+artifacts/hexrunner-web/docs/research/intvl-scroll-contact-sheet.jpg
+artifacts/hexrunner-web/src/App.tsx
+artifacts/hexrunner-web/src/index.css
+artifacts/hexrunner-web/src/components/Hero.tsx
+artifacts/hexrunner-web/src/components/HandsetReveal.tsx
+artifacts/hexrunner-web/src/components/WorldStageStats.tsx
+artifacts/hexrunner-web/src/components/GameplayWalkthrough.tsx
+artifacts/hexrunner-web/src/components/ActivityCard.tsx
+artifacts/hexrunner-web/src/components/FeatureCards.tsx
+artifacts/hexrunner-web/src/components/FAQ.tsx
+artifacts/hexrunner-web/src/components/EndState.tsx
+artifacts/hexrunner-web/src/components/StoreModal.tsx
