@@ -45,6 +45,12 @@ import { pointToSafetyArea } from '@/src/services/hexEngine';
 import { voiceCompanion } from '@/src/services/voiceCompanion';
 import { isCurrentSafetyAnnouncement } from '@/src/services/voiceCompanionController';
 import { getTerritoryColor } from '@/src/services/territoryColor';
+import {
+  activeElapsedSeconds,
+  completedPauseDurationMs,
+  resumeRunAfterGpsRestart,
+  shouldResumePresenceOnForeground,
+} from '@/src/services/runSessionLifecycle';
 
 type RunPoint = {
   lat: number;
@@ -274,11 +280,15 @@ export default function RunSessionScreen() {
     const updateElapsed = () => {
       if (startTimeRef.current === null) return;
       const now = Date.now();
-      const currentPauseMs = isPausedRef.current && pauseStartTimeRef.current !== null
-        ? (now - pauseStartTimeRef.current)
-        : 0;
       setElapsedSeconds(
-        Math.floor((now - startTimeRef.current - totalPausedMsRef.current - currentPauseMs) / 1_000)
+        activeElapsedSeconds({
+          startedAt: startTimeRef.current,
+          now,
+          completedPausedMs: totalPausedMsRef.current,
+          pauseStartedAt: isPausedRef.current
+            ? pauseStartTimeRef.current
+            : null,
+        }),
       );
     };
 
@@ -294,7 +304,10 @@ export default function RunSessionScreen() {
       if (!clientRunId || !runningRef.current) return;
 
       if (nextState === 'active') {
-        if (!isPausedRef.current) {
+        if (shouldResumePresenceOnForeground({
+          isRunning: runningRef.current,
+          isPaused: isPausedRef.current,
+        })) {
           runPresence.resumeRun(clientRunId);
           voiceCompanion.resume();
         }
@@ -634,27 +647,31 @@ export default function RunSessionScreen() {
     }
 
     try {
-      await startWatching((location) => locationCallbackRef.current?.(location));
+      await resumeRunAfterGpsRestart({
+        restartGps: () =>
+          startWatching((location) => locationCallbackRef.current?.(location)),
+        isRunCurrent: () =>
+          runningRef.current && clientRunIdRef.current === clientRunId,
+        stopGps: stopWatching,
+        commitResume: () => {
+          totalPausedMsRef.current += completedPauseDurationMs(
+            pauseStartTimeRef.current,
+            Date.now(),
+          );
+          pauseStartTimeRef.current = null;
+          lastPointRef.current = null;
+          setError(null);
+          setIsPaused(false);
+          isPausedRef.current = false;
+        },
+        resumePresence: () => {
+          if (clientRunId) runPresence.resumeRun(clientRunId);
+          if (voiceEnabledRef.current) voiceCompanion.resume();
+        },
+      });
     } catch {
       setError('Failed to restart GPS on resume. Check location access and try again.');
-      return;
     }
-
-    if (!runningRef.current || clientRunIdRef.current !== clientRunId) {
-      stopWatching();
-      return;
-    }
-
-    if (pauseStartTimeRef.current !== null) {
-      totalPausedMsRef.current += (Date.now() - pauseStartTimeRef.current);
-      pauseStartTimeRef.current = null;
-    }
-    lastPointRef.current = null;
-    setError(null);
-    setIsPaused(false);
-    isPausedRef.current = false;
-    if (clientRunId) runPresence.resumeRun(clientRunId);
-    if (voiceEnabledRef.current) voiceCompanion.resume();
   }, []);
 
   const isLocationReady = Platform.OS === 'web' || locationPermission?.granted;

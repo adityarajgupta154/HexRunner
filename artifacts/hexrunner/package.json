@@ -14,7 +14,8 @@
     "validate:live-presence": "node --no-warnings --experimental-strip-types scripts/validateLivePresence.ts",
     "validate:live-interactions": "node --no-warnings --experimental-strip-types scripts/validateLiveInteractions.ts",
     "validate:voice-companion": "node --no-warnings --experimental-strip-types scripts/validateVoiceCompanion.ts",
-    "validate:first-launch": "playwright install chromium && playwright test --config playwright.config.ts"
+    "validate:run-lifecycle": "node --no-warnings --experimental-strip-types --test scripts/runSessionLifecycle.mobile.test.ts",
+    "validate:first-launch": "pnpm run validate:run-lifecycle && playwright install chromium && playwright test --config playwright.config.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
