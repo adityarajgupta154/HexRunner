@@ -30,6 +30,7 @@ import type {
   CivicMapLookupResult,
   CivicPhotoUploadRequest,
   CivicPhotoUploadResult,
+  Connection,
   CreateCivicReportRequest,
   CreateCivicReportResult,
   CreateSafetyReportRequest,
@@ -38,10 +39,15 @@ import type {
   FlagCivicReportResult,
   GetAirQualityParams,
   GetLeaderboardParams,
+  GetNearbyPresenceParams,
   HealthStatus,
   HexOwnershipLookupRequest,
   HexOwnershipLookupResult,
   LeaderboardResult,
+  NearbyPresenceResult,
+  PresenceEndInput,
+  PresenceHeartbeatInput,
+  PresenceHeartbeatResult,
   SafetyAreaLookupRequest,
   SafetyAreaLookupResult,
   SaveRunRequest,
@@ -1193,4 +1199,608 @@ export function useGetUserStats<TData = Awaited<ReturnType<typeof getUserStats>>
 
 
 
+
+export const getHeartbeatPresenceUrl = () => {
+
+
+
+
+  return `/api/presence/heartbeat`
+}
+
+export const heartbeatPresence = async (presenceHeartbeatInput: PresenceHeartbeatInput, options?: Parameters<typeof customFetch>[1]): Promise<PresenceHeartbeatResult> => {
+
+  return customFetch<PresenceHeartbeatResult>(getHeartbeatPresenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(presenceHeartbeatInput)
+  }
+);}
+
+
+
+
+
+export const getHeartbeatPresenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof heartbeatPresence>>, TError,{data: BodyType<PresenceHeartbeatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof heartbeatPresence>>, TError,{data: BodyType<PresenceHeartbeatInput>}, TContext> => {
+
+const mutationKey = ['heartbeatPresence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof heartbeatPresence>>, {data: BodyType<PresenceHeartbeatInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  heartbeatPresence(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type HeartbeatPresenceMutationResult = NonNullable<Awaited<ReturnType<typeof heartbeatPresence>>>
+    export type HeartbeatPresenceMutationBody = BodyType<PresenceHeartbeatInput>
+    export type HeartbeatPresenceMutationError = ErrorType<ApiError>
+
+    export const useHeartbeatPresence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof heartbeatPresence>>, TError,{data: BodyType<PresenceHeartbeatInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof heartbeatPresence>>,
+        TError,
+        {data: BodyType<PresenceHeartbeatInput>},
+        TContext
+      > => {
+      return useMutation(getHeartbeatPresenceMutationOptions(options));
+    }
+
+export const getEndPresenceUrl = () => {
+
+
+
+
+  return `/api/presence/end`
+}
+
+export const endPresence = async (presenceEndInput: PresenceEndInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getEndPresenceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(presenceEndInput)
+  }
+);}
+
+
+
+
+
+export const getEndPresenceMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endPresence>>, TError,{data: BodyType<PresenceEndInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endPresence>>, TError,{data: BodyType<PresenceEndInput>}, TContext> => {
+
+const mutationKey = ['endPresence'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endPresence>>, {data: BodyType<PresenceEndInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  endPresence(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndPresenceMutationResult = NonNullable<Awaited<ReturnType<typeof endPresence>>>
+    export type EndPresenceMutationBody = BodyType<PresenceEndInput>
+    export type EndPresenceMutationError = ErrorType<ApiError>
+
+    export const useEndPresence = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endPresence>>, TError,{data: BodyType<PresenceEndInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endPresence>>,
+        TError,
+        {data: BodyType<PresenceEndInput>},
+        TContext
+      > => {
+      return useMutation(getEndPresenceMutationOptions(options));
+    }
+
+export const getGetNearbyPresenceUrl = (params: GetNearbyPresenceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/presence/nearby?${stringifiedParams}` : `/api/presence/nearby`
+}
+
+export const getNearbyPresence = async (params: GetNearbyPresenceParams, options?: Parameters<typeof customFetch>[1]): Promise<NearbyPresenceResult> => {
+
+  return customFetch<NearbyPresenceResult>(getGetNearbyPresenceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNearbyPresenceQueryKey = (params?: GetNearbyPresenceParams,) => {
+    return [
+    `/api/presence/nearby`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetNearbyPresenceQueryOptions = <TData = Awaited<ReturnType<typeof getNearbyPresence>>, TError = ErrorType<ApiError>>(params: GetNearbyPresenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNearbyPresence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNearbyPresenceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNearbyPresence>>> = ({ signal }) => getNearbyPresence(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNearbyPresence>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNearbyPresenceQueryResult = NonNullable<Awaited<ReturnType<typeof getNearbyPresence>>>
+export type GetNearbyPresenceQueryError = ErrorType<ApiError>
+
+
+
+export function useGetNearbyPresence<TData = Awaited<ReturnType<typeof getNearbyPresence>>, TError = ErrorType<ApiError>>(
+ params: GetNearbyPresenceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNearbyPresence>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNearbyPresenceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListConnectionsUrl = () => {
+
+
+
+
+  return `/api/connections`
+}
+
+export const listConnections = async ( options?: Parameters<typeof customFetch>[1]): Promise<Connection[]> => {
+
+  return customFetch<Connection[]>(getListConnectionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListConnectionsQueryKey = () => {
+    return [
+    `/api/connections`
+    ] as const;
+    }
+
+
+export const getListConnectionsQueryOptions = <TData = Awaited<ReturnType<typeof listConnections>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listConnections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListConnectionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listConnections>>> = ({ signal }) => listConnections({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listConnections>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListConnectionsQueryResult = NonNullable<Awaited<ReturnType<typeof listConnections>>>
+export type ListConnectionsQueryError = ErrorType<ApiError>
+
+
+
+export function useListConnections<TData = Awaited<ReturnType<typeof listConnections>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listConnections>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListConnectionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestConnectionUrl = (userId: string,) => {
+
+
+
+
+  return `/api/connections/${userId}/request`
+}
+
+export const requestConnection = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<Connection> => {
+
+  return customFetch<Connection>(getRequestConnectionUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRequestConnectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestConnection>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['requestConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestConnection>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  requestConnection(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof requestConnection>>>
+
+    export type RequestConnectionMutationError = ErrorType<ApiError>
+
+    export const useRequestConnection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestConnection>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getRequestConnectionMutationOptions(options));
+    }
+
+export const getAcceptConnectionUrl = (userId: string,) => {
+
+
+
+
+  return `/api/connections/${userId}/accept`
+}
+
+export const acceptConnection = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<Connection> => {
+
+  return customFetch<Connection>(getAcceptConnectionUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptConnectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptConnection>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['acceptConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptConnection>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  acceptConnection(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof acceptConnection>>>
+
+    export type AcceptConnectionMutationError = ErrorType<ApiError>
+
+    export const useAcceptConnection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptConnection>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getAcceptConnectionMutationOptions(options));
+    }
+
+export const getRejectConnectionUrl = (userId: string,) => {
+
+
+
+
+  return `/api/connections/${userId}/reject`
+}
+
+export const rejectConnection = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRejectConnectionUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectConnectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectConnection>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['rejectConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectConnection>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  rejectConnection(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof rejectConnection>>>
+
+    export type RejectConnectionMutationError = ErrorType<ApiError>
+
+    export const useRejectConnection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectConnection>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getRejectConnectionMutationOptions(options));
+    }
+
+export const getRemoveConnectionUrl = (userId: string,) => {
+
+
+
+
+  return `/api/connections/${userId}`
+}
+
+export const removeConnection = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveConnectionUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveConnectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeConnection>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['removeConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeConnection>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  removeConnection(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof removeConnection>>>
+
+    export type RemoveConnectionMutationError = ErrorType<ApiError>
+
+    export const useRemoveConnection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeConnection>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getRemoveConnectionMutationOptions(options));
+    }
+
+export const getBlockConnectionUrl = (userId: string,) => {
+
+
+
+
+  return `/api/connections/${userId}/block`
+}
+
+export const blockConnection = async (userId: string, options?: Parameters<typeof customFetch>[1]): Promise<Connection> => {
+
+  return customFetch<Connection>(getBlockConnectionUrl(userId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getBlockConnectionMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof blockConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof blockConnection>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['blockConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof blockConnection>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  blockConnection(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BlockConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof blockConnection>>>
+
+    export type BlockConnectionMutationError = ErrorType<ApiError>
+
+    export const useBlockConnection = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof blockConnection>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof blockConnection>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getBlockConnectionMutationOptions(options));
+    }
 

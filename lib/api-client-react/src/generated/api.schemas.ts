@@ -549,6 +549,101 @@ export interface ApiError {
   error: string;
 }
 
+export interface PresenceHeartbeatInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientRunId: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  accuracyMeters: number;
+  mocked: boolean;
+}
+
+export interface PresenceEndInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     * @pattern ^[A-Za-z0-9_-]+$
+     */
+  clientRunId: string;
+}
+
+export interface PresenceHeartbeatResult {
+  expiresAt: string;
+}
+
+export type ExactPresenceVisibility = typeof ExactPresenceVisibility[keyof typeof ExactPresenceVisibility];
+
+
+export const ExactPresenceVisibility = {
+  exact: 'exact',
+} as const;
+
+export interface ExactPresence {
+  visibility: ExactPresenceVisibility;
+  userId: string;
+  displayName: string;
+  lat: number;
+  lng: number;
+  distanceMeters: number;
+}
+
+export type AnonymousPresenceVisibility = typeof AnonymousPresenceVisibility[keyof typeof AnonymousPresenceVisibility];
+
+
+export const AnonymousPresenceVisibility = {
+  anonymous: 'anonymous',
+} as const;
+
+export interface AnonymousPresence {
+  visibility: AnonymousPresenceVisibility;
+  lat: number;
+  lng: number;
+  /**
+     * @minimum 250
+     * @maximum 5000
+     */
+  distanceBandMeters: number;
+}
+
+export interface NearbyPresenceResult {
+  /** @maxItems 100 */
+  runners: (ExactPresence | AnonymousPresence)[];
+  /** @minimum 0 */
+  ambientCount: number;
+}
+
+export type ConnectionStatus = typeof ConnectionStatus[keyof typeof ConnectionStatus];
+
+
+export const ConnectionStatus = {
+  pending_outgoing: 'pending_outgoing',
+  pending_incoming: 'pending_incoming',
+  accepted: 'accepted',
+  blocked: 'blocked',
+} as const;
+
+export interface Connection {
+  userId: string;
+  status: ConnectionStatus;
+  updatedAt: string;
+}
+
 export type GetAirQualityParams = {
 /**
  * @minimum -90
@@ -565,5 +660,18 @@ longitude: number;
 export type GetLeaderboardParams = {
 currentUserId?: UserId;
 scope?: LeaderboardScope;
+};
+
+export type GetNearbyPresenceParams = {
+/**
+ * @minimum 25
+ * @maximum 5000
+ */
+radiusMeters: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
 };
 

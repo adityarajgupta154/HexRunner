@@ -24,6 +24,10 @@ tags:
     description: Coarse, moderated community street-issue reports
   - name: users
     description: HexRunner user statistics and rankings
+  - name: presence
+    description: Ephemeral privacy-preserving live runner presence
+  - name: connections
+    description: Explicit runner connection and blocking controls
 paths:
   /healthz:
     get:
@@ -522,6 +526,113 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /presence/heartbeat:
+    post:
+      operationId: heartbeatPresence
+      tags: [presence]
+      security: [{ anonymousDeviceCredential: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PresenceHeartbeatInput" }
+      responses:
+        "200":
+          description: Presence refreshed
+          content: { application/json: { schema: { $ref: "#/components/schemas/PresenceHeartbeatResult" } } }
+        "400": { description: Invalid presence, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "409": { description: Another live run is active, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "429": { description: Heartbeat frequency is too high, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /presence/end:
+    post:
+      operationId: endPresence
+      tags: [presence]
+      security: [{ anonymousDeviceCredential: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PresenceEndInput" }
+      responses:
+        "204": { description: Presence ended }
+        "400": { description: Invalid presence end data, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /presence/nearby:
+    get:
+      operationId: getNearbyPresence
+      tags: [presence]
+      security: [{ anonymousDeviceCredential: [] }]
+      parameters:
+        - name: radiusMeters
+          in: query
+          required: true
+          schema: { type: number, minimum: 25, maximum: 5000 }
+        - name: limit
+          in: query
+          schema: { type: number, multipleOf: 1, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: Nearby live runners
+          content: { application/json: { schema: { $ref: "#/components/schemas/NearbyPresenceResult" } } }
+        "400": { description: Invalid query, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /connections:
+    get:
+      operationId: listConnections
+      tags: [connections]
+      security: [{ anonymousDeviceCredential: [] }]
+      responses:
+        "200": { description: Connections, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Connection" } } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /connections/{userId}/request:
+    post:
+      operationId: requestConnection
+      tags: [connections]
+      security: [{ anonymousDeviceCredential: [] }]
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }]
+      responses:
+        "200": { description: Connection requested, content: { application/json: { schema: { $ref: "#/components/schemas/Connection" } } } }
+        "400": { description: Invalid action, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /connections/{userId}/accept:
+    post:
+      operationId: acceptConnection
+      tags: [connections]
+      security: [{ anonymousDeviceCredential: [] }]
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }]
+      responses:
+        "200": { description: Connection accepted, content: { application/json: { schema: { $ref: "#/components/schemas/Connection" } } } }
+        "400": { description: Invalid action, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /connections/{userId}/reject:
+    post:
+      operationId: rejectConnection
+      tags: [connections]
+      security: [{ anonymousDeviceCredential: [] }]
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }]
+      responses:
+        "204": { description: Request rejected }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /connections/{userId}:
+    delete:
+      operationId: removeConnection
+      tags: [connections]
+      security: [{ anonymousDeviceCredential: [] }]
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }]
+      responses:
+        "204": { description: Connection removed }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /connections/{userId}/block:
+    post:
+      operationId: blockConnection
+      tags: [connections]
+      security: [{ anonymousDeviceCredential: [] }]
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }]
+      responses:
+        "200": { description: User blocked, content: { application/json: { schema: { $ref: "#/components/schemas/Connection" } } } }
+        "400": { description: Invalid action, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
 components:
   securitySchemes:
     anonymousDeviceCredential:
@@ -1238,4 +1349,60 @@ components:
         error:
           type: string
       required: [error]
+    PresenceHeartbeatInput:
+      type: object
+      required: [clientRunId, lat, lng, accuracyMeters, mocked]
+      properties:
+        clientRunId: { type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        accuracyMeters: { type: number, minimum: 0, maximum: 100 }
+        mocked: { type: boolean }
+    PresenceEndInput:
+      type: object
+      required: [clientRunId]
+      properties:
+        clientRunId: { type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" }
+    PresenceHeartbeatResult:
+      type: object
+      required: [expiresAt]
+      properties:
+        expiresAt: { type: string, format: date-time }
+    ExactPresence:
+      type: object
+      required: [visibility, userId, displayName, lat, lng, distanceMeters]
+      properties:
+        visibility: { type: string, enum: [exact] }
+        userId: { type: string }
+        displayName: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        distanceMeters: { type: number }
+    AnonymousPresence:
+      type: object
+      required: [visibility, lat, lng, distanceBandMeters]
+      properties:
+        visibility: { type: string, enum: [anonymous] }
+        lat: { type: number }
+        lng: { type: number }
+        distanceBandMeters: { type: number, minimum: 250, maximum: 5000, multipleOf: 250 }
+    NearbyPresenceResult:
+      type: object
+      required: [runners, ambientCount]
+      properties:
+        runners:
+          type: array
+          maxItems: 100
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/ExactPresence"
+              - $ref: "#/components/schemas/AnonymousPresence"
+        ambientCount: { type: number, multipleOf: 1, minimum: 0 }
+    Connection:
+      type: object
+      required: [userId, status, updatedAt]
+      properties:
+        userId: { type: string }
+        status: { type: string, enum: [pending_outgoing, pending_incoming, accepted, blocked] }
+        updatedAt: { type: string, format: date-time }
 

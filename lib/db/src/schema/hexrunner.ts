@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   doublePrecision,
   index,
   integer,
@@ -11,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { sql } from "drizzle-orm";
 
 export const hexrunnerUsersTable = pgTable("hexrunner_users", {
   id: text("id").primaryKey(),
@@ -29,6 +31,87 @@ export const hexrunnerUsersTable = pgTable("hexrunner_users", {
     .defaultNow()
     .notNull(),
 });
+
+// Live coordinates are deliberately isolated from run history.  A user has at
+// most one row and expiry makes an interrupted client disappear automatically.
+export const hexrunnerLivePresenceTable = pgTable(
+  "hexrunner_live_presence",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    clientRunId: text("client_run_id").notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyMeters: doublePrecision("accuracy_meters").notNull(),
+    h3Index: text("h3_index").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("hexrunner_live_presence_h3_expiry_idx").on(
+      table.h3Index,
+      table.expiresAt,
+    ),
+    index("hexrunner_live_presence_expiry_idx").on(table.expiresAt),
+    check("hexrunner_live_presence_latitude_check", sql`${table.latitude} >= -90 AND ${table.latitude} <= 90`),
+    check("hexrunner_live_presence_longitude_check", sql`${table.longitude} >= -180 AND ${table.longitude} <= 180`),
+    check("hexrunner_live_presence_accuracy_check", sql`${table.accuracyMeters} >= 0 AND ${table.accuracyMeters} <= 100`),
+    check("hexrunner_live_presence_expiry_check", sql`${table.expiresAt} > ${table.updatedAt}`),
+  ],
+);
+
+// A short-lived terminal marker closes the delayed-request race without
+// retaining coordinates or creating location history.
+export const hexrunnerPresenceTerminationsTable = pgTable(
+  "hexrunner_presence_terminations",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    clientRunId: text("client_run_id").notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.clientRunId] }),
+    index("hexrunner_presence_terminations_expiry_idx").on(table.expiresAt),
+    check("hexrunner_presence_terminations_expiry_check", sql`${table.expiresAt} > ${table.endedAt}`),
+  ],
+);
+
+// Canonically ordered pair prevents duplicate/reversed relationship records.
+export const hexrunnerConnectionsTable = pgTable(
+  "hexrunner_connections",
+  {
+    userLowId: text("user_low_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    userHighId: text("user_high_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    requestedById: text("requested_by_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    blockedById: text("blocked_by_id").references(() => hexrunnerUsersTable.id, {
+      onDelete: "cascade",
+    }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userLowId, table.userHighId] }),
+    index("hexrunner_connections_low_idx").on(table.userLowId),
+    index("hexrunner_connections_high_idx").on(table.userHighId),
+    check("hexrunner_connections_canonical_check", sql`${table.userLowId} < ${table.userHighId}`),
+    check("hexrunner_connections_status_check", sql`${table.status} IN ('pending', 'accepted', 'blocked')`),
+    check("hexrunner_connections_requester_member_check", sql`${table.requestedById} IN (${table.userLowId}, ${table.userHighId})`),
+    check("hexrunner_connections_blocker_member_check", sql`${table.blockedById} IS NULL OR ${table.blockedById} IN (${table.userLowId}, ${table.userHighId})`),
+    check("hexrunner_connections_block_consistency_check", sql`(${table.status} = 'blocked' AND ${table.blockedById} IS NOT NULL) OR (${table.status} <> 'blocked' AND ${table.blockedById} IS NULL)`),
+  ],
+);
 
 export const hexrunnerRunsTable = pgTable(
   "hexrunner_runs",
@@ -263,6 +346,15 @@ export const hexrunnerZoneCaretakersTable = pgTable(
 
 export const insertHexrunnerUserSchema =
   createInsertSchema(hexrunnerUsersTable);
+export const insertHexrunnerLivePresenceSchema = createInsertSchema(
+  hexrunnerLivePresenceTable,
+);
+export const insertHexrunnerPresenceTerminationSchema = createInsertSchema(
+  hexrunnerPresenceTerminationsTable,
+);
+export const insertHexrunnerConnectionSchema = createInsertSchema(
+  hexrunnerConnectionsTable,
+);
 export const insertHexrunnerRunSchema = createInsertSchema(hexrunnerRunsTable);
 export const insertHexrunnerRunPointSchema = createInsertSchema(
   hexrunnerRunPointsTable,
@@ -291,6 +383,19 @@ export const insertHexrunnerZoneCaretakerSchema = createInsertSchema(
 
 export type HexrunnerUser = typeof hexrunnerUsersTable.$inferSelect;
 export type InsertHexrunnerUser = z.infer<typeof insertHexrunnerUserSchema>;
+export type HexrunnerLivePresence = typeof hexrunnerLivePresenceTable.$inferSelect;
+export type InsertHexrunnerLivePresence = z.infer<
+  typeof insertHexrunnerLivePresenceSchema
+>;
+export type HexrunnerPresenceTermination =
+  typeof hexrunnerPresenceTerminationsTable.$inferSelect;
+export type InsertHexrunnerPresenceTermination = z.infer<
+  typeof insertHexrunnerPresenceTerminationSchema
+>;
+export type HexrunnerConnection = typeof hexrunnerConnectionsTable.$inferSelect;
+export type InsertHexrunnerConnection = z.infer<
+  typeof insertHexrunnerConnectionSchema
+>;
 export type HexrunnerRun = typeof hexrunnerRunsTable.$inferSelect;
 export type InsertHexrunnerRun = z.infer<typeof insertHexrunnerRunSchema>;
 export type HexrunnerRunPoint = typeof hexrunnerRunPointsTable.$inferSelect;

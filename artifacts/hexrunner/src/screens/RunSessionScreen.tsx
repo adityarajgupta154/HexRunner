@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  AppState,
+  type AppStateStatus,
   ActivityIndicator,
   Pressable,
   StyleSheet,
@@ -23,6 +25,7 @@ import {
   queueRunForSave,
 } from '@/src/services/runStorage';
 import { checkSession } from '@/src/services/antiSpoof';
+import { runPresence } from '@/src/services/runPresence';
 import { useLookupHexOwnership } from '@workspace/api-client-react';
 import SafetyTools from '@/src/components/SafetyTools';
 import CivicReportTools from '@/src/components/CivicReportTools';
@@ -95,6 +98,7 @@ export default function RunSessionScreen() {
   } = useAuth();
   const startTimeRef = useRef<number | null>(null);
   const clientRunIdRef = useRef<string | null>(null);
+  const runningRef = useRef(false);
   const lastPointRef = useRef<RunPoint | null>(null);
   const distanceKmRef = useRef(0);
   const [isStarting, setIsStarting] = useState(false);
@@ -127,7 +131,32 @@ export default function RunSessionScreen() {
     return () => clearInterval(timer);
   }, [isRunning]);
 
-  useEffect(() => stopWatching, []);
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      const clientRunId = clientRunIdRef.current;
+      if (!clientRunId || !runningRef.current) return;
+
+      if (nextState === 'active') {
+        runPresence.resumeRun(clientRunId);
+      } else {
+        runPresence.pauseRun(clientRunId);
+      }
+    };
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange,
+    );
+
+    return () => {
+      subscription.remove();
+      stopWatching();
+      const clientRunId = clientRunIdRef.current;
+      if (clientRunId) {
+        runPresence.endRun(clientRunId);
+      }
+      runningRef.current = false;
+    };
+  }, []);
 
   const startSession = useCallback(async () => {
     if (runAwaitingCache) {
@@ -152,12 +181,23 @@ export default function RunSessionScreen() {
     setPoorAccuracyHexes(0);
     setContestedHexes(new Set());
     distanceKmRef.current = 0;
-    clientRunIdRef.current = createClientRunId();
+    const clientRunId = createClientRunId();
+    clientRunIdRef.current = clientRunId;
+    runningRef.current = true;
+    runPresence.beginRun(clientRunId, AppState.currentState === 'active');
     lastPointRef.current = null;
     startTimeRef.current = null;
 
     try {
       await startWatching((location) => {
+        if (clientRunIdRef.current !== clientRunId) return;
+
+        runPresence.publishLocation(clientRunId, {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          accuracy: location.coords.accuracy,
+          mocked: location.mocked,
+        });
         if (startTimeRef.current === null) {
           startTimeRef.current = location.timestamp;
         }
@@ -226,6 +266,7 @@ export default function RunSessionScreen() {
       });
 
       startTimeRef.current ??= Date.now();
+      runningRef.current = true;
       setIsRunning(true);
     } catch (startError: unknown) {
       const message =
@@ -234,6 +275,9 @@ export default function RunSessionScreen() {
           : 'Unable to start this run.';
       setError(message);
       stopWatching();
+      runPresence.endRun(clientRunId);
+      clientRunIdRef.current = null;
+      runningRef.current = false;
       startTimeRef.current = null;
     } finally {
       setIsStarting(false);
@@ -274,6 +318,12 @@ export default function RunSessionScreen() {
     if (!uid) {
       setError('Your local HexRunner identity is unavailable.');
       stopWatching();
+      const clientRunId = clientRunIdRef.current;
+      if (clientRunId) {
+        runPresence.endRun(clientRunId);
+      }
+      clientRunIdRef.current = null;
+      runningRef.current = false;
       setIsRunning(false);
       return;
     }
@@ -303,6 +353,9 @@ export default function RunSessionScreen() {
     const antiSpoofCheck = checkSession(pathPoints);
 
     stopWatching();
+    runPresence.endRun(clientRunId);
+    clientRunIdRef.current = null;
+    runningRef.current = false;
     setIsRunning(false);
     startTimeRef.current = null;
 

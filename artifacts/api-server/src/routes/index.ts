@@ -7,6 +7,7 @@ import anonymousIdentitiesRouter from "./anonymousIdentities";
 import safetyRouter from "./safety";
 import airQualityRouter from "./airQuality";
 import civicRouter from "./civic";
+import presenceRouter from "./presence";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(usersRouter);
 router.use(safetyRouter);
 router.use(airQualityRouter);
 router.use(civicRouter);
+router.use(presenceRouter);
 
 export default router;

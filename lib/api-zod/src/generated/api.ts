@@ -653,3 +653,162 @@ export const GetUserStatsResponse = zod.object({
 })
 
 
+export const heartbeatPresenceBodyClientRunIdMax = 128;
+
+
+export const heartbeatPresenceBodyClientRunIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+export const heartbeatPresenceBodyLatMin = -90;
+export const heartbeatPresenceBodyLatMax = 90;
+
+export const heartbeatPresenceBodyLngMin = -180;
+export const heartbeatPresenceBodyLngMax = 180;
+
+export const heartbeatPresenceBodyAccuracyMetersMin = 0;
+export const heartbeatPresenceBodyAccuracyMetersMax = 100;
+
+
+
+export const HeartbeatPresenceBody = zod.object({
+  "clientRunId": zod.string().min(1).max(heartbeatPresenceBodyClientRunIdMax).regex(heartbeatPresenceBodyClientRunIdRegExp),
+  "lat": zod.number().min(heartbeatPresenceBodyLatMin).max(heartbeatPresenceBodyLatMax),
+  "lng": zod.number().min(heartbeatPresenceBodyLngMin).max(heartbeatPresenceBodyLngMax),
+  "accuracyMeters": zod.number().min(heartbeatPresenceBodyAccuracyMetersMin).max(heartbeatPresenceBodyAccuracyMetersMax),
+  "mocked": zod.boolean()
+})
+
+export const HeartbeatPresenceResponse = zod.object({
+  "expiresAt": zod.coerce.date()
+})
+
+
+export const endPresenceBodyClientRunIdMax = 128;
+
+
+export const endPresenceBodyClientRunIdRegExp = new RegExp('^[A-Za-z0-9_-]+$');
+
+
+export const EndPresenceBody = zod.object({
+  "clientRunId": zod.string().min(1).max(endPresenceBodyClientRunIdMax).regex(endPresenceBodyClientRunIdRegExp)
+})
+
+export const EndPresenceResponse = zod.void()
+
+
+export const getNearbyPresenceQueryRadiusMetersMin = 25;
+export const getNearbyPresenceQueryRadiusMetersMax = 5000;
+
+export const getNearbyPresenceQueryLimitDefault = 50;
+export const getNearbyPresenceQueryLimitMax = 100;
+export const getNearbyPresenceQueryLimitMultipleOf = 1;
+
+
+
+export const GetNearbyPresenceQueryParams = zod.object({
+  "radiusMeters": zod.coerce.number().min(getNearbyPresenceQueryRadiusMetersMin).max(getNearbyPresenceQueryRadiusMetersMax),
+  "limit": zod.coerce.number().min(1).max(getNearbyPresenceQueryLimitMax).multipleOf(getNearbyPresenceQueryLimitMultipleOf).default(getNearbyPresenceQueryLimitDefault)
+})
+
+export const getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMin = 250;
+export const getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMax = 5000;
+export const getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMultipleOf = 250;
+
+export const getNearbyPresenceResponseRunnersMax = 100;
+
+export const getNearbyPresenceResponseAmbientCountMin = 0;
+export const getNearbyPresenceResponseAmbientCountMultipleOf = 1;
+
+
+
+export const GetNearbyPresenceResponse = zod.object({
+  "runners": zod.array(zod.union([zod.object({
+  "visibility": zod.enum(['exact']),
+  "userId": zod.string(),
+  "displayName": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "distanceMeters": zod.number()
+}),zod.object({
+  "visibility": zod.enum(['anonymous']),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "distanceBandMeters": zod.number().min(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMin).max(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMax).multipleOf(getNearbyPresenceResponseRunnersItemTwoDistanceBandMetersMultipleOf)
+})])).max(getNearbyPresenceResponseRunnersMax),
+  "ambientCount": zod.number().min(getNearbyPresenceResponseAmbientCountMin).multipleOf(getNearbyPresenceResponseAmbientCountMultipleOf)
+})
+
+
+export const ListConnectionsResponseItem = zod.object({
+  "userId": zod.string(),
+  "status": zod.enum(['pending_outgoing', 'pending_incoming', 'accepted', 'blocked']),
+  "updatedAt": zod.coerce.date()
+})
+export const ListConnectionsResponse = zod.array(ListConnectionsResponseItem)
+
+
+export const requestConnectionPathUserIdMax = 128;
+
+
+
+export const RequestConnectionParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(requestConnectionPathUserIdMax)
+})
+
+export const RequestConnectionResponse = zod.object({
+  "userId": zod.string(),
+  "status": zod.enum(['pending_outgoing', 'pending_incoming', 'accepted', 'blocked']),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const acceptConnectionPathUserIdMax = 128;
+
+
+
+export const AcceptConnectionParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(acceptConnectionPathUserIdMax)
+})
+
+export const AcceptConnectionResponse = zod.object({
+  "userId": zod.string(),
+  "status": zod.enum(['pending_outgoing', 'pending_incoming', 'accepted', 'blocked']),
+  "updatedAt": zod.coerce.date()
+})
+
+
+export const rejectConnectionPathUserIdMax = 128;
+
+
+
+export const RejectConnectionParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(rejectConnectionPathUserIdMax)
+})
+
+export const RejectConnectionResponse = zod.void()
+
+
+export const removeConnectionPathUserIdMax = 128;
+
+
+
+export const RemoveConnectionParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(removeConnectionPathUserIdMax)
+})
+
+export const RemoveConnectionResponse = zod.void()
+
+
+export const blockConnectionPathUserIdMax = 128;
+
+
+
+export const BlockConnectionParams = zod.object({
+  "userId": zod.coerce.string().min(1).max(blockConnectionPathUserIdMax)
+})
+
+export const BlockConnectionResponse = zod.object({
+  "userId": zod.string(),
+  "status": zod.enum(['pending_outgoing', 'pending_incoming', 'accepted', 'blocked']),
+  "updatedAt": zod.coerce.date()
+})
+
+

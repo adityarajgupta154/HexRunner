@@ -9,7 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:air-quality": "node ./scripts/validateAirQuality.mjs",
-    "validate:run-saving": "node ./scripts/validateRunSaving.mjs"
+    "validate:run-saving": "node ./scripts/validateRunSaving.mjs",
+    "validate:live-presence": "node ./scripts/validateLivePresence.mjs"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
