@@ -8,3 +8,4 @@
 - [Equity baseline privacy](equity-baseline-privacy.md) — keep reward baselines unlinkable, replay-resistant, closed-day-only, and frozen per city/day.
 - [PostgreSQL outbox concurrency](postgres-outbox-concurrency.md) — correlate events durably, token-guard lease completion, and serialize terminal classification with late inserts.
 - [Voice event authority](voice-event-authority.md) — spoken run events must use authoritative confirmations and reject stale asynchronous context.
+- [First-launch browser checks](first-launch-browser-checks.md) — baseline handoff checks need both protected identity state and an available location.

@@ -211,6 +211,7 @@ export default function BaselineOnboarding() {
     >
       <View
         testID="baseline-onboarding"
+        accessibilityLabel={`Baseline onboarding. ${activityLevel} activity level selected`}
         style={[styles.screen, { backgroundColor: colors.background }]}
       >
         <StatusBar hidden />

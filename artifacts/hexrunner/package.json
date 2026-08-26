@@ -13,7 +13,8 @@
     "validate:cold-zones": "rm -rf .cold-zones-validation && tsc scripts/validateColdZones.ts src/services/equityZoneDisplay.ts --outDir .cold-zones-validation --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck && node .cold-zones-validation/scripts/validateColdZones.js && rm -rf .cold-zones-validation",
     "validate:live-presence": "node --no-warnings --experimental-strip-types scripts/validateLivePresence.ts",
     "validate:live-interactions": "node --no-warnings --experimental-strip-types scripts/validateLiveInteractions.ts",
-    "validate:voice-companion": "node --no-warnings --experimental-strip-types scripts/validateVoiceCompanion.ts"
+    "validate:voice-companion": "node --no-warnings --experimental-strip-types scripts/validateVoiceCompanion.ts",
+    "validate:first-launch": "playwright install chromium && playwright test --config playwright.config.ts"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
