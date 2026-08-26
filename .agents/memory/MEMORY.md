@@ -12,3 +12,4 @@
 - [Anonymous identity bootstrap](anonymous-identity-bootstrap.md) — keep fresh web identity setup cancellation-aware and persist each UID/credential pair atomically.
 - [React Native Web radio checks](react-native-web-radio-checks.md) — verify selected Pressables through visual/accessibility labels when aria-checked is absent.
 - [Cross-platform onboarding video codecs](onboarding-video-codecs.md) — pair native H.264 with web VP9 and still posters; fetched MP4s may remain undecodable in Chromium.
+- [Expo Video shared-object cleanup](expo-video-cleanup.md) — let useVideoPlayer own release; unmount cleanup must not call methods on a player that may already be released.

@@ -25,7 +25,6 @@ function NativeVideo({ source }: Pick<Props, 'source'>) {
 
     return () => {
       clearTimeout(playTimer);
-      player.pause();
     };
   }, [player]);
 
