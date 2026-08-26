@@ -31,6 +31,12 @@ Expo Location's web subscription cleanup can call a missing native emitter metho
 
 **How to apply:** keep browser previews on the browser geolocation fallback; use Expo Location's high-accuracy watcher on iOS/Android. Always test both watcher setup and cleanup.
 
+Browser timer functions must be wrapped before dependency injection instead of stored as bare function references.
+
+**Why:** calling an unbound browser `setTimeout`, `setInterval`, or clear function through a dependency object can throw `Illegal invocation` even though Node-based tests pass.
+
+**How to apply:** inject arrow wrappers that call the global timer, and verify the first real browser GPS update because that is when presence timers start.
+
 React Native may expose a `TextDecoder` that rejects `utf-16le`, while H3 4.5 can request that encoding during initialization. H3 failures inside map/GPS callbacks also bypass React error boundaries.
 
 **Why:** static H3 imports once crashed Android route registration, and an Expo Go project-level failure later occurred after map/API startup where a callback exception would not reach a screen boundary.

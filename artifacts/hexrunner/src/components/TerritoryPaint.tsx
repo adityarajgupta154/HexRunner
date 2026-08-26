@@ -7,6 +7,7 @@ import Svg, {
   Path,
   Polyline,
   Stop,
+  Text as TextSVG,
 } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -17,6 +18,8 @@ import {
 import type {
   CivicAreaSignal,
   SafetyAreaSignal,
+  ExactPresence,
+  AnonymousPresence,
 } from '@workspace/api-client-react';
 import { hexToCenter } from '@/src/services/hexEngine';
 
@@ -30,6 +33,8 @@ export type TerritoryPaintProps = {
   safetyAreas?: readonly SafetyAreaSignal[];
   civicAreas?: readonly CivicAreaSignal[];
   caretakerH3Indexes?: ReadonlySet<string>;
+  exactRunners?: readonly ExactPresence[];
+  anonymousRunners?: readonly AnonymousPresence[];
 };
 
 type CanvasPoint = { x: number; y: number };
@@ -64,6 +69,8 @@ export default function TerritoryPaint({
   safetyAreas = [],
   civicAreas = [],
   caretakerH3Indexes,
+  exactRunners = [],
+  anonymousRunners = [],
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -253,6 +260,65 @@ export default function TerritoryPaint({
             />
           </>
         ) : null}
+
+        {anonymousRunners.map((runner, i) => {
+          const point = project(runner.lat, runner.lng, origin);
+          const formattedDistance = runner.distanceBandMeters >= 1000
+            ? `~${(runner.distanceBandMeters / 1000).toFixed(1)} km`
+            : `~${runner.distanceBandMeters} m`;
+
+          return (
+            <React.Fragment key={`anon-${i}`}>
+              <Circle
+                cx={point.x}
+                cy={point.y}
+                r={5}
+                fill={colors.accent}
+                stroke={colors.accentForeground}
+                strokeWidth={1.5}
+                opacity={0.8}
+              />
+              <TextSVG
+                x={point.x}
+                y={point.y + 16}
+                fill={colors.mutedForeground}
+                fontSize={10}
+                fontWeight="600"
+                fontFamily="Inter_600SemiBold"
+                textAnchor="middle"
+              >
+                {formattedDistance}
+              </TextSVG>
+            </React.Fragment>
+          );
+        })}
+
+        {exactRunners.map((runner) => {
+          const point = project(runner.lat, runner.lng, origin);
+          return (
+            <React.Fragment key={runner.userId}>
+              <Circle
+                cx={point.x}
+                cy={point.y}
+                r={7}
+                fill={colors.foreground}
+                stroke={colors.background}
+                strokeWidth={2}
+              />
+              <TextSVG
+                x={point.x}
+                y={point.y + 18}
+                fill={colors.foreground}
+                fontSize={11}
+                fontWeight="bold"
+                fontFamily="Inter_700Bold"
+                textAnchor="middle"
+              >
+                {runner.displayName.toUpperCase()}
+              </TextSVG>
+            </React.Fragment>
+          );
+        })}
 
         <Circle
           cx={CANVAS_SIZE / 2}

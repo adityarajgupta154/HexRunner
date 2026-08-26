@@ -558,6 +558,38 @@ paths:
         "204": { description: Presence ended }
         "400": { description: Invalid presence end data, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
         "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /presence/discovery-anchor:
+    post:
+      operationId: updateDiscoveryAnchor
+      tags: [presence]
+      summary: Set a short-lived private center for nearby discovery
+      security: [{ anonymousDeviceCredential: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DiscoveryAnchorInput" }
+      responses:
+        "200": { description: Discovery anchor refreshed, content: { application/json: { schema: { $ref: "#/components/schemas/DiscoveryAnchorResult" } } } }
+        "400": { description: Invalid discovery anchor, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "409": { description: Discovery session has ended, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "429": { description: Anchor updates are too frequent, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+  /presence/discovery-anchor/end:
+    post:
+      operationId: endDiscoveryAnchor
+      tags: [presence]
+      summary: Delete the caller's private discovery center
+      security: [{ anonymousDeviceCredential: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DiscoveryAnchorEndInput" }
+      responses:
+        "204": { description: Discovery anchor deleted }
+        "400": { description: Invalid discovery anchor end data, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
+        "401": { description: Unauthorized, content: { application/json: { schema: { $ref: "#/components/schemas/ApiError" } } } }
   /presence/nearby:
     get:
       operationId: getNearbyPresence
@@ -1364,6 +1396,30 @@ components:
       properties:
         clientRunId: { type: string, minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9_-]+$" }
     PresenceHeartbeatResult:
+      type: object
+      required: [expiresAt]
+      properties:
+        expiresAt: { type: string, format: date-time }
+    DiscoveryAnchorInput:
+      description: >-
+        The first mobile location fix cannot be hardware-attested. Subsequent
+        updates are server-time continuity constrained and this record is never
+        discoverable as a runner.
+      type: object
+      required: [clientSessionId, lat, lng, accuracyMeters, mocked]
+      properties:
+        clientSessionId: { type: string, minLength: 1, maxLength: 128 }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lng: { type: number, minimum: -180, maximum: 180 }
+        accuracyMeters: { type: number, minimum: 0, maximum: 100 }
+        mocked: { type: boolean }
+    DiscoveryAnchorEndInput:
+      description: Identifies the foreground discovery session to terminate.
+      type: object
+      required: [clientSessionId]
+      properties:
+        clientSessionId: { type: string, minLength: 1, maxLength: 128 }
+    DiscoveryAnchorResult:
       type: object
       required: [expiresAt]
       properties:

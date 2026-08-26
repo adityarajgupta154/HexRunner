@@ -17,16 +17,19 @@ type RunPresenceDependencies = {
   heartbeat: typeof heartbeatPresence;
   end: typeof endPresence;
   now: () => number;
-  setInterval: typeof setInterval;
-  clearInterval: typeof clearInterval;
+  setInterval: (
+    callback: () => void,
+    delay: number,
+  ) => ReturnType<typeof setInterval>;
+  clearInterval: (intervalId: ReturnType<typeof setInterval>) => void;
 };
 
 const defaultDependencies: RunPresenceDependencies = {
   heartbeat: heartbeatPresence,
   end: endPresence,
-  now: Date.now,
-  setInterval,
-  clearInterval,
+  now: () => Date.now(),
+  setInterval: (callback, delay) => setInterval(callback, delay),
+  clearInterval: (intervalId) => clearInterval(intervalId),
 };
 
 export class RunPresencePublisher {

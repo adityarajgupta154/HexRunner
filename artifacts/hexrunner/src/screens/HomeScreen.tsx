@@ -15,6 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import HexGrid from '@/src/components/HexGrid';
 import TerritoryPaint from '@/src/components/TerritoryPaint';
+import PresenceOverlay from '@/src/components/PresenceOverlay';
+import { useLivePresence } from '@/src/hooks/useLivePresence';
 import { useColors } from '@/hooks/useColors';
 import { hexesFromBoundingBox, hexToParent } from '@/src/services/hexEngine';
 import { startWatching, stopWatching } from '@/src/services/locationTracker';
@@ -116,6 +118,27 @@ function LiveMap() {
   const civicLookup = useLookupCivicMap();
   const adoptZone = useAdoptCivicZone();
   const flagCivicReport = useFlagCivicReport();
+
+  const [isFocused, setIsFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, [])
+  );
+
+  const presenceLocation = location ? {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    accuracy: location.coords.accuracy || 100,
+    mocked: location.mocked || false
+  } : null;
+
+  const presence = useLivePresence({
+    enabled: isFocused,
+    location: presenceLocation,
+    mode: 'home'
+  });
 
   const {
     data: userStats,
@@ -391,6 +414,8 @@ function LiveMap() {
             caretakerH3Indexes={
               showCivicLayer ? caretakerHexes : undefined
             }
+            exactRunners={presence.exactRunners}
+            anonymousRunners={presence.anonymousRunners}
           />
           <HexGrid
             center={coordinate}
@@ -429,6 +454,8 @@ function LiveMap() {
             caretakerH3Indexes={
               showCivicLayer ? caretakerHexes : undefined
             }
+            exactRunners={presence.exactRunners}
+            anonymousRunners={presence.anonymousRunners}
           />
         </MapView>
       )}
@@ -475,6 +502,19 @@ function LiveMap() {
           </Text>
         </View>
       ) : null}
+
+      <View pointerEvents="box-none" style={[styles.presenceContainer, { top: insets.top + (territoryFreshness !== null ? 154 : 108) }]}>
+        <PresenceOverlay
+          isLoading={presence.isLoading}
+          hasSnapshot={presence.hasSnapshot}
+          isOffline={presence.isOffline}
+          isStale={presence.isStale}
+          ambientCount={presence.ambientCount}
+          nearestExactRunner={presence.nearestExactRunner}
+          targetDirection={presence.targetDirection}
+          anonymousCount={presence.anonymousRunners.length}
+        />
+      </View>
 
       <View
         pointerEvents="none"
@@ -694,6 +734,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   aqiPanel: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+  },
+  presenceContainer: {
     position: 'absolute',
     left: 16,
     right: 16,

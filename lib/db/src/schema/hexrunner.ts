@@ -61,6 +61,77 @@ export const hexrunnerLivePresenceTable = pgTable(
   ],
 );
 
+// Discovery anchors only establish a caller's search center. They are never
+// joined into the discoverable runner set and retain no location history.
+export const hexrunnerDiscoveryAnchorsTable = pgTable(
+  "hexrunner_discovery_anchors",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    clientSessionId: text("client_session_id").notNull(),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyMeters: doublePrecision("accuracy_meters").notNull(),
+    h3Index: text("h3_index").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("hexrunner_discovery_anchors_h3_expiry_idx").on(table.h3Index, table.expiresAt),
+    index("hexrunner_discovery_anchors_expiry_idx").on(table.expiresAt),
+    check("hexrunner_discovery_anchors_session_check", sql`char_length(${table.clientSessionId}) BETWEEN 1 AND 128`),
+    check("hexrunner_discovery_anchors_latitude_check", sql`${table.latitude} >= -90 AND ${table.latitude} <= 90`),
+    check("hexrunner_discovery_anchors_longitude_check", sql`${table.longitude} >= -180 AND ${table.longitude} <= 180`),
+    check("hexrunner_discovery_anchors_accuracy_check", sql`${table.accuracyMeters} >= 0 AND ${table.accuracyMeters} <= 100`),
+    check("hexrunner_discovery_anchors_expiry_check", sql`${table.expiresAt} > ${table.updatedAt}`),
+  ],
+);
+
+// Coordinate-free terminal markers prevent delayed requests from resurrecting
+// an ended foreground discovery session.
+export const hexrunnerDiscoveryAnchorTerminationsTable = pgTable(
+  "hexrunner_discovery_anchor_terminations",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    clientSessionId: text("client_session_id").notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.clientSessionId] }),
+    index("hexrunner_discovery_anchor_terminations_expiry_idx").on(table.expiresAt),
+    check("hexrunner_discovery_anchor_terminations_session_check", sql`char_length(${table.clientSessionId}) BETWEEN 1 AND 128`),
+    check("hexrunner_discovery_anchor_terminations_expiry_check", sql`${table.expiresAt} > ${table.endedAt}`),
+  ],
+);
+
+// One latest-only anti-abuse snapshot preserves continuity across anchor end
+// and expiry. It is never a discovery center or a discoverable candidate.
+export const hexrunnerDiscoveryAnchorContinuityTable = pgTable(
+  "hexrunner_discovery_anchor_continuity",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => hexrunnerUsersTable.id, { onDelete: "cascade" }),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyMeters: doublePrecision("accuracy_meters").notNull(),
+    h3Index: text("h3_index").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index("hexrunner_discovery_anchor_continuity_expiry_idx").on(table.expiresAt),
+    check("hexrunner_discovery_anchor_continuity_latitude_check", sql`${table.latitude} >= -90 AND ${table.latitude} <= 90`),
+    check("hexrunner_discovery_anchor_continuity_longitude_check", sql`${table.longitude} >= -180 AND ${table.longitude} <= 180`),
+    check("hexrunner_discovery_anchor_continuity_accuracy_check", sql`${table.accuracyMeters} >= 0 AND ${table.accuracyMeters} <= 100`),
+    check("hexrunner_discovery_anchor_continuity_expiry_check", sql`${table.expiresAt} > ${table.updatedAt}`),
+  ],
+);
+
 // A short-lived terminal marker closes the delayed-request race without
 // retaining coordinates or creating location history.
 export const hexrunnerPresenceTerminationsTable = pgTable(
@@ -349,6 +420,15 @@ export const insertHexrunnerUserSchema =
 export const insertHexrunnerLivePresenceSchema = createInsertSchema(
   hexrunnerLivePresenceTable,
 );
+export const insertHexrunnerDiscoveryAnchorSchema = createInsertSchema(
+  hexrunnerDiscoveryAnchorsTable,
+);
+export const insertHexrunnerDiscoveryAnchorTerminationSchema = createInsertSchema(
+  hexrunnerDiscoveryAnchorTerminationsTable,
+);
+export const insertHexrunnerDiscoveryAnchorContinuitySchema = createInsertSchema(
+  hexrunnerDiscoveryAnchorContinuityTable,
+);
 export const insertHexrunnerPresenceTerminationSchema = createInsertSchema(
   hexrunnerPresenceTerminationsTable,
 );
@@ -386,6 +466,20 @@ export type InsertHexrunnerUser = z.infer<typeof insertHexrunnerUserSchema>;
 export type HexrunnerLivePresence = typeof hexrunnerLivePresenceTable.$inferSelect;
 export type InsertHexrunnerLivePresence = z.infer<
   typeof insertHexrunnerLivePresenceSchema
+>;
+export type HexrunnerDiscoveryAnchor = typeof hexrunnerDiscoveryAnchorsTable.$inferSelect;
+export type InsertHexrunnerDiscoveryAnchor = z.infer<
+  typeof insertHexrunnerDiscoveryAnchorSchema
+>;
+export type HexrunnerDiscoveryAnchorTermination =
+  typeof hexrunnerDiscoveryAnchorTerminationsTable.$inferSelect;
+export type InsertHexrunnerDiscoveryAnchorTermination = z.infer<
+  typeof insertHexrunnerDiscoveryAnchorTerminationSchema
+>;
+export type HexrunnerDiscoveryAnchorContinuity =
+  typeof hexrunnerDiscoveryAnchorContinuityTable.$inferSelect;
+export type InsertHexrunnerDiscoveryAnchorContinuity = z.infer<
+  typeof insertHexrunnerDiscoveryAnchorContinuitySchema
 >;
 export type HexrunnerPresenceTermination =
   typeof hexrunnerPresenceTerminationsTable.$inferSelect;

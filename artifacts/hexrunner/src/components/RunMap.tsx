@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 import TerritoryPaint from '@/src/components/TerritoryPaint';
 import type { TerritoryRoutePoint } from '@/src/services/territoryDisplay';
+import type { ExactPresence, AnonymousPresence } from '@workspace/api-client-react';
 
 type RunPoint = {
   lat: number;
@@ -15,6 +16,8 @@ type RunMapProps = {
   pathPoints: readonly TerritoryRoutePoint[];
   claimedHexIndexes: ReadonlySet<string>;
   contestedHexIndexes?: ReadonlySet<string>;
+  exactRunners?: readonly ExactPresence[];
+  anonymousRunners?: readonly AnonymousPresence[];
 };
 
 /** Browser fallback; Expo Go selects RunMap.native.tsx automatically. */
@@ -23,6 +26,8 @@ export default function RunMap({
   pathPoints,
   claimedHexIndexes,
   contestedHexIndexes,
+  exactRunners,
+  anonymousRunners,
 }: RunMapProps) {
   const colors = useColors();
 
@@ -45,6 +50,8 @@ export default function RunMap({
         routePoints={pathPoints}
         otherHexIndexes={contestedHexIndexes}
         claimReadyHexIndexes={claimedHexIndexes}
+        exactRunners={exactRunners}
+        anonymousRunners={anonymousRunners}
       />
     </View>
   );

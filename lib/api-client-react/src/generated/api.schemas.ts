@@ -587,6 +587,48 @@ export interface PresenceHeartbeatResult {
   expiresAt: string;
 }
 
+/**
+ * The first mobile location fix cannot be hardware-attested. Subsequent updates are server-time continuity constrained and this record is never discoverable as a runner.
+ */
+export interface DiscoveryAnchorInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  clientSessionId: string;
+  /**
+     * @minimum -90
+     * @maximum 90
+     */
+  lat: number;
+  /**
+     * @minimum -180
+     * @maximum 180
+     */
+  lng: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  accuracyMeters: number;
+  mocked: boolean;
+}
+
+/**
+ * Identifies the foreground discovery session to terminate.
+ */
+export interface DiscoveryAnchorEndInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  clientSessionId: string;
+}
+
+export interface DiscoveryAnchorResult {
+  expiresAt: string;
+}
+
 export type ExactPresenceVisibility = typeof ExactPresenceVisibility[keyof typeof ExactPresenceVisibility];
 
 

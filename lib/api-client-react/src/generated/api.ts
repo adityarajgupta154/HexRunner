@@ -35,6 +35,9 @@ import type {
   CreateCivicReportResult,
   CreateSafetyReportRequest,
   CreateSafetyReportResult,
+  DiscoveryAnchorEndInput,
+  DiscoveryAnchorInput,
+  DiscoveryAnchorResult,
   FlagCivicReportRequest,
   FlagCivicReportResult,
   GetAirQualityParams,
@@ -1328,6 +1331,148 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getEndPresenceMutationOptions(options));
+    }
+
+export const getUpdateDiscoveryAnchorUrl = () => {
+
+
+
+
+  return `/api/presence/discovery-anchor`
+}
+
+/**
+ * @summary Set a short-lived private center for nearby discovery
+ */
+export const updateDiscoveryAnchor = async (discoveryAnchorInput: DiscoveryAnchorInput, options?: Parameters<typeof customFetch>[1]): Promise<DiscoveryAnchorResult> => {
+
+  return customFetch<DiscoveryAnchorResult>(getUpdateDiscoveryAnchorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(discoveryAnchorInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateDiscoveryAnchorMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDiscoveryAnchor>>, TError,{data: BodyType<DiscoveryAnchorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDiscoveryAnchor>>, TError,{data: BodyType<DiscoveryAnchorInput>}, TContext> => {
+
+const mutationKey = ['updateDiscoveryAnchor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDiscoveryAnchor>>, {data: BodyType<DiscoveryAnchorInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateDiscoveryAnchor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDiscoveryAnchorMutationResult = NonNullable<Awaited<ReturnType<typeof updateDiscoveryAnchor>>>
+    export type UpdateDiscoveryAnchorMutationBody = BodyType<DiscoveryAnchorInput>
+    export type UpdateDiscoveryAnchorMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Set a short-lived private center for nearby discovery
+ */
+export const useUpdateDiscoveryAnchor = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDiscoveryAnchor>>, TError,{data: BodyType<DiscoveryAnchorInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDiscoveryAnchor>>,
+        TError,
+        {data: BodyType<DiscoveryAnchorInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateDiscoveryAnchorMutationOptions(options));
+    }
+
+export const getEndDiscoveryAnchorUrl = () => {
+
+
+
+
+  return `/api/presence/discovery-anchor/end`
+}
+
+/**
+ * @summary Delete the caller's private discovery center
+ */
+export const endDiscoveryAnchor = async (discoveryAnchorEndInput: DiscoveryAnchorEndInput, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getEndDiscoveryAnchorUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(discoveryAnchorEndInput)
+  }
+);}
+
+
+
+
+
+export const getEndDiscoveryAnchorMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endDiscoveryAnchor>>, TError,{data: BodyType<DiscoveryAnchorEndInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endDiscoveryAnchor>>, TError,{data: BodyType<DiscoveryAnchorEndInput>}, TContext> => {
+
+const mutationKey = ['endDiscoveryAnchor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endDiscoveryAnchor>>, {data: BodyType<DiscoveryAnchorEndInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  endDiscoveryAnchor(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndDiscoveryAnchorMutationResult = NonNullable<Awaited<ReturnType<typeof endDiscoveryAnchor>>>
+    export type EndDiscoveryAnchorMutationBody = BodyType<DiscoveryAnchorEndInput>
+    export type EndDiscoveryAnchorMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Delete the caller's private discovery center
+ */
+export const useEndDiscoveryAnchor = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endDiscoveryAnchor>>, TError,{data: BodyType<DiscoveryAnchorEndInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof endDiscoveryAnchor>>,
+        TError,
+        {data: BodyType<DiscoveryAnchorEndInput>},
+        TContext
+      > => {
+      return useMutation(getEndDiscoveryAnchorMutationOptions(options));
     }
 
 export const getGetNearbyPresenceUrl = (params: GetNearbyPresenceParams,) => {

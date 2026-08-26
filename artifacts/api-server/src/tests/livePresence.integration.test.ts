@@ -5,6 +5,9 @@ import { after, before, describe, test } from "node:test";
 import {
   db,
   hexrunnerConnectionsTable,
+  hexrunnerDiscoveryAnchorContinuityTable,
+  hexrunnerDiscoveryAnchorTerminationsTable,
+  hexrunnerDiscoveryAnchorsTable,
   hexrunnerLivePresenceTable,
   hexrunnerPresenceTerminationsTable,
   hexrunnerUsersTable,
@@ -73,6 +76,30 @@ async function heartbeat(
   return result;
 }
 
+async function anchor(
+  userId: string,
+  lat = origin.lat,
+  lng = origin.lng,
+  extra: Record<string, unknown> = {},
+): Promise<Result> {
+  return request("POST", "/api/presence/discovery-anchor", credential(userId), {
+    clientSessionId: `anchor_${userId}`,
+    lat, lng, accuracyMeters: 8, mocked: false, ...extra,
+  });
+}
+
+async function clearDiscovery(): Promise<void> {
+  await db.delete(hexrunnerDiscoveryAnchorsTable).where(
+    inArray(hexrunnerDiscoveryAnchorsTable.userId, users),
+  );
+  await db.delete(hexrunnerDiscoveryAnchorTerminationsTable).where(
+    inArray(hexrunnerDiscoveryAnchorTerminationsTable.userId, users),
+  );
+  await db.delete(hexrunnerDiscoveryAnchorContinuityTable).where(
+    inArray(hexrunnerDiscoveryAnchorContinuityTable.userId, users),
+  );
+}
+
 async function enroll(userId: string): Promise<void> {
   const result = await request<{ credential: string }>(
     "POST",
@@ -93,6 +120,7 @@ async function cleanup(): Promise<void> {
   await db.delete(hexrunnerLivePresenceTable).where(
     inArray(hexrunnerLivePresenceTable.userId, users),
   );
+  await clearDiscovery();
   await db.delete(hexrunnerUsersTable).where(inArray(hexrunnerUsersTable.id, users));
 }
 
@@ -118,9 +146,11 @@ describe("live presence and connections integration", { concurrency: false }, ()
     await pool.end();
   });
 
-  test("requires authentication for heartbeat, end, and nearby", async () => {
+  test("requires authentication for heartbeat, discovery anchors, end, and nearby", async () => {
     assert.equal((await request("POST", "/api/presence/heartbeat", undefined, {})).status, 401);
     assert.equal((await request("POST", "/api/presence/end")).status, 401);
+    assert.equal((await request("POST", "/api/presence/discovery-anchor", undefined, {})).status, 401);
+    assert.equal((await request("POST", "/api/presence/discovery-anchor/end")).status, 401);
     assert.equal((await request("GET", "/api/presence/nearby?radiusMeters=500")).status, 401);
   });
 
@@ -144,6 +174,102 @@ describe("live presence and connections integration", { concurrency: false }, ()
     assert.equal((await heartbeat(users[0]!, 91, origin.lng)).status, 400);
     assert.equal((await heartbeat(users[0]!, origin.lat, origin.lng, { accuracyMeters: 251 })).status, 400);
     assert.equal((await heartbeat(users[0]!, origin.lat, origin.lng, { clientRunId: "bad run!" })).status, 400);
+  });
+
+  test("anchors are caller-owned, private, validated, and continuity constrained", async () => {
+    await db.delete(hexrunnerLivePresenceTable).where(inArray(hexrunnerLivePresenceTable.userId, users));
+    await clearDiscovery();
+    assert.equal((await anchor(users[0]!, origin.lat, origin.lng, { mocked: true })).status, 400);
+    assert.equal((await anchor(users[0]!, 91, origin.lng)).status, 400);
+    assert.equal((await anchor(users[0]!, origin.lat, origin.lng, { accuracyMeters: 101 })).status, 400);
+    assert.equal((await anchor(users[0]!, origin.lat, origin.lng, { userId: users[1] })).status, 200);
+    let rows = await db.select().from(hexrunnerDiscoveryAnchorsTable)
+      .where(inArray(hexrunnerDiscoveryAnchorsTable.userId, [users[0]!, users[1]!]));
+    assert.deepEqual(rows.map((row) => row.userId), [users[0]]);
+    assert.equal((await anchor(users[0]!)).status, 429);
+    await db.update(hexrunnerDiscoveryAnchorsTable).set({ updatedAt: new Date(Date.now() - 4_000) })
+      .where(eq(hexrunnerDiscoveryAnchorsTable.userId, users[0]!));
+    await db.update(hexrunnerDiscoveryAnchorContinuityTable).set({ updatedAt: new Date(Date.now() - 4_000) })
+      .where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, users[0]!));
+    assert.equal((await anchor(users[0]!, origin.lat + 1)).status, 400);
+  });
+
+  test("an anchor permits discovery but is not itself a discoverable runner", async () => {
+    await db.delete(hexrunnerLivePresenceTable).where(inArray(hexrunnerLivePresenceTable.userId, users));
+    await clearDiscovery();
+    assert.equal((await anchor(users[0]!)).status, 200);
+    assert.equal((await heartbeat(users[1]!, origin.lat + 0.0002)).status, 200);
+    const nearby = await request<{ runners: Array<Record<string, unknown>>; ambientCount: number }>(
+      "GET", "/api/presence/nearby?radiusMeters=500", credential(users[0]!),
+    );
+    assert.equal(nearby.status, 200);
+    assert.equal(nearby.body?.ambientCount, 1);
+    assert.equal(nearby.body?.runners.some((runner) => runner.userId === users[0]), false);
+    assert.equal((await request(
+      "GET", "/api/presence/nearby?radiusMeters=500&lat=0&lng=0", credential(users[0]!),
+    )).status, 400);
+  });
+
+  test("anchor viewers retain stranger anonymity, accepted exactness, and block semantics", async () => {
+    await db.delete(hexrunnerConnectionsTable).where(or(
+      inArray(hexrunnerConnectionsTable.userLowId, users),
+      inArray(hexrunnerConnectionsTable.userHighId, users),
+    ));
+    await db.delete(hexrunnerLivePresenceTable).where(inArray(hexrunnerLivePresenceTable.userId, users));
+    await clearDiscovery();
+    assert.equal((await anchor(users[0]!)).status, 200);
+    assert.equal((await heartbeat(users[1]!, origin.lat + 0.0001)).status, 200);
+    let nearby = await request<{ runners: Array<Record<string, unknown>> }>(
+      "GET", "/api/presence/nearby?radiusMeters=500", credential(users[0]!),
+    );
+    assert.equal(nearby.body?.runners[0]?.visibility, "anonymous");
+    assert.equal("userId" in (nearby.body?.runners[0] ?? {}), false);
+    assert.equal((await request("POST", `/api/connections/${users[1]}/request`, credential(users[0]!))).status, 200);
+    assert.equal((await request("POST", `/api/connections/${users[0]}/accept`, credential(users[1]!))).status, 200);
+    nearby = await request("GET", "/api/presence/nearby?radiusMeters=500", credential(users[0]!));
+    assert.equal(nearby.body?.runners[0]?.visibility, "exact");
+    assert.equal(nearby.body?.runners[0]?.userId, users[1]);
+    assert.equal((await request("POST", `/api/connections/${users[1]}/block`, credential(users[0]!))).status, 200);
+    const blocked = await request<{ runners: unknown[]; ambientCount: number }>(
+      "GET", "/api/presence/nearby?radiusMeters=500", credential(users[0]!),
+    );
+    assert.deepEqual(blocked.body, { runners: [], ambientCount: 0 });
+    await db.delete(hexrunnerConnectionsTable).where(or(
+      inArray(hexrunnerConnectionsTable.userLowId, users),
+      inArray(hexrunnerConnectionsTable.userHighId, users),
+    ));
+  });
+
+  test("active presence takes precedence over an anchor and anchors expire or delete", async () => {
+    await db.delete(hexrunnerLivePresenceTable).where(inArray(hexrunnerLivePresenceTable.userId, users));
+    await clearDiscovery();
+    assert.equal((await anchor(users[0]!)).status, 200);
+    const activeLat = origin.lat + 0.02;
+    assert.equal((await heartbeat(users[0]!, activeLat)).status, 200);
+    assert.equal((await heartbeat(users[1]!, activeLat + 0.0002)).status, 200);
+    const preferred = await request<{ ambientCount: number }>(
+      "GET", "/api/presence/nearby?radiusMeters=500", credential(users[0]!),
+    );
+    assert.equal(preferred.body?.ambientCount, 1);
+    await request("POST", "/api/presence/end", credential(users[0]!), { clientRunId: `run_${users[0]}` });
+    await db.update(hexrunnerDiscoveryAnchorsTable).set({
+      updatedAt: new Date(Date.now() - 2_000), expiresAt: new Date(Date.now() - 1_000),
+    }).where(eq(hexrunnerDiscoveryAnchorsTable.userId, users[0]!));
+    assert.equal((await request("GET", "/api/presence/nearby?radiusMeters=500", credential(users[0]!))).status, 400);
+    await db.update(hexrunnerDiscoveryAnchorContinuityTable).set({
+      updatedAt: new Date(Date.now() - 4_000),
+    }).where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, users[0]!));
+    assert.equal((await anchor(users[0]!)).status, 200);
+    assert.equal((await request("POST", "/api/presence/discovery-anchor/end", credential(users[0]!), {
+      clientSessionId: `anchor_${users[0]}`,
+    })).status, 204);
+    assert.equal((await db.select().from(hexrunnerDiscoveryAnchorsTable)
+      .where(eq(hexrunnerDiscoveryAnchorsTable.userId, users[0]!))).length, 0);
+    // Leave the existing live-presence lifecycle fixtures independent.
+    await db.delete(hexrunnerLivePresenceTable).where(inArray(hexrunnerLivePresenceTable.userId, users));
+    await db.delete(hexrunnerPresenceTerminationsTable).where(
+      inArray(hexrunnerPresenceTerminationsTable.userId, users),
+    );
   });
 
   test("binds one live row to its run and rejects delayed old operations", async () => {
@@ -199,6 +325,76 @@ describe("live presence and connections integration", { concurrency: false }, ()
     assert.equal((await request("POST", "/api/presence/end", credential(userId), {
       clientRunId: raceRun,
     })).status, 204);
+  });
+
+  test("binds discovery anchors to sessions and preserves latest-only continuity", async () => {
+    const userId = users[4]!;
+    await db.delete(hexrunnerDiscoveryAnchorsTable)
+      .where(eq(hexrunnerDiscoveryAnchorsTable.userId, userId));
+    await db.delete(hexrunnerDiscoveryAnchorTerminationsTable)
+      .where(eq(hexrunnerDiscoveryAnchorTerminationsTable.userId, userId));
+    await db.delete(hexrunnerDiscoveryAnchorContinuityTable)
+      .where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId));
+    const body = (clientSessionId: string, lat = origin.lat) => ({
+      clientSessionId, lat, lng: origin.lng, accuracyMeters: 8, mocked: false,
+    });
+
+    assert.equal((await request("POST", "/api/presence/discovery-anchor", credential(userId), body("old"))).status, 200);
+    assert.equal((await request("POST", "/api/presence/discovery-anchor/end", credential(userId), {
+      clientSessionId: "old",
+    })).status, 204);
+    assert.equal((await request("POST", "/api/presence/discovery-anchor", credential(userId), body("old"))).status, 409);
+    assert.equal((await request("POST", "/api/presence/discovery-anchor", credential(userId), body("new"))).status, 429);
+
+    await db.update(hexrunnerDiscoveryAnchorContinuityTable).set({
+      updatedAt: new Date(Date.now() - 4_000),
+    }).where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId));
+    assert.equal((await request("POST", "/api/presence/discovery-anchor", credential(userId), body("new"))).status, 200);
+
+    await db.update(hexrunnerDiscoveryAnchorsTable).set({
+      updatedAt: new Date(Date.now() - 2_000),
+      expiresAt: new Date(Date.now() - 1_000),
+    }).where(eq(hexrunnerDiscoveryAnchorsTable.userId, userId));
+    await db.update(hexrunnerDiscoveryAnchorContinuityTable).set({
+      updatedAt: new Date(Date.now() - 4_000),
+    }).where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId));
+    assert.equal((await request(
+      "POST", "/api/presence/discovery-anchor", credential(userId), body("after_expiry", origin.lat + 1),
+    )).status, 400);
+
+    assert.equal((await request(
+      "POST", "/api/presence/discovery-anchor", credential(userId), body("race"),
+    )).status, 200);
+    const [ended, delayedUpdate] = await Promise.all([
+      request("POST", "/api/presence/discovery-anchor/end", credential(userId), {
+        clientSessionId: "race",
+      }),
+      request("POST", "/api/presence/discovery-anchor", credential(userId), body("race")),
+    ]);
+    assert.equal(ended.status, 204);
+    assert.ok([200, 409, 429].includes(delayedUpdate.status));
+    assert.equal((await db.select().from(hexrunnerDiscoveryAnchorsTable)
+      .where(eq(hexrunnerDiscoveryAnchorsTable.userId, userId))).length, 0);
+    assert.equal((await request(
+      "POST", "/api/presence/discovery-anchor", credential(userId), body("race"),
+    )).status, 409);
+    assert.equal((await request(
+      "GET", "/api/presence/nearby?radiusMeters=500", credential(userId),
+    )).status, 400);
+
+    await db.update(hexrunnerDiscoveryAnchorContinuityTable).set({
+      updatedAt: new Date(Date.now() - 2_000),
+      expiresAt: new Date(Date.now() - 1_000),
+    }).where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId));
+    await db.update(hexrunnerDiscoveryAnchorTerminationsTable).set({
+      endedAt: new Date(Date.now() - 2_000),
+      expiresAt: new Date(Date.now() - 1_000),
+    }).where(eq(hexrunnerDiscoveryAnchorTerminationsTable.userId, userId));
+    await request("GET", "/api/presence/nearby?radiusMeters=500", credential(userId));
+    assert.equal((await db.select().from(hexrunnerDiscoveryAnchorContinuityTable)
+      .where(eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId))).length, 0);
+    assert.equal((await db.select().from(hexrunnerDiscoveryAnchorTerminationsTable)
+      .where(eq(hexrunnerDiscoveryAnchorTerminationsTable.userId, userId))).length, 0);
   });
 
   test("expires stale rows and excludes self and out-of-radius runners", async () => {

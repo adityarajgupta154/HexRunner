@@ -9,9 +9,11 @@ import {
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RunMap from '@/src/components/RunMap';
+import PresenceOverlay from '@/src/components/PresenceOverlay';
+import { useLivePresence } from '@/src/hooks/useLivePresence';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/src/context/AuthContext';
 import { getClaimQualitySnapshot } from '@/src/services/claimQuality';
@@ -115,6 +117,28 @@ export default function RunSessionScreen() {
   const [isCachingRun, setIsCachingRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ownershipLookup = useLookupHexOwnership();
+
+  const [isFocused, setIsFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => setIsFocused(false);
+    }, [])
+  );
+
+  const currentPoint = pathPoints[pathPoints.length - 1] ?? null;
+  const presenceLocation = currentPoint ? {
+    latitude: currentPoint.lat,
+    longitude: currentPoint.lng,
+    accuracy: currentPoint.accuracyMeters || 100,
+    mocked: currentPoint.mocked || false
+  } : null;
+
+  const presence = useLivePresence({
+    enabled: isFocused && isRunning,
+    location: presenceLocation,
+    mode: 'run'
+  });
 
   useEffect(() => {
     if (!isRunning) return;
@@ -441,6 +465,8 @@ export default function RunSessionScreen() {
               pathPoints={pathPoints}
               claimedHexIndexes={claimedHexes}
               contestedHexIndexes={contestedHexes}
+              exactRunners={presence.exactRunners}
+              anonymousRunners={presence.anonymousRunners}
             />
           </View>
 
@@ -465,6 +491,17 @@ export default function RunSessionScreen() {
           <CivicReportTools
             currentPoint={pathPoints[pathPoints.length - 1] ?? null}
             clientRunId={clientRunIdRef.current}
+          />
+
+          <PresenceOverlay
+            isLoading={presence.isLoading}
+            hasSnapshot={presence.hasSnapshot}
+            isOffline={presence.isOffline}
+            isStale={presence.isStale}
+            ambientCount={presence.ambientCount}
+            nearestExactRunner={presence.nearestExactRunner}
+            targetDirection={presence.targetDirection}
+            anonymousCount={presence.anonymousRunners.length}
           />
 
           <View

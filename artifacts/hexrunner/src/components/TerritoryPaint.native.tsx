@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Circle, Polyline } from 'react-native-maps';
+import { View, Text } from 'react-native';
+import { Circle, Polyline, Marker } from 'react-native-maps';
 import { useColors } from '@/hooks/useColors';
 import {
   buildTerritoryPaintSpots,
@@ -9,6 +10,8 @@ import {
 import type {
   CivicAreaSignal,
   SafetyAreaSignal,
+  ExactPresence,
+  AnonymousPresence,
 } from '@workspace/api-client-react';
 import { hexToCenter } from '@/src/services/hexEngine';
 
@@ -22,6 +25,8 @@ export type TerritoryPaintProps = {
   safetyAreas?: readonly SafetyAreaSignal[];
   civicAreas?: readonly CivicAreaSignal[];
   caretakerH3Indexes?: ReadonlySet<string>;
+  exactRunners?: readonly ExactPresence[];
+  anonymousRunners?: readonly AnonymousPresence[];
 };
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -47,6 +52,8 @@ export default function TerritoryPaint({
   safetyAreas = [],
   civicAreas = [],
   caretakerH3Indexes,
+  exactRunners = [],
+  anonymousRunners = [],
 }: TerritoryPaintProps) {
   const colors = useColors();
   const spots = useMemo(
@@ -121,6 +128,68 @@ export default function TerritoryPaint({
             strokeWidth={isClaimReady ? 5 : 16}
             zIndex={isRival ? 1 : isClaimReady ? 4 : 2}
           />
+        );
+      })}
+
+      {exactRunners.map((runner) => (
+        <Marker
+          key={`exact-${runner.userId}`}
+          coordinate={{ latitude: runner.lat, longitude: runner.lng }}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={false}
+          zIndex={10}
+        >
+          <View style={{ alignItems: 'center' }}>
+            <View
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 7,
+                backgroundColor: colors.foreground,
+                borderWidth: 2,
+                borderColor: colors.background,
+              }}
+            />
+            <View style={{ marginTop: 4, backgroundColor: colors.background, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4 }}>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 10, color: colors.foreground }}>
+                {runner.displayName.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+        </Marker>
+      ))}
+
+      {anonymousRunners.map((runner, i) => {
+        const formattedDistance = runner.distanceBandMeters >= 1000
+          ? `~${(runner.distanceBandMeters / 1000).toFixed(1)} km`
+          : `~${runner.distanceBandMeters} m`;
+        return (
+          <Marker
+            key={`anon-${i}`}
+            coordinate={{ latitude: runner.lat, longitude: runner.lng }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            zIndex={9}
+          >
+            <View style={{ alignItems: 'center' }}>
+              <View
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: colors.accent,
+                  borderWidth: 1.5,
+                  borderColor: colors.accentForeground,
+                  opacity: 0.8,
+                }}
+              />
+              <View style={{ marginTop: 4, backgroundColor: colors.card, paddingHorizontal: 4, paddingVertical: 2, borderRadius: 4, opacity: 0.9, borderColor: colors.border, borderWidth: 1 }}>
+                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 9, color: colors.mutedForeground }}>
+                  {formattedDistance}
+                </Text>
+              </View>
+            </View>
+          </Marker>
         );
       })}
 

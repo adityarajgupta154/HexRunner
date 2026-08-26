@@ -694,6 +694,49 @@ export const EndPresenceBody = zod.object({
 export const EndPresenceResponse = zod.void()
 
 
+/**
+ * @summary Set a short-lived private center for nearby discovery
+ */
+export const updateDiscoveryAnchorBodyClientSessionIdMax = 128;
+
+export const updateDiscoveryAnchorBodyLatMin = -90;
+export const updateDiscoveryAnchorBodyLatMax = 90;
+
+export const updateDiscoveryAnchorBodyLngMin = -180;
+export const updateDiscoveryAnchorBodyLngMax = 180;
+
+export const updateDiscoveryAnchorBodyAccuracyMetersMin = 0;
+export const updateDiscoveryAnchorBodyAccuracyMetersMax = 100;
+
+
+
+export const UpdateDiscoveryAnchorBody = zod.object({
+  "clientSessionId": zod.string().min(1).max(updateDiscoveryAnchorBodyClientSessionIdMax),
+  "lat": zod.number().min(updateDiscoveryAnchorBodyLatMin).max(updateDiscoveryAnchorBodyLatMax),
+  "lng": zod.number().min(updateDiscoveryAnchorBodyLngMin).max(updateDiscoveryAnchorBodyLngMax),
+  "accuracyMeters": zod.number().min(updateDiscoveryAnchorBodyAccuracyMetersMin).max(updateDiscoveryAnchorBodyAccuracyMetersMax),
+  "mocked": zod.boolean()
+}).describe('The first mobile location fix cannot be hardware-attested. Subsequent updates are server-time continuity constrained and this record is never discoverable as a runner.')
+
+export const UpdateDiscoveryAnchorResponse = zod.object({
+  "expiresAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete the caller's private discovery center
+ */
+export const endDiscoveryAnchorBodyClientSessionIdMax = 128;
+
+
+
+export const EndDiscoveryAnchorBody = zod.object({
+  "clientSessionId": zod.string().min(1).max(endDiscoveryAnchorBodyClientSessionIdMax)
+}).describe('Identifies the foreground discovery session to terminate.')
+
+export const EndDiscoveryAnchorResponse = zod.void()
+
+
 export const getNearbyPresenceQueryRadiusMetersMin = 25;
 export const getNearbyPresenceQueryRadiusMetersMax = 5000;
 

@@ -10,6 +10,9 @@ import {
   AcceptConnectionResponse,
   BlockConnectionParams,
   BlockConnectionResponse,
+  EndDiscoveryAnchorBody,
+  UpdateDiscoveryAnchorBody,
+  UpdateDiscoveryAnchorResponse,
   EndPresenceBody,
   GetNearbyPresenceQueryParams,
   GetNearbyPresenceResponse,
@@ -24,6 +27,9 @@ import {
 import {
   db,
   hexrunnerConnectionsTable,
+  hexrunnerDiscoveryAnchorContinuityTable,
+  hexrunnerDiscoveryAnchorTerminationsTable,
+  hexrunnerDiscoveryAnchorsTable,
   hexrunnerLivePresenceTable,
   hexrunnerPresenceTerminationsTable,
   hexrunnerUsersTable,
@@ -66,6 +72,27 @@ async function purgeExpiredPresence(now: Date): Promise<void> {
   await db.delete(hexrunnerLivePresenceTable).where(
     // expiry exactly now is not live either
     or(eq(hexrunnerLivePresenceTable.expiresAt, now), lt(hexrunnerLivePresenceTable.expiresAt, now)),
+  );
+}
+
+async function purgeExpiredDiscoveryAnchors(now: Date): Promise<void> {
+  await db.delete(hexrunnerDiscoveryAnchorsTable).where(
+    or(eq(hexrunnerDiscoveryAnchorsTable.expiresAt, now), lt(hexrunnerDiscoveryAnchorsTable.expiresAt, now)),
+  );
+}
+
+async function purgeExpiredDiscoveryAnchorSecurityRows(now: Date): Promise<void> {
+  await db.delete(hexrunnerDiscoveryAnchorTerminationsTable).where(
+    or(
+      eq(hexrunnerDiscoveryAnchorTerminationsTable.expiresAt, now),
+      lt(hexrunnerDiscoveryAnchorTerminationsTable.expiresAt, now),
+    ),
+  );
+  await db.delete(hexrunnerDiscoveryAnchorContinuityTable).where(
+    or(
+      eq(hexrunnerDiscoveryAnchorContinuityTable.expiresAt, now),
+      lt(hexrunnerDiscoveryAnchorContinuityTable.expiresAt, now),
+    ),
   );
 }
 
@@ -201,20 +228,166 @@ router.post("/presence/end", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+router.post("/presence/discovery-anchor", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const parsed = UpdateDiscoveryAnchorBody.safeParse(req.body);
+  if (!parsed.success || parsed.data.mocked) {
+    res.status(400).json({ error: "Invalid discovery anchor data." });
+    return;
+  }
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + PRESENCE_TTL_MS);
+  const data = parsed.data;
+  const h3Index = latLngToCell(data.lat, data.lng, PRESENCE_H3_RESOLUTION);
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`hexrunner-discovery-anchor:${userId}`}, 0))`);
+    await tx.delete(hexrunnerDiscoveryAnchorTerminationsTable).where(and(
+      eq(hexrunnerDiscoveryAnchorTerminationsTable.userId, userId),
+      lt(hexrunnerDiscoveryAnchorTerminationsTable.expiresAt, now),
+    ));
+    await tx.delete(hexrunnerDiscoveryAnchorContinuityTable).where(and(
+      eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId),
+      lt(hexrunnerDiscoveryAnchorContinuityTable.expiresAt, now),
+    ));
+    await tx.delete(hexrunnerDiscoveryAnchorsTable).where(and(
+      eq(hexrunnerDiscoveryAnchorsTable.userId, userId),
+      lt(hexrunnerDiscoveryAnchorsTable.expiresAt, now),
+    ));
+    const [termination] = await tx.select({
+      userId: hexrunnerDiscoveryAnchorTerminationsTable.userId,
+    }).from(hexrunnerDiscoveryAnchorTerminationsTable).where(and(
+      eq(hexrunnerDiscoveryAnchorTerminationsTable.userId, userId),
+      eq(hexrunnerDiscoveryAnchorTerminationsTable.clientSessionId, data.clientSessionId),
+      gt(hexrunnerDiscoveryAnchorTerminationsTable.expiresAt, now),
+    )).limit(1);
+    if (termination) return "terminated" as const;
+    const [continuity] = await tx.select().from(hexrunnerDiscoveryAnchorContinuityTable)
+      .where(and(
+        eq(hexrunnerDiscoveryAnchorContinuityTable.userId, userId),
+        gt(hexrunnerDiscoveryAnchorContinuityTable.expiresAt, now),
+      )).limit(1);
+    const [activeAnchor] = continuity ? [] : await tx.select()
+      .from(hexrunnerDiscoveryAnchorsTable)
+      .where(eq(hexrunnerDiscoveryAnchorsTable.userId, userId))
+      .limit(1);
+    const continuityReference = continuity ?? activeAnchor;
+    if (continuityReference) {
+      const elapsedMs = now.getTime() - continuityReference.updatedAt.getTime();
+      if (elapsedMs < MIN_HEARTBEAT_INTERVAL_MS) return "rate" as const;
+      const permittedDistance = RELOCATION_JITTER_METERS +
+        Math.max(continuityReference.accuracyMeters, data.accuracyMeters) +
+        (elapsedMs / 1_000) * MAX_RUNNING_METERS_PER_SECOND;
+      if (haversineMeters(
+        continuityReference.latitude,
+        continuityReference.longitude,
+        data.lat,
+        data.lng,
+      ) > permittedDistance) {
+        return "relocation" as const;
+      }
+    }
+    const continuityExpiresAt = new Date(now.getTime() + TERMINATION_TTL_MS);
+    await tx.insert(hexrunnerDiscoveryAnchorContinuityTable).values({
+      userId, latitude: data.lat, longitude: data.lng,
+      accuracyMeters: data.accuracyMeters, h3Index, updatedAt: now,
+      expiresAt: continuityExpiresAt,
+    }).onConflictDoUpdate({
+      target: hexrunnerDiscoveryAnchorContinuityTable.userId,
+      set: {
+        latitude: data.lat, longitude: data.lng,
+        accuracyMeters: data.accuracyMeters, h3Index, updatedAt: now,
+        expiresAt: continuityExpiresAt,
+      },
+    });
+    await tx.insert(hexrunnerDiscoveryAnchorsTable).values({
+      userId, clientSessionId: data.clientSessionId,
+      latitude: data.lat, longitude: data.lng, accuracyMeters: data.accuracyMeters,
+      h3Index, updatedAt: now, expiresAt,
+    }).onConflictDoUpdate({
+      target: hexrunnerDiscoveryAnchorsTable.userId,
+      set: {
+        clientSessionId: data.clientSessionId,
+        latitude: data.lat, longitude: data.lng,
+        accuracyMeters: data.accuracyMeters, h3Index, updatedAt: now, expiresAt,
+      },
+    });
+    return "accepted" as const;
+  });
+  if (result === "terminated") {
+    res.status(409).json({ error: "This discovery session has ended." });
+    return;
+  }
+  if (result === "rate") {
+    res.status(429).json({ error: "Discovery anchor updates are too frequent." });
+    return;
+  }
+  if (result === "relocation") {
+    res.status(400).json({ error: "Invalid discovery anchor data." });
+    return;
+  }
+  res.json(UpdateDiscoveryAnchorResponse.parse({ expiresAt }));
+});
+
+router.post("/presence/discovery-anchor/end", async (req, res): Promise<void> => {
+  const userId = requireUser(req, res);
+  if (!userId) return;
+  const parsed = EndDiscoveryAnchorBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid discovery anchor end data." });
+    return;
+  }
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TERMINATION_TTL_MS);
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`hexrunner-discovery-anchor:${userId}`}, 0))`);
+    await tx.delete(hexrunnerDiscoveryAnchorTerminationsTable).where(and(
+      eq(hexrunnerDiscoveryAnchorTerminationsTable.userId, userId),
+      lt(hexrunnerDiscoveryAnchorTerminationsTable.expiresAt, now),
+    ));
+    await tx.insert(hexrunnerDiscoveryAnchorTerminationsTable).values({
+      userId,
+      clientSessionId: parsed.data.clientSessionId,
+      endedAt: now,
+      expiresAt,
+    }).onConflictDoUpdate({
+      target: [
+        hexrunnerDiscoveryAnchorTerminationsTable.userId,
+        hexrunnerDiscoveryAnchorTerminationsTable.clientSessionId,
+      ],
+      set: { endedAt: now, expiresAt },
+    });
+    await tx.delete(hexrunnerDiscoveryAnchorsTable).where(and(
+      eq(hexrunnerDiscoveryAnchorsTable.userId, userId),
+      eq(hexrunnerDiscoveryAnchorsTable.clientSessionId, parsed.data.clientSessionId),
+    ));
+  });
+  res.sendStatus(204);
+});
+
 router.get("/presence/nearby", async (req, res): Promise<void> => {
   const userId = requireUser(req, res);
   if (!userId) return;
   const query = GetNearbyPresenceQueryParams.safeParse(req.query);
-  if (!query.success) { res.status(400).json({ error: "Invalid nearby query." }); return; }
+  // Search centers are always caller-owned server records; coordinates in a
+  // GET request would turn discovery into arbitrary-area scanning.
+  if (!query.success || "lat" in req.query || "lng" in req.query) {
+    res.status(400).json({ error: "Invalid nearby query." }); return;
+  }
   const now = new Date();
   await purgeExpiredPresence(now);
+  await purgeExpiredDiscoveryAnchors(now);
+  await purgeExpiredDiscoveryAnchorSecurityRows(now);
   const [self] = await db.select().from(hexrunnerLivePresenceTable)
     .where(and(eq(hexrunnerLivePresenceTable.userId, userId), gt(hexrunnerLivePresenceTable.expiresAt, now))).limit(1);
-  if (!self) { res.status(400).json({ error: "Live presence is required before searching nearby." }); return; }
+  const [anchor] = self ? [] : await db.select().from(hexrunnerDiscoveryAnchorsTable)
+    .where(and(eq(hexrunnerDiscoveryAnchorsTable.userId, userId), gt(hexrunnerDiscoveryAnchorsTable.expiresAt, now))).limit(1);
+  const searchCenter = self ?? anchor;
+  if (!searchCenter) { res.status(400).json({ error: "A current location is required before searching nearby." }); return; }
   // Resolution 9 cells are roughly 200m across; this conservative ring bounds
   // the DB candidate list while Haversine below remains authoritative.
   const ring = Math.min(35, Math.ceil(query.data.radiusMeters / 150) + 2);
-  const cells = gridDisk(self.h3Index, ring);
+  const cells = gridDisk(searchCenter.h3Index, ring);
   const candidates = await db.select({
     userId: hexrunnerLivePresenceTable.userId, latitude: hexrunnerLivePresenceTable.latitude,
     longitude: hexrunnerLivePresenceTable.longitude, expiresAt: hexrunnerLivePresenceTable.expiresAt,
@@ -222,7 +395,7 @@ router.get("/presence/nearby", async (req, res): Promise<void> => {
   }).from(hexrunnerLivePresenceTable).innerJoin(hexrunnerUsersTable, eq(hexrunnerUsersTable.id, hexrunnerLivePresenceTable.userId))
     .where(and(inArray(hexrunnerLivePresenceTable.h3Index, cells), gt(hexrunnerLivePresenceTable.expiresAt, now)));
   const nearby = candidates.filter((candidate) => candidate.userId !== userId)
-    .map((candidate) => ({ ...candidate, distance: haversineMeters(self.latitude, self.longitude, candidate.latitude, candidate.longitude) }))
+    .map((candidate) => ({ ...candidate, distance: haversineMeters(searchCenter.latitude, searchCenter.longitude, candidate.latitude, candidate.longitude) }))
     .filter((candidate) => candidate.distance <= query.data.radiusMeters)
     .sort((a, b) => a.distance - b.distance);
   const relationships = await db.select().from(hexrunnerConnectionsTable).where(
