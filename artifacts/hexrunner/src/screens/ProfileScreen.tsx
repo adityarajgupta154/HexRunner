@@ -148,6 +148,13 @@ export default function ProfileScreen() {
             </View>
 
             <View style={styles.statsGrid}>
+              <View style={[styles.statBoxFull, { backgroundColor: colors.card, borderColor: colors.primary }]}>
+                <View style={styles.creditHeaderRow}>
+                  <Feather name="disc" size={16} color={colors.primary} />
+                  <Text style={[styles.statLabel, { color: colors.primary }]}>TOTAL CREDITS</Text>
+                </View>
+                <Text style={[styles.statValueLarge, { color: colors.foreground }]}>{totals?.totalCredits ?? 0}</Text>
+              </View>
               <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>TERRITORY</Text>
                 <Text style={[styles.statValue, { color: colors.foreground }]}>{totals?.totalHexesOwned ?? 0}</Text>
@@ -163,9 +170,15 @@ export default function ProfileScreen() {
                 </Text>
               </View>
               <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>CLAIMED</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>BONUS EARNED</Text>
                 <Text style={[styles.statValue, { color: colors.foreground }]}>
-                  {totals?.totalClaimedHexes ?? 0}
+                  {totals?.totalBonusCredits ?? 0}
+                </Text>
+              </View>
+              <View style={[styles.statBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>TODAY BONUS</Text>
+                <Text style={[styles.statValue, { color: colors.foreground }]}>
+                  {totals?.todayBonusCredits ?? 0}/{totals?.dailyBonusCap ?? 0}
                 </Text>
               </View>
             </View>
@@ -232,9 +245,9 @@ export default function ProfileScreen() {
                 </Text>
               </View>
               <View>
-                <Text style={[styles.runMetricLabel, { color: colors.mutedForeground }]}>PACE</Text>
+                <Text style={[styles.runMetricLabel, { color: colors.mutedForeground }]}>CREDITS</Text>
                 <Text style={[styles.runMetricValue, { color: colors.foreground }]}>
-                  {formatPace(item.averagePaceMinPerKm)}
+                  {item.totalCredit ?? 0}
                 </Text>
               </View>
               <View>
@@ -364,6 +377,23 @@ const styles = StyleSheet.create({
   alertCopy: { flex: 1 },
   alertTitle: { fontFamily: 'Inter_700Bold', fontSize: 14 },
   alertText: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 18, marginTop: 3 },
+  statBoxFull: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+  },
+  creditHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statValueLarge: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 36,
+    fontVariant: ['tabular-nums'],
+  },
   statBox: {
     width: '47%',
     borderWidth: 1,

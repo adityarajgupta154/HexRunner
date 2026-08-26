@@ -4,6 +4,7 @@ import {
   type AppStateStatus,
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -34,6 +35,9 @@ import CivicReportTools from '@/src/components/CivicReportTools';
 import { useLiveInteractions } from '@/src/hooks/useLiveInteractions';
 import { LiveInteractionsOverlay } from '@/src/components/LiveInteractionsOverlay';
 import { WaveActionModal } from '@/src/components/WaveActionModal';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGetCurrentEquityZone, getGetCurrentEquityZoneQueryKey } from '@workspace/api-client-react';
+import { getEquityZoneDisplayState } from '@/src/services/equityZoneDisplay';
 
 type RunPoint = {
   lat: number;
@@ -120,6 +124,10 @@ export default function RunSessionScreen() {
   const [isCachingRun, setIsCachingRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ownershipLookup = useLookupHexOwnership();
+  const queryClient = useQueryClient();
+  const [appStateStatus, setAppStateStatus] = useState<AppStateStatus>(
+    AppState.currentState,
+  );
 
   const [isFocused, setIsFocused] = useState(false);
   useFocusEffect(
@@ -142,6 +150,23 @@ export default function RunSessionScreen() {
     location: presenceLocation,
     mode: 'run'
   });
+  const shouldPollEquity =
+    isFocused &&
+    isRunning &&
+    appStateStatus === 'active' &&
+    !!uid &&
+    presence.hasSnapshot;
+  const {
+    data: equityStatus,
+    isFetching: isFetchingEquity,
+    isError: isErrorEquity,
+  } = useGetCurrentEquityZone({
+    query: {
+      enabled: shouldPollEquity,
+      refetchInterval: shouldPollEquity ? 10_000 : false,
+      queryKey: getGetCurrentEquityZoneQueryKey(),
+    },
+  });
 
   const interactions = useLiveInteractions(isFocused && isRunning, presence.hasSnapshot);
   const [selectedRunner, setSelectedRunner] = useState<ExactPresence | AnonymousPresence | null>(null);
@@ -163,6 +188,7 @@ export default function RunSessionScreen() {
 
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
+      setAppStateStatus(nextState);
       const clientRunId = clientRunIdRef.current;
       if (!clientRunId || !runningRef.current) return;
 
@@ -213,6 +239,7 @@ export default function RunSessionScreen() {
     distanceKmRef.current = 0;
     const clientRunId = createClientRunId();
     clientRunIdRef.current = clientRunId;
+    queryClient.removeQueries({ queryKey: getGetCurrentEquityZoneQueryKey() });
     runningRef.current = true;
     runPresence.beginRun(clientRunId, AppState.currentState === 'active');
     lastPointRef.current = null;
@@ -464,7 +491,11 @@ export default function RunSessionScreen() {
       </View>
 
       {isRunning ? (
-        <View style={styles.runningContent}>
+        <ScrollView
+          style={styles.runningScroll}
+          contentContainerStyle={styles.runningContent}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.runMapFrame}>
             <RunMap
               currentPoint={pathPoints[pathPoints.length - 1] ?? null}
@@ -489,6 +520,46 @@ export default function RunSessionScreen() {
             />
             <MetricCard label="PACE" value={pace} unit="min/km" />
           </View>
+
+          {(() => {
+            const equityDisplayState = isRunning ? getEquityZoneDisplayState(equityStatus, isFetchingEquity, isErrorEquity) : 'unavailable';
+            let equityContent;
+            let equityBg = colors.card;
+            let equityBorder = colors.border;
+            switch (equityDisplayState) {
+              case 'checking':
+                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>CHECKING REWARD STATUS...</Text>;
+                break;
+              case 'cold_zone_active':
+                equityContent = (
+                  <View style={styles.equityActiveRow}>
+                    <Feather name="zap" size={15} color={colors.primaryForeground} />
+                    <Text style={[styles.equityTextActive, { color: colors.primaryForeground }]}>COLD ZONE — 2X</Text>
+                  </View>
+                );
+                equityBg = colors.primary;
+                equityBorder = colors.primary;
+                break;
+              case 'standard':
+                equityContent = <Text style={[styles.equityText, { color: colors.foreground }]}>STANDARD ZONE — 1X</Text>;
+                break;
+              case 'insufficient_data':
+                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>ZONE BONUS UNAVAILABLE — MORE CITY ACTIVITY NEEDED</Text>;
+                break;
+              case 'stale_error':
+                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>SIGNAL LOST — FINAL CREDIT CONFIRMED ON SAVE</Text>;
+                break;
+              case 'unavailable':
+              default:
+                equityContent = <Text style={[styles.equityText, { color: colors.mutedForeground }]}>WAITING FOR SERVER-VERIFIED ZONE</Text>;
+                break;
+            }
+            return (
+              <View style={[styles.equityContainer, { backgroundColor: equityBg, borderColor: equityBorder }]}>
+                {equityContent}
+              </View>
+            );
+          })()}
 
           <SafetyTools
             currentPoint={pathPoints[pathPoints.length - 1] ?? null}
@@ -570,7 +641,7 @@ export default function RunSessionScreen() {
 
           <LiveInteractionsOverlay events={interactions.events} onDismiss={interactions.dismiss} />
           <WaveActionModal runner={selectedRunner} onClose={() => setSelectedRunner(null)} />
-        </View>
+        </ScrollView>
       ) : (
         <View style={styles.readyContent}>
           <View style={styles.readyCopy}>
@@ -829,9 +900,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   runningContent: {
-    flex: 1,
     gap: 10,
     paddingTop: 16,
+    paddingBottom: 16,
+  },
+  runningScroll: {
+    flex: 1,
   },
   runMapFrame: {
     height: 226,
@@ -844,6 +918,32 @@ const styles = StyleSheet.create({
   statRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  equityContainer: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  equityText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    letterSpacing: 1.1,
+    textAlign: 'center',
+  },
+  equityActiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  equityTextActive: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    letterSpacing: 1.5,
   },
   metricCard: {
     flex: 1,

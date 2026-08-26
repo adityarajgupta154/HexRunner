@@ -30,6 +30,8 @@ tags:
     description: Explicit runner connection and blocking controls
   - name: interactions
     description: Ephemeral one-way waves and territory-entry alerts
+  - name: equity
+    description: Privacy-thresholded cold-zone equity rewards
 paths:
   /healthz:
     get:
@@ -128,6 +130,26 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "500":
           description: Run could not be saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /equity-zones/current:
+    get:
+      operationId: getCurrentEquityZone
+      tags: [equity]
+      summary: Get the caller's current privacy-safe equity zone status
+      description: Uses only an unexpired live-run presence. It never exposes cells, counts, or individual runner activity.
+      security: [{ anonymousDeviceCredential: [] }]
+      responses:
+        "200":
+          description: Current equity eligibility without location detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquityZoneStatus"
+        "401":
+          description: Missing or invalid anonymous device credential
           content:
             application/json:
               schema:
@@ -896,7 +918,13 @@ components:
           minimum: 0
         antiSpoof:
           $ref: "#/components/schemas/RunAntiSpoofResult"
-      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, budgetSkippedHexes, dailyClaimedHexes, dailyBudget, currentStreak, antiSpoof]
+        baseCredit: { type: number, multipleOf: 1, minimum: 0 }
+        bonusCredit: { type: number, multipleOf: 1, minimum: 0 }
+        totalCredit: { type: number, multipleOf: 1, minimum: 0 }
+        coldZoneHexes: { type: number, multipleOf: 1, minimum: 0 }
+        dailyBonusCredit: { type: number, multipleOf: 1, minimum: 0 }
+        dailyBonusCap: { type: number, multipleOf: 1, minimum: 1 }
+      required: [runId, saved, idempotent, newHexes, stolenHexes, claimedHexes, budgetSkippedHexes, dailyClaimedHexes, dailyBudget, currentStreak, antiSpoof, baseCredit, bonusCredit, totalCredit, coldZoneHexes, dailyBonusCredit, dailyBonusCap]
     HexOwnershipLookupRequest:
       type: object
       properties:
@@ -1270,7 +1298,9 @@ components:
           minimum: 0
         isCurrentUser:
           type: boolean
-      required: [rank, displayName, totalHexesOwned, totalRuns, totalDistanceKm, isCurrentUser]
+        totalCredits: { type: number, multipleOf: 1, minimum: 0 }
+        totalBonusCredits: { type: number, multipleOf: 1, minimum: 0 }
+      required: [rank, displayName, totalHexesOwned, totalRuns, totalDistanceKm, isCurrentUser, totalCredits, totalBonusCredits]
     LeaderboardResult:
       type: object
       properties:
@@ -1309,7 +1339,9 @@ components:
           type: number
           multipleOf: 1
           minimum: 0
-      required: [runId, distanceKm, averagePaceMinPerKm, startedAt, endedAt, claimedHexes, newHexes, stolenHexes]
+        bonusCredit: { type: number, multipleOf: 1, minimum: 0 }
+        totalCredit: { type: number, multipleOf: 1, minimum: 0 }
+      required: [runId, distanceKm, averagePaceMinPerKm, startedAt, endedAt, claimedHexes, newHexes, stolenHexes, bonusCredit, totalCredit]
     UserStatsTotals:
       type: object
       properties:
@@ -1354,7 +1386,24 @@ components:
           type: number
           multipleOf: 1
           minimum: 1
-      required: [totalRuns, totalDistanceKm, totalElapsedSeconds, averagePaceMinPerKm, totalHexesOwned, totalClaimedHexes, totalNewHexes, totalStolenHexes, currentStreak, todayClaimedHexes, dailyBudget]
+        totalCredits: { type: number, multipleOf: 1, minimum: 0 }
+        totalBonusCredits: { type: number, multipleOf: 1, minimum: 0 }
+        todayBonusCredits: { type: number, multipleOf: 1, minimum: 0 }
+        dailyBonusCap: { type: number, multipleOf: 1, minimum: 1 }
+      required: [totalRuns, totalDistanceKm, totalElapsedSeconds, averagePaceMinPerKm, totalHexesOwned, totalClaimedHexes, totalNewHexes, totalStolenHexes, currentStreak, todayClaimedHexes, dailyBudget, totalCredits, totalBonusCredits, todayBonusCredits, dailyBonusCap]
+    EquityZoneStatus:
+      type: object
+      description: Privacy-safe city-level result; no H3 IDs, counts, or runner identifiers are returned.
+      properties:
+        availability: { type: string, enum: [available, insufficient_data, unavailable] }
+        freshness: { type: string, enum: [current, stale, unavailable] }
+        tier: { type: [string, "null"], enum: [cold, medium, hot, null] }
+        multiplier: { type: number, enum: [1, 2] }
+        eligible: { type: boolean }
+        evaluatedAt: { type: [string, "null"], format: date-time }
+        nextEvaluationAt: { type: string, format: date-time }
+        message: { type: string }
+      required: [availability, freshness, tier, multiplier, eligible, evaluatedAt, nextEvaluationAt, message]
     FitnessTier:
       type: string
       enum: [beginner, casual, regular, trained]

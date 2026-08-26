@@ -9,6 +9,7 @@ import airQualityRouter from "./airQuality";
 import civicRouter from "./civic";
 import presenceRouter from "./presence";
 import interactionsRouter from "./interactions";
+import equityZonesRouter from "./equityZones";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(airQualityRouter);
 router.use(civicRouter);
 router.use(presenceRouter);
 router.use(interactionsRouter);
+router.use(equityZonesRouter);
 
 export default router;

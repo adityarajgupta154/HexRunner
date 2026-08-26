@@ -14,6 +14,14 @@ import { getClaimQualitySnapshot } from "../lib/claimQuality";
 import { dailyBudgetForActivity } from "../lib/fitnessBudget";
 import { calculateRunStreak } from "../lib/runStreak";
 import { consumeRateLimit } from "../lib/rateLimit";
+import { getPathIntegrity } from "../lib/pathIntegrity";
+import {
+  addEquityContributions,
+  EQUITY_DAILY_BONUS_CAP,
+  ensureEquityEvaluation,
+  equityAreaForHex,
+  equityCityForHex,
+} from "../lib/equityZones";
 
 const router: IRouter = Router();
 const RUN_POINT_INSERT_BATCH_SIZE = 5_000;
@@ -59,6 +67,7 @@ router.post("/runs", async (req, res): Promise<void> => {
   const run = parsed.data;
   const uniqueClaimedHexes = new Set(run.claimedHexes);
   const quality = getClaimQualitySnapshot(run.points);
+  const pathIntegrity = getPathIntegrity(run.points);
   const eligibleClaimedHexes = new Set(quality.eligibleHexes);
   const claimedHexesMatchQuality =
     eligibleClaimedHexes.size === uniqueClaimedHexes.size &&
@@ -150,6 +159,7 @@ router.post("/runs", async (req, res): Promise<void> => {
       const [dailyUsage] = await tx
         .select({
           claimed: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)`,
+          bonus: sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)`,
         })
         .from(hexrunnerRunsTable)
         .where(
@@ -160,6 +170,7 @@ router.post("/runs", async (req, res): Promise<void> => {
           ),
         );
       const claimedEarlierToday = Number(dailyUsage?.claimed ?? 0);
+      const bonusEarlierToday = Number(dailyUsage?.bonus ?? 0);
 
       const existingOwnership =
         run.claimedHexes.length === 0
@@ -235,11 +246,30 @@ router.post("/runs", async (req, res): Promise<void> => {
       const pointAccuracies = run.points.flatMap((point) =>
         point.accuracyMeters === undefined ? [] : [point.accuracyMeters],
       );
-      const pointSpeeds = run.points.flatMap((point) =>
-        point.speedMetersPerSecond === undefined
-          ? []
-          : [point.speedMetersPerSecond],
-      );
+      // Mock evidence comes from the recorded points, never from a client
+      // summary field. A suspicious run cannot earn or train equity rewards.
+      const mockLocationDetected = run.points.some((point) => point.mocked);
+      const flaggedSuspicious = (run.antiSpoof?.flaggedSuspicious ?? false) || pathIntegrity.flaggedSuspicious;
+      const equityEligible = !flaggedSuspicious && !mockLocationDetected;
+      const coldClaimedHexes = new Set<string>();
+      if (equityEligible && allowedClaimableHexes.length > 0) {
+        const evaluationDay = utcDayStart;
+        const cities = [...new Set(allowedClaimableHexes.map(equityCityForHex))].sort();
+        const tiersByCity = new Map<string, Map<string, "cold" | "medium" | "hot">>();
+        // Sorted city keys ensure multiple-area runs acquire snapshot locks in
+        // one deterministic order, separate from the already sorted hex locks.
+        for (const city of cities) {
+          tiersByCity.set(city, (await ensureEquityEvaluation(tx, city, evaluationDay)).tiers);
+        }
+        for (const hex of allowedClaimableHexes) {
+          if (tiersByCity.get(equityCityForHex(hex))?.get(equityAreaForHex(hex)) === "cold") {
+            coldClaimedHexes.add(hex);
+          }
+        }
+      }
+      const bonusCredit = equityEligible
+        ? Math.min(coldClaimedHexes.size, Math.max(0, EQUITY_DAILY_BONUS_CAP - bonusEarlierToday))
+        : 0;
 
       const insertedRuns = await tx
         .insert(hexrunnerRunsTable)
@@ -265,21 +295,22 @@ router.post("/runs", async (req, res): Promise<void> => {
           stolenHexCount,
           budgetSkippedHexCount,
           dailyBudget,
-          flaggedSuspicious:
-            run.antiSpoof?.flaggedSuspicious ?? false,
-          suspiciousReason: run.antiSpoof?.reason ?? null,
-          mockLocationDetected:
-            run.antiSpoof?.mockLocationDetected ??
-            (run.points.some((point) => point.mocked) || null),
+          bonusCredit,
+          coldZoneHexCount: coldClaimedHexes.size,
+          dailyBonusCap: EQUITY_DAILY_BONUS_CAP,
+          flaggedSuspicious,
+          suspiciousReason:
+            pathIntegrity.suspiciousReason ??
+            (run.antiSpoof?.flaggedSuspicious
+              ? run.antiSpoof.reason ?? "Client integrity checks flagged this run."
+              : null),
+          mockLocationDetected: mockLocationDetected || null,
           averageAccuracyMeters:
-            run.antiSpoof?.averageAccuracyMeters ??
-            (pointAccuracies.length > 0
+            pointAccuracies.length > 0
               ? pointAccuracies.reduce((sum, accuracy) => sum + accuracy, 0) /
                 pointAccuracies.length
-              : null),
-          maxSpeedMetersPerSecond:
-            run.antiSpoof?.maxSpeedMetersPerSecond ??
-            (pointSpeeds.length > 0 ? Math.max(...pointSpeeds) : null),
+              : null,
+          maxSpeedMetersPerSecond: pathIntegrity.maxSpeedMetersPerSecond,
         })
         .onConflictDoNothing()
         .returning({ id: hexrunnerRunsTable.id });
@@ -293,10 +324,12 @@ router.post("/runs", async (req, res): Promise<void> => {
             hexCount: hexrunnerRunsTable.hexCount,
             budgetSkippedHexCount: hexrunnerRunsTable.budgetSkippedHexCount,
             dailyBudget: hexrunnerRunsTable.dailyBudget,
+            bonusCredit: hexrunnerRunsTable.bonusCredit,
+            coldZoneHexCount: hexrunnerRunsTable.coldZoneHexCount,
+            dailyBonusCap: hexrunnerRunsTable.dailyBonusCap,
             flaggedSuspicious: hexrunnerRunsTable.flaggedSuspicious,
             suspiciousReason: hexrunnerRunsTable.suspiciousReason,
-            mockLocationDetected:
-              hexrunnerRunsTable.mockLocationDetected,
+          mockLocationDetected: hexrunnerRunsTable.mockLocationDetected,
             averageAccuracyMeters:
               hexrunnerRunsTable.averageAccuracyMeters,
             maxSpeedMetersPerSecond:
@@ -316,6 +349,7 @@ router.post("/runs", async (req, res): Promise<void> => {
         const [currentDailyUsage] = await tx
           .select({
             claimed: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)`,
+            bonus: sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)`,
           })
           .from(hexrunnerRunsTable)
           .where(
@@ -334,6 +368,7 @@ router.post("/runs", async (req, res): Promise<void> => {
           idempotent: true,
           ...existingRun,
           dailyClaimedHexes: Number(currentDailyUsage?.claimed ?? 0),
+          dailyBonusCredit: Number(currentDailyUsage?.bonus ?? 0),
           currentStreak: calculateRunStreak(runDates.map((saved) => saved.endedAt)),
         };
       }
@@ -356,6 +391,20 @@ router.post("/runs", async (req, res): Promise<void> => {
             longitude: point.lng,
             recordedAt: new Date(point.timestamp),
           })),
+        );
+      }
+
+      if (equityEligible && utcDayStart.getTime() === startOfUtcDay(now).getTime()) {
+        await addEquityContributions(
+          tx,
+          run.clientRunId,
+          userId,
+          // Contributions describe validated traversal, not territory awards.
+          // A daily ownership budget can withhold claims but must not erase
+          // legitimate aggregate activity from the equity baseline.
+          run.claimedHexes,
+          utcDayStart,
+          now,
         );
       }
 
@@ -423,22 +472,25 @@ router.post("/runs", async (req, res): Promise<void> => {
         hexCount: allowedClaimableHexes.length,
         budgetSkippedHexCount,
         dailyBudget,
+        bonusCredit,
+        coldZoneHexCount: coldClaimedHexes.size,
+        dailyBonusCap: EQUITY_DAILY_BONUS_CAP,
+        dailyBonusCredit: bonusEarlierToday + bonusCredit,
         dailyClaimedHexes: claimedEarlierToday + allowedClaimableHexes.length,
         currentStreak: calculateRunStreak(runDates.map((saved) => saved.endedAt)),
-        flaggedSuspicious: run.antiSpoof?.flaggedSuspicious ?? false,
-        suspiciousReason: run.antiSpoof?.reason ?? null,
-        mockLocationDetected:
-          run.antiSpoof?.mockLocationDetected ??
-          (run.points.some((point) => point.mocked) || null),
+        flaggedSuspicious,
+        suspiciousReason:
+          pathIntegrity.suspiciousReason ??
+          (run.antiSpoof?.flaggedSuspicious
+            ? run.antiSpoof.reason ?? "Client integrity checks flagged this run."
+            : null),
+        mockLocationDetected: mockLocationDetected || null,
         averageAccuracyMeters:
-          run.antiSpoof?.averageAccuracyMeters ??
-          (pointAccuracies.length > 0
+          pointAccuracies.length > 0
             ? pointAccuracies.reduce((sum, accuracy) => sum + accuracy, 0) /
               pointAccuracies.length
-            : null),
-        maxSpeedMetersPerSecond:
-          run.antiSpoof?.maxSpeedMetersPerSecond ??
-          (pointSpeeds.length > 0 ? Math.max(...pointSpeeds) : null),
+            : null,
+        maxSpeedMetersPerSecond: pathIntegrity.maxSpeedMetersPerSecond,
       };
     });
 
@@ -452,6 +504,12 @@ router.post("/runs", async (req, res): Promise<void> => {
       budgetSkippedHexes: result.budgetSkippedHexCount,
       dailyClaimedHexes: result.dailyClaimedHexes,
       dailyBudget: result.dailyBudget,
+      baseCredit: result.hexCount,
+      bonusCredit: result.bonusCredit,
+      totalCredit: result.hexCount + result.bonusCredit,
+      coldZoneHexes: result.coldZoneHexCount,
+      dailyBonusCredit: result.dailyBonusCredit,
+      dailyBonusCap: result.dailyBonusCap,
       currentStreak: result.currentStreak,
       antiSpoof: {
         flaggedSuspicious: result.flaggedSuspicious,

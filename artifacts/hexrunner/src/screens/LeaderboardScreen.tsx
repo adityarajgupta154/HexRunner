@@ -91,8 +91,8 @@ export default function LeaderboardScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={[styles.eyebrow, { color: colors.primary }]}>TERRITORY CONTROL</Text>
-        <Text style={[styles.title, { color: colors.foreground }]}>WHO OWNS{'\n'}THE BLOCK?</Text>
+        <Text style={[styles.eyebrow, { color: colors.primary }]}>NETWORK RANKINGS</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>TOP{'\n'}OPERATORS</Text>
       </View>
       <View style={styles.scopeRow}>
         {[
@@ -144,7 +144,7 @@ export default function LeaderboardScreen() {
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No leaderboard data yet</Text>
             <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
               {scope === 'friends'
-                ? 'Claim a rival cell or defend yours to build your rival circle.'
+                ? 'Earn credits to outrank your rivals in the network.'
                 : scope === 'city'
                   ? 'Finish your baseline to join city standings, then complete a run.'
                   : 'This is a fresh arena. Complete the first run to claim the top spot.'}
@@ -192,15 +192,14 @@ export default function LeaderboardScreen() {
                   )}
                 </View>
                 <Text style={[styles.runnerMeta, { color: colors.mutedForeground }]}>
-                  {item.totalRuns} {item.totalRuns === 1 ? 'run' : 'runs'} · {item.totalDistanceKm.toFixed(1)} km
+                  {item.totalRuns} {item.totalRuns === 1 ? 'run' : 'runs'} · {item.totalHexesOwned} hexes held · +{item.totalBonusCredits} bonus
                 </Text>
               </View>
               <View style={styles.scoreContainer}>
                 <Text style={[styles.scoreText, { color: colors.foreground }]}>
-                  {item.totalHexesOwned}
+                  {item.totalCredits ?? 0}
                 </Text>
-                <Feather name="hexagon" size={14} color={colors.primary} />
-                <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>HEXES</Text>
+                <Text style={[styles.scoreLabel, { color: colors.primary }]}>CREDITS</Text>
               </View>
             </View>
           );
@@ -369,7 +368,7 @@ const styles = StyleSheet.create({
   },
   scoreLabel: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 8,
-    letterSpacing: 0.6,
+    fontSize: 10,
+    letterSpacing: 0.8,
   },
 });

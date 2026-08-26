@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:models": "rm -rf .model-validation && tsc scripts/validateModels.ts src/services/fitnessModel.ts src/services/antiSpoof.ts --outDir .model-validation --module commonjs --moduleResolution node --target es2020 --resolveJsonModule --esModuleInterop --skipLibCheck && node .model-validation/scripts/validateModels.js && rm -rf .model-validation",
     "validate:hex-engine": "rm -rf .hex-engine-validation && tsc scripts/validateHexEngine.ts src/services/hexEngine.ts src/services/territoryDisplay.ts --outDir .hex-engine-validation --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck && node .hex-engine-validation/scripts/validateHexEngine.js && rm -rf .hex-engine-validation",
+    "validate:cold-zones": "rm -rf .cold-zones-validation && tsc scripts/validateColdZones.ts src/services/equityZoneDisplay.ts --outDir .cold-zones-validation --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck && node .cold-zones-validation/scripts/validateColdZones.js && rm -rf .cold-zones-validation",
     "validate:live-presence": "node --no-warnings --experimental-strip-types scripts/validateLivePresence.ts",
     "validate:live-interactions": "node --no-warnings --experimental-strip-types scripts/validateLiveInteractions.ts"
   },

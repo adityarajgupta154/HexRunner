@@ -136,6 +136,10 @@ router.get("/leaderboard", async (req, res) => {
           sql<number>`coalesce(sum(${hexrunnerRunsTable.distanceKm}), 0)::float8`.as(
             "total_distance_km",
           ),
+        totalBonusCredits:
+          sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)::int`.as("total_bonus_credits"),
+        totalCredits:
+          sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount} + ${hexrunnerRunsTable.bonusCredit}), 0)::int`.as("total_credits"),
       })
       .from(hexrunnerRunsTable)
       .groupBy(hexrunnerRunsTable.userId)
@@ -151,6 +155,8 @@ router.get("/leaderboard", async (req, res) => {
         totalRuns: sql<number>`coalesce(${runTotals.totalRuns}, 0)::int`,
         totalDistanceKm:
           sql<number>`coalesce(${runTotals.totalDistanceKm}, 0)::float8`,
+        totalBonusCredits: sql<number>`coalesce(${runTotals.totalBonusCredits}, 0)::int`,
+        totalCredits: sql<number>`coalesce(${runTotals.totalCredits}, 0)::int`,
       })
       .from(hexrunnerUsersTable)
       .leftJoin(runTotals, eq(runTotals.userId, hexrunnerUsersTable.id));
@@ -163,7 +169,7 @@ router.get("/leaderboard", async (req, res) => {
     const users = await leaderboard
       .where(scopeFilter)
       .orderBy(
-        desc(hexrunnerUsersTable.totalHexesOwned),
+        desc(sql`coalesce(${runTotals.totalCredits}, 0)`),
         desc(sql`coalesce(${runTotals.totalDistanceKm}, 0)`),
         desc(sql`coalesce(${runTotals.totalRuns}, 0)`),
         asc(hexrunnerUsersTable.id),
@@ -177,6 +183,8 @@ router.get("/leaderboard", async (req, res) => {
           rank: index + 1,
           displayName: safeDisplayName(user.id, user.displayName),
           totalHexesOwned: user.totalHexesOwned,
+          totalCredits: user.totalCredits,
+          totalBonusCredits: user.totalBonusCredits,
           totalRuns: user.totalRuns,
           totalDistanceKm: user.totalDistanceKm,
           isCurrentUser: user.id === currentUserId,
@@ -305,9 +313,13 @@ router.get("/users/:userId/stats", async (req, res) => {
             totalClaimedHexes: 0,
             totalNewHexes: 0,
             totalStolenHexes: 0,
+            totalCredits: 0,
+            totalBonusCredits: 0,
             currentStreak: 0,
             todayClaimedHexes: 0,
             dailyBudget: 10,
+            todayBonusCredits: 0,
+            dailyBonusCap: 5,
           },
           recentRuns: [],
           baseline: null,
@@ -329,6 +341,8 @@ router.get("/users/:userId/stats", async (req, res) => {
           totalClaimedHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)::int`,
           totalNewHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.newHexCount}), 0)::int`,
           totalStolenHexes: sql<number>`coalesce(sum(${hexrunnerRunsTable.stolenHexCount}), 0)::int`,
+          totalBonusCredits: sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)::int`,
+          totalCredits: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount} + ${hexrunnerRunsTable.bonusCredit}), 0)::int`,
         })
         .from(hexrunnerRunsTable)
         .where(eq(hexrunnerRunsTable.userId, user.id)),
@@ -342,6 +356,8 @@ router.get("/users/:userId/stats", async (req, res) => {
           claimedHexes: hexrunnerRunsTable.hexCount,
           newHexes: hexrunnerRunsTable.newHexCount,
           stolenHexes: hexrunnerRunsTable.stolenHexCount,
+          bonusCredit: hexrunnerRunsTable.bonusCredit,
+          totalCredit: sql<number>`${hexrunnerRunsTable.hexCount} + ${hexrunnerRunsTable.bonusCredit}`,
         })
         .from(hexrunnerRunsTable)
         .where(eq(hexrunnerRunsTable.userId, user.id))
@@ -363,6 +379,7 @@ router.get("/users/:userId/stats", async (req, res) => {
       db
         .select({
           claimed: sql<number>`coalesce(sum(${hexrunnerRunsTable.hexCount}), 0)::int`,
+          bonus: sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)::int`,
         })
         .from(hexrunnerRunsTable)
         .where(
@@ -402,6 +419,8 @@ router.get("/users/:userId/stats", async (req, res) => {
           dailyBudget: dailyBudgetForActivity(
             isFitnessTier(user.activityLevel) ? user.activityLevel : "casual",
           ),
+          todayBonusCredits: Number(todayUsage?.bonus ?? 0),
+          dailyBonusCap: 5,
         },
         recentRuns,
         baseline:

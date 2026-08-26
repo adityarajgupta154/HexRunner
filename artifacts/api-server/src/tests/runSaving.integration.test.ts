@@ -5,16 +5,23 @@ import { after, before, describe, test } from "node:test";
 import {
   db,
   hexrunnerCivicUploadGrantsTable,
+  hexrunnerEquityContributionsTable,
+  hexrunnerEquityEvaluationsTable,
+  hexrunnerEquityTiersTable,
   hexrunnerHexOwnershipTable,
+  hexrunnerLivePresenceTable,
   hexrunnerRunPointsTable,
   hexrunnerRunsTable,
   hexrunnerUsersTable,
   pool,
 } from "@workspace/db";
-import { eq, inArray, or } from "drizzle-orm";
-import { latLngToCell } from "h3-js";
+import { eq, inArray, or, sql } from "drizzle-orm";
+import { cellToLatLng, cellToParent, gridDisk, latLngToCell } from "h3-js";
 import app from "../app";
 import { cleanupExpiredCivicData } from "../routes/civic";
+import { issueAnonymousCredential } from "../lib/anonymousCredential";
+import { equityDailyAreaKey, equityRunKey } from "../lib/equityZones";
+import { getPathIntegrity } from "../lib/pathIntegrity";
 
 process.env.SESSION_SECRET ||= "hexrunner-run-saving-tests-only";
 
@@ -28,6 +35,13 @@ const TEST_USERS = {
   newer: `device_test_newer_${TEST_NAMESPACE}`,
   older: `device_test_older_${TEST_NAMESPACE}`,
   cleanup: `device_test_cleanup_${TEST_NAMESPACE}`,
+  equity: `device_test_equity_${TEST_NAMESPACE}`,
+  exclusion: `device_test_exclusion_${TEST_NAMESPACE}`,
+  budget: `device_test_budget_${TEST_NAMESPACE}`,
+  cap: `device_test_cap_${TEST_NAMESPACE}`,
+  repeatOne: `device_test_repeat_one_${TEST_NAMESPACE}`,
+  repeatTwo: `device_test_repeat_two_${TEST_NAMESPACE}`,
+  retention: `device_test_retention_${TEST_NAMESPACE}`,
 };
 const TEST_RUNS = {
   success: `run_test_success_${TEST_NAMESPACE}`,
@@ -38,9 +52,24 @@ const TEST_RUNS = {
   thief: `run_test_thief_${TEST_NAMESPACE}`,
   newer: `run_test_newer_${TEST_NAMESPACE}`,
   older: `run_test_older_${TEST_NAMESPACE}`,
+  equity: `run_test_equity_${TEST_NAMESPACE}`,
+  suspicious: `run_test_suspicious_${TEST_NAMESPACE}`,
+  mocked: `run_test_mocked_${TEST_NAMESPACE}`,
+  forgedPhysics: `run_test_forged_physics_${TEST_NAMESPACE}`,
+  budgetFixture: `run_test_budget_fixture_${TEST_NAMESPACE}`,
+  budget: `run_test_budget_${TEST_NAMESPACE}`,
+  capFixture: `run_test_cap_fixture_${TEST_NAMESPACE}`,
+  capOne: `run_test_cap_one_${TEST_NAMESPACE}`,
+  capTwo: `run_test_cap_two_${TEST_NAMESPACE}`,
+  repeatOne: `run_test_repeat_one_${TEST_NAMESPACE}`,
+  repeatTwo: `run_test_repeat_two_${TEST_NAMESPACE}`,
+  repeatOther: `run_test_repeat_other_${TEST_NAMESPACE}`,
+  historical: `run_test_historical_${TEST_NAMESPACE}`,
+  retentionFixture: `run_test_retention_fixture_${TEST_NAMESPACE}`,
 };
 const TEST_USER_IDS = Object.values(TEST_USERS);
 const TEST_RUN_IDS = Object.values(TEST_RUNS);
+const TEST_CITIES = new Set<string>();
 const ENROLLMENT_SECRET = "a".repeat(64);
 
 let server: Server;
@@ -61,6 +90,12 @@ type SaveResponse = {
 };
 
 async function cleanupTestData(): Promise<void> {
+  if (TEST_CITIES.size) {
+    await db.delete(hexrunnerEquityTiersTable).where(inArray(hexrunnerEquityTiersTable.cityH3, [...TEST_CITIES]));
+    await db.delete(hexrunnerEquityEvaluationsTable).where(inArray(hexrunnerEquityEvaluationsTable.cityH3, [...TEST_CITIES]));
+  }
+  await db.delete(hexrunnerEquityContributionsTable).where(inArray(hexrunnerEquityContributionsTable.runKey, TEST_RUN_IDS.map(equityRunKey)));
+  await db.delete(hexrunnerLivePresenceTable).where(inArray(hexrunnerLivePresenceTable.userId, TEST_USER_IDS));
   await db
     .delete(hexrunnerHexOwnershipTable)
     .where(
@@ -145,6 +180,13 @@ async function postJson<T>(
   };
 }
 
+async function getJson<T>(path: string, credential?: string): Promise<JsonResponse<T>> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: credential ? { authorization: `Bearer ${credential}` } : {},
+  });
+  return { status: response.status, body: await response.json() as T };
+}
+
 async function enroll(userId: string): Promise<string> {
   const response = await postJson<{ credential: string }>(
     "/api/anonymous-identities",
@@ -160,6 +202,11 @@ async function enroll(userId: string): Promise<string> {
   );
   assert.match(response.body.credential, /^hr1\./);
   return response.body.credential;
+}
+
+async function testCredential(userId: string): Promise<string> {
+  await db.insert(hexrunnerUsersTable).values({ id: userId }).onConflictDoNothing();
+  return issueAnonymousCredential(userId);
 }
 
 function runPayload({
@@ -206,6 +253,30 @@ function runPayload({
     ],
     claimedHexes,
   };
+}
+
+async function seedColdTier(h3Index: string, day: Date): Promise<void> {
+  const cityH3 = cellToParent(h3Index, 4);
+  TEST_CITIES.add(cityH3);
+  await db.insert(hexrunnerEquityEvaluationsTable).values({
+    cityH3, evaluationDay: day, availability: "available", evaluatedAt: new Date(),
+  }).onConflictDoNothing();
+  await db.insert(hexrunnerEquityTiersTable).values({
+    cityH3, evaluationDay: day, areaH3: cellToParent(h3Index, 7), tier: "cold",
+  }).onConflictDoNothing();
+}
+
+async function insertFixtureRun(
+  id: string,
+  userId: string,
+  endedAt: Date,
+  values: Partial<{ hexCount: number; bonusCredit: number }> = {},
+): Promise<void> {
+  await db.insert(hexrunnerRunsTable).values({
+    id, userId, startedAt: new Date(endedAt.getTime() - 60_000), endedAt,
+    elapsedSeconds: 60, distanceKm: 0, pointCount: 0, claimedHexes: [],
+    hexCount: values.hexCount ?? 0, bonusCredit: values.bonusCredit ?? 0,
+  });
 }
 
 describe("run-saving integration", { concurrency: false }, () => {
@@ -287,6 +358,369 @@ describe("run-saving integration", { concurrency: false }, () => {
       .where(eq(hexrunnerRunPointsTable.runId, TEST_RUNS.success));
     assert.equal(user?.totalHexesOwned, 1);
     assert.equal(points.length, 2);
+  });
+
+  test("awards a frozen cold tier once and keeps credit responses idempotent", async () => {
+    const credential = await enroll(TEST_USERS.equity);
+    const point = await unusedPoint(40);
+    const cityH3 = cellToParent(point.h3Index, 4);
+    const areaH3 = cellToParent(point.h3Index, 7);
+    TEST_CITIES.add(cityH3);
+    const day = new Date();
+    day.setUTCHours(0, 0, 0, 0);
+    await db.insert(hexrunnerEquityEvaluationsTable).values({
+      cityH3, evaluationDay: day, availability: "available", evaluatedAt: new Date(),
+    });
+    await db.insert(hexrunnerEquityTiersTable).values({
+      cityH3, evaluationDay: day, areaH3, tier: "cold",
+    });
+    const endedAt = new Date(Date.now() - 60_000);
+    const payload = {
+      ...runPayload({ clientRunId: TEST_RUNS.equity, lat: point.lat, lng: point.lng, startedAt: new Date(endedAt.getTime() - 600_000), endedAt }),
+      // Unknown request fields are deliberately not part of SaveRunRequest.
+      multiplier: 99, bonusCredit: 999, totalCredit: 999,
+    };
+    const first = await postJson<SaveResponse & Record<string, number>>("/api/runs", payload, credential);
+    assert.equal(first.status, 201);
+    assert.deepEqual(
+      { base: first.body.baseCredit, bonus: first.body.bonusCredit, total: first.body.totalCredit, cold: first.body.coldZoneHexes, daily: first.body.dailyBonusCredit, cap: first.body.dailyBonusCap },
+      { base: 1, bonus: 1, total: 2, cold: 1, daily: 1, cap: 5 },
+    );
+    const retry = await postJson<SaveResponse & Record<string, number>>("/api/runs", payload, credential);
+    assert.equal(retry.status, 200);
+    assert.equal(retry.body.bonusCredit, 1);
+    assert.equal(retry.body.totalCredit, 2);
+    const contributions = await db.select().from(hexrunnerEquityContributionsTable)
+      .where(eq(hexrunnerEquityContributionsTable.runKey, equityRunKey(TEST_RUNS.equity)));
+    assert.notEqual(contributions[0]?.runKey, TEST_RUNS.equity);
+    assert.equal(contributions.length, 1);
+    const [ownership] = await db.select().from(hexrunnerHexOwnershipTable)
+      .where(eq(hexrunnerHexOwnershipTable.h3Index, point.h3Index));
+    assert.equal(ownership?.ownerId, TEST_USERS.equity);
+    const stats = await getJson<{
+      totals: { totalCredits: number; totalBonusCredits: number; todayBonusCredits: number };
+      recentRuns: Array<{ totalCredit: number; bonusCredit: number }>;
+    }>(`/api/users/${TEST_USERS.equity}/stats`);
+    assert.deepEqual({
+      totalCredits: stats.body.totals.totalCredits,
+      totalBonusCredits: stats.body.totals.totalBonusCredits,
+      todayBonusCredits: stats.body.totals.todayBonusCredits,
+    }, {
+      totalCredits: 2, totalBonusCredits: 1, todayBonusCredits: 1,
+    });
+    assert.deepEqual(
+      { totalCredit: stats.body.recentRuns[0]?.totalCredit, bonusCredit: stats.body.recentRuns[0]?.bonusCredit },
+      { totalCredit: 2, bonusCredit: 1 },
+    );
+    const leaderboard = await getJson<{ users: Array<{
+      totalCredits: number; totalBonusCredits: number; totalHexesOwned: number;
+    }> }>("/api/leaderboard");
+    const entry = leaderboard.body.users.find((candidate) => candidate.totalCredits === 2);
+    assert.deepEqual(
+      entry && { totalCredits: entry.totalCredits, totalBonusCredits: entry.totalBonusCredits, totalHexesOwned: entry.totalHexesOwned },
+      { totalCredits: 2, totalBonusCredits: 1, totalHexesOwned: 1 },
+    );
+  });
+
+  test("returns only privacy-safe equity status from live presence", async () => {
+    const credential = await enroll(TEST_USERS.equity);
+    const unauthenticated = await getJson<{ error: string }>("/api/equity-zones/current");
+    assert.equal(unauthenticated.status, 401);
+    const noPresence = await getJson<Record<string, unknown>>("/api/equity-zones/current", credential);
+    assert.equal(noPresence.status, 200);
+    assert.equal(noPresence.body.availability, "unavailable");
+    const point = await unusedPoint(41);
+    const cityH3 = cellToParent(point.h3Index, 4);
+    const areaH3 = cellToParent(point.h3Index, 7);
+    TEST_CITIES.add(cityH3);
+    const day = new Date(); day.setUTCHours(0, 0, 0, 0);
+    await db.insert(hexrunnerLivePresenceTable).values({
+      userId: TEST_USERS.equity, clientRunId: "presence_equity_test",
+      latitude: point.lat, longitude: point.lng, accuracyMeters: 5, h3Index: point.h3Index,
+      updatedAt: new Date(), expiresAt: new Date(Date.now() + 30_000),
+    });
+    await db.insert(hexrunnerEquityEvaluationsTable).values({
+      cityH3, evaluationDay: day, availability: "available", evaluatedAt: new Date(),
+    }).onConflictDoNothing();
+    const sparse = await getJson<Record<string, unknown>>("/api/equity-zones/current", credential);
+    assert.equal(sparse.body.availability, "insufficient_data");
+    assert.equal(sparse.body.tier, null);
+    assert.equal(sparse.body.multiplier, 1);
+    assert.equal(Object.keys(sparse.body).some((key) => /h3|count|area|city/i.test(key)), false);
+    await db.insert(hexrunnerEquityTiersTable).values({
+      cityH3, evaluationDay: day, areaH3, tier: "cold",
+    }).onConflictDoNothing();
+    const cold = await getJson<Record<string, unknown>>("/api/equity-zones/current", credential);
+    assert.equal(cold.body.tier, "cold");
+    assert.equal(cold.body.multiplier, 2);
+  });
+
+  test("excludes suspicious and point-mocked valid claims from bonuses and contributions", async () => {
+    const credential = await testCredential(TEST_USERS.exclusion);
+    const day = new Date(); day.setUTCHours(0, 0, 0, 0);
+    const suspiciousPoint = await unusedPoint(50);
+    const mockedPoint = await unusedPoint(51);
+    await seedColdTier(suspiciousPoint.h3Index, day);
+    await seedColdTier(mockedPoint.h3Index, day);
+    const endedAt = new Date(Date.now() - 60_000);
+    const suspicious = await postJson<SaveResponse & { bonusCredit: number }>(
+      "/api/runs",
+      { ...runPayload({ clientRunId: TEST_RUNS.suspicious, lat: suspiciousPoint.lat, lng: suspiciousPoint.lng, startedAt: new Date(endedAt.getTime() - 600_000), endedAt }), antiSpoof: { flaggedSuspicious: true } },
+      credential,
+    );
+    assert.equal(suspicious.status, 201);
+    assert.equal(suspicious.body.bonusCredit, 0);
+    const mockedPayload = runPayload({
+      clientRunId: TEST_RUNS.mocked, lat: mockedPoint.lat, lng: mockedPoint.lng,
+      startedAt: new Date(endedAt.getTime() - 1_200_000), endedAt: new Date(endedAt.getTime() - 600_000),
+    });
+    mockedPayload.points.forEach((point) => { Object.assign(point, { mocked: true }); });
+    const mocked = await postJson<SaveResponse & { bonusCredit: number; antiSpoof: { mockLocationDetected: boolean | null } }>(
+      "/api/runs", mockedPayload, credential,
+    );
+    assert.equal(mocked.status, 201);
+    assert.equal(mocked.body.antiSpoof.mockLocationDetected, true);
+    assert.equal(mocked.body.bonusCredit, 0);
+    const contributions = await db.select().from(hexrunnerEquityContributionsTable).where(
+      inArray(hexrunnerEquityContributionsTable.runKey, [equityRunKey(TEST_RUNS.suspicious), equityRunKey(TEST_RUNS.mocked)]),
+    );
+    assert.equal(contributions.length, 0);
+  });
+
+  test("server path physics overrides forged favorable client telemetry", async () => {
+    const credential = await testCredential(TEST_USERS.exclusion);
+    const first = await unusedPoint(52);
+    const second = await unusedPoint(53);
+    const day = new Date(); day.setUTCHours(0, 0, 0, 0);
+    await seedColdTier(first.h3Index, day);
+    await seedColdTier(second.h3Index, day);
+    const endedAt = new Date(Date.now() - 60_000);
+    const payload = {
+      clientRunId: TEST_RUNS.forgedPhysics,
+      startedAt: new Date(endedAt.getTime() - 13_000).toISOString(),
+      endedAt: endedAt.toISOString(),
+      elapsedSeconds: 13,
+      distanceKm: 1,
+      points: [
+        { lat: first.lat, lng: first.lng, timestamp: endedAt.getTime() - 13_000, accuracyMeters: 8 },
+        { lat: first.lat, lng: first.lng, timestamp: endedAt.getTime() - 7_000, accuracyMeters: 8 },
+        { lat: second.lat, lng: second.lng, timestamp: endedAt.getTime() - 6_000, accuracyMeters: 8 },
+        { lat: second.lat, lng: second.lng, timestamp: endedAt.getTime(), accuracyMeters: 8 },
+      ],
+      claimedHexes: [first.h3Index, second.h3Index],
+      antiSpoof: {
+        flaggedSuspicious: false,
+        maxSpeedMetersPerSecond: 0,
+        averageAccuracyMeters: 1,
+      },
+    };
+    const saved = await postJson<SaveResponse & {
+      bonusCredit: number;
+      antiSpoof: {
+        flaggedSuspicious: boolean;
+        reason: string | null;
+        maxSpeedMetersPerSecond: number | null;
+      };
+    }>("/api/runs", payload, credential);
+    assert.equal(saved.status, 201);
+    assert.equal(saved.body.antiSpoof.flaggedSuspicious, true);
+    assert.match(saved.body.antiSpoof.reason ?? "", /Impossible GPS jump/);
+    assert.ok((saved.body.antiSpoof.maxSpeedMetersPerSecond ?? 0) > 120 / 3.6);
+    assert.equal(saved.body.bonusCredit, 0);
+    const contributions = await db.select().from(hexrunnerEquityContributionsTable).where(
+      eq(hexrunnerEquityContributionsTable.runKey, equityRunKey(TEST_RUNS.forgedPhysics)),
+    );
+    assert.equal(contributions.length, 0);
+  });
+
+  test("aggregates a traversed area once even when the territory budget withholds a claim", async () => {
+    const credential = await testCredential(TEST_USERS.budget);
+    await db.update(hexrunnerUsersTable).set({ activityLevel: "beginner" })
+      .where(eq(hexrunnerUsersTable.id, TEST_USERS.budget));
+    const first = await unusedPoint(60);
+    const secondCell = gridDisk(first.h3Index, 1).find((cell) =>
+      cell !== first.h3Index && cellToParent(cell, 7) === cellToParent(first.h3Index, 7));
+    assert.ok(secondCell, "a resolution-9 neighbor must share its resolution-7 parent");
+    const [firstLat, firstLng] = cellToLatLng(first.h3Index);
+    const [secondLat, secondLng] = cellToLatLng(secondCell!);
+    const day = new Date(); day.setUTCHours(0, 0, 0, 0);
+    await seedColdTier(first.h3Index, day);
+    const endedAt = new Date(Date.now() - 60_000);
+    await insertFixtureRun(TEST_RUNS.budgetFixture, TEST_USERS.budget, endedAt, { hexCount: 5 });
+    const payload = {
+      clientRunId: TEST_RUNS.budget,
+      startedAt: new Date(endedAt.getTime() - 90_000).toISOString(),
+      endedAt: endedAt.toISOString(), elapsedSeconds: 90, distanceKm: 1,
+      points: [
+        { lat: firstLat, lng: firstLng, timestamp: endedAt.getTime() - 90_000, accuracyMeters: 8 },
+        { lat: firstLat, lng: firstLng, timestamp: endedAt.getTime() - 80_000, accuracyMeters: 8 },
+        { lat: secondLat, lng: secondLng, timestamp: endedAt.getTime() - 20_000, accuracyMeters: 8 },
+        { lat: secondLat, lng: secondLng, timestamp: endedAt.getTime() - 10_000, accuracyMeters: 8 },
+      ],
+      claimedHexes: [first.h3Index, secondCell],
+    };
+    assert.equal(
+      getPathIntegrity(payload.points).flaggedSuspicious,
+      false,
+      `budget fixture must remain a plausible human path: ${JSON.stringify({
+        integrity: getPathIntegrity(payload.points),
+        points: payload.points,
+      })}`,
+    );
+    const saved = await postJson<SaveResponse & { bonusCredit: number }>(
+      "/api/runs", payload, credential,
+    );
+    assert.equal(saved.status, 201);
+    assert.equal(saved.body.claimedHexes, 1);
+    assert.equal(
+      saved.body.bonusCredit,
+      1,
+      `expected one accepted cold claim to earn one bonus: ${JSON.stringify(saved.body)}`,
+    );
+    const contributions = await db.select().from(hexrunnerEquityContributionsTable)
+      .where(eq(hexrunnerEquityContributionsTable.runKey, equityRunKey(TEST_RUNS.budget)));
+    assert.equal(
+      contributions.length,
+      1,
+      `expected one coarse-area contribution for the validated traversal: ${JSON.stringify(saved.body)}`,
+    );
+    assert.equal(contributions[0]?.areaH3, cellToParent(first.h3Index, 7));
+  });
+
+  test("serializes concurrent same-user cold bonuses at the remaining daily cap", async () => {
+    const credential = await testCredential(TEST_USERS.cap);
+    const one = await unusedPoint(70);
+    const two = await unusedPoint(71);
+    const day = new Date(); day.setUTCHours(0, 0, 0, 0);
+    await seedColdTier(one.h3Index, day); await seedColdTier(two.h3Index, day);
+    const endedAt = new Date(Date.now() - 60_000);
+    await insertFixtureRun(TEST_RUNS.capFixture, TEST_USERS.cap, endedAt, { bonusCredit: 4 });
+    const [first, second] = await Promise.all([
+      postJson<SaveResponse & { bonusCredit: number }>("/api/runs", runPayload({
+        clientRunId: TEST_RUNS.capOne, lat: one.lat, lng: one.lng,
+        startedAt: new Date(endedAt.getTime() - 600_000), endedAt,
+      }), credential),
+      postJson<SaveResponse & { bonusCredit: number }>("/api/runs", runPayload({
+        clientRunId: TEST_RUNS.capTwo, lat: two.lat, lng: two.lng,
+        startedAt: new Date(endedAt.getTime() - 1_200_000), endedAt: new Date(endedAt.getTime() - 600_000),
+      }), credential),
+    ]);
+    assert.equal(first.status, 201); assert.equal(second.status, 201);
+    assert.equal(first.body.bonusCredit + second.body.bonusCredit, 1);
+    const [usage] = await db.select({
+      bonus: sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)::int`,
+    }).from(hexrunnerRunsTable).where(eq(hexrunnerRunsTable.userId, TEST_USERS.cap));
+    assert.equal(Number(usage?.bonus), 5);
+    const ownership = await db.select().from(hexrunnerHexOwnershipTable).where(
+      inArray(hexrunnerHexOwnershipTable.h3Index, [one.h3Index, two.h3Index]),
+    );
+    assert.equal(ownership.length, 2);
+    const contributionsBeforeRetry = await db.select().from(hexrunnerEquityContributionsTable).where(
+      inArray(hexrunnerEquityContributionsTable.runKey, [equityRunKey(TEST_RUNS.capOne), equityRunKey(TEST_RUNS.capTwo)]),
+    );
+    assert.equal(contributionsBeforeRetry.length, 2);
+    const retries = await Promise.all([
+      postJson<SaveResponse & { bonusCredit: number }>("/api/runs", runPayload({
+        clientRunId: TEST_RUNS.capOne, lat: one.lat, lng: one.lng,
+        startedAt: new Date(endedAt.getTime() - 600_000), endedAt,
+      }), credential),
+      postJson<SaveResponse & { bonusCredit: number }>("/api/runs", runPayload({
+        clientRunId: TEST_RUNS.capTwo, lat: two.lat, lng: two.lng,
+        startedAt: new Date(endedAt.getTime() - 1_200_000), endedAt: new Date(endedAt.getTime() - 600_000),
+      }), credential),
+    ]);
+    assert.ok(retries.every((result) => result.status === 200 && result.body.idempotent));
+    const [afterRetry] = await db.select({
+      bonus: sql<number>`coalesce(sum(${hexrunnerRunsTable.bonusCredit}), 0)::int`,
+    }).from(hexrunnerRunsTable).where(eq(hexrunnerRunsTable.userId, TEST_USERS.cap));
+    assert.equal(Number(afterRetry?.bonus), 5);
+    const contributionsAfterRetry = await db.select().from(hexrunnerEquityContributionsTable).where(
+      inArray(hexrunnerEquityContributionsTable.runKey, [equityRunKey(TEST_RUNS.capOne), equityRunKey(TEST_RUNS.capTwo)]),
+    );
+    assert.equal(contributionsAfterRetry.length, 2);
+  });
+
+  test("daily area nullifier dedupes repeated routes without retaining runner identity", async () => {
+    const firstCredential = await testCredential(TEST_USERS.repeatOne);
+    const otherCredential = await testCredential(TEST_USERS.repeatTwo);
+    const first = await unusedPoint(80);
+    const secondCell = gridDisk(first.h3Index, 1).find((cell) =>
+      cell !== first.h3Index && cellToParent(cell, 7) === cellToParent(first.h3Index, 7));
+    assert.ok(secondCell);
+    const [secondLat, secondLng] = cellToLatLng(secondCell!);
+    const endedAt = new Date(Date.now() - 60_000);
+    const secondPayload = {
+      clientRunId: TEST_RUNS.repeatTwo,
+      startedAt: new Date(endedAt.getTime() - 90_000).toISOString(), endedAt: endedAt.toISOString(),
+      elapsedSeconds: 90, distanceKm: 1,
+      points: [
+        { lat: secondLat, lng: secondLng, timestamp: endedAt.getTime() - 90_000, accuracyMeters: 8 },
+        { lat: secondLat, lng: secondLng, timestamp: endedAt.getTime() - 80_000, accuracyMeters: 8 },
+      ],
+      claimedHexes: [secondCell],
+    };
+    const firstSave = await postJson<SaveResponse>("/api/runs", runPayload({
+      clientRunId: TEST_RUNS.repeatOne, lat: first.lat, lng: first.lng,
+      startedAt: new Date(endedAt.getTime() - 600_000), endedAt,
+    }), firstCredential);
+    const secondSave = await postJson<SaveResponse>("/api/runs", secondPayload, firstCredential);
+    assert.equal(firstSave.status, 201); assert.equal(secondSave.status, 201);
+    const area = cellToParent(first.h3Index, 7);
+    let rows = await db.select().from(hexrunnerEquityContributionsTable)
+      .where(eq(hexrunnerEquityContributionsTable.areaH3, area));
+    assert.equal(rows.length, 1);
+    const otherSave = await postJson<SaveResponse>("/api/runs", runPayload({
+      clientRunId: TEST_RUNS.repeatOther, lat: first.lat, lng: first.lng,
+      startedAt: new Date(endedAt.getTime() - 1_200_000), endedAt: new Date(endedAt.getTime() - 600_000),
+    }), otherCredential);
+    assert.equal(otherSave.status, 201);
+    rows = await db.select().from(hexrunnerEquityContributionsTable)
+      .where(eq(hexrunnerEquityContributionsTable.areaH3, area));
+    assert.equal(rows.length, 2);
+    for (const row of rows) {
+      assert.notEqual(row.runKey, TEST_RUNS.repeatOne);
+      assert.notEqual(row.runKey, TEST_RUNS.repeatTwo);
+      assert.equal("userId" in row, false);
+      assert.equal("latitude" in row, false);
+      assert.equal("longitude" in row, false);
+    }
+  });
+
+  test("prunes expired inputs on evaluation and rejects late historical baseline contributions", async () => {
+    const credential = await testCredential(TEST_USERS.retention);
+    const point = await unusedPoint(90);
+    const now = new Date();
+    const oldDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 36));
+    const city = cellToParent(point.h3Index, 4);
+    TEST_CITIES.add(city);
+    const oldArea = cellToParent(point.h3Index, 7);
+    await db.insert(hexrunnerEquityContributionsTable).values({
+      runKey: equityRunKey(TEST_RUNS.retentionFixture),
+      dailyAreaKey: equityDailyAreaKey(TEST_USERS.retention, oldDay, oldArea),
+      areaH3: oldArea, cityH3: city, windowStart: oldDay, createdAt: now,
+    });
+    await db.insert(hexrunnerLivePresenceTable).values({
+      userId: TEST_USERS.retention, clientRunId: "retention_presence",
+      latitude: point.lat, longitude: point.lng, accuracyMeters: 5, h3Index: point.h3Index,
+      updatedAt: now, expiresAt: new Date(now.getTime() + 30_000),
+    });
+    const status = await getJson<Record<string, unknown>>("/api/equity-zones/current", credential);
+    assert.equal(status.status, 200);
+    const expired = await db.select().from(hexrunnerEquityContributionsTable)
+      .where(eq(hexrunnerEquityContributionsTable.runKey, equityRunKey(TEST_RUNS.retentionFixture)));
+    assert.equal(expired.length, 0);
+    const historicalEnd = new Date(now.getTime() - 2 * 86_400_000);
+    const historical = await postJson<SaveResponse>("/api/runs", runPayload({
+      clientRunId: TEST_RUNS.historical, lat: point.lat, lng: point.lng,
+      startedAt: new Date(historicalEnd.getTime() - 600_000), endedAt: historicalEnd,
+    }), credential);
+    assert.equal(historical.status, 201);
+    const late = await db.select().from(hexrunnerEquityContributionsTable)
+      .where(eq(hexrunnerEquityContributionsTable.runKey, equityRunKey(TEST_RUNS.historical)));
+    assert.equal(late.length, 0);
+    const [savedRun] = await db.select({ id: hexrunnerRunsTable.id })
+      .from(hexrunnerRunsTable).where(eq(hexrunnerRunsTable.id, TEST_RUNS.historical));
+    assert.equal(savedRun?.id, TEST_RUNS.historical);
   });
 
   test("rejects out-of-window GPS timestamps before persistence", async () => {

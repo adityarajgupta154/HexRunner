@@ -39,6 +39,7 @@ import type {
   DiscoveryAnchorEndInput,
   DiscoveryAnchorInput,
   DiscoveryAnchorResult,
+  EquityZoneStatus,
   FlagCivicReportRequest,
   FlagCivicReportResult,
   GetAirQualityParams,
@@ -313,6 +314,84 @@ export const useSaveRun = <TError = ErrorType<ApiError>,
       > => {
       return useMutation(getSaveRunMutationOptions(options));
     }
+
+export const getGetCurrentEquityZoneUrl = () => {
+
+
+
+
+  return `/api/equity-zones/current`
+}
+
+/**
+ * Uses only an unexpired live-run presence. It never exposes cells, counts, or individual runner activity.
+ * @summary Get the caller's current privacy-safe equity zone status
+ */
+export const getCurrentEquityZone = async ( options?: Parameters<typeof customFetch>[1]): Promise<EquityZoneStatus> => {
+
+  return customFetch<EquityZoneStatus>(getGetCurrentEquityZoneUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCurrentEquityZoneQueryKey = () => {
+    return [
+    `/api/equity-zones/current`
+    ] as const;
+    }
+
+
+export const getGetCurrentEquityZoneQueryOptions = <TData = Awaited<ReturnType<typeof getCurrentEquityZone>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentEquityZone>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCurrentEquityZoneQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCurrentEquityZone>>> = ({ signal }) => getCurrentEquityZone({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCurrentEquityZone>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCurrentEquityZoneQueryResult = NonNullable<Awaited<ReturnType<typeof getCurrentEquityZone>>>
+export type GetCurrentEquityZoneQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get the caller's current privacy-safe equity zone status
+ */
+
+export function useGetCurrentEquityZone<TData = Awaited<ReturnType<typeof getCurrentEquityZone>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCurrentEquityZone>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCurrentEquityZoneQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getLookupHexOwnershipUrl = () => {
 

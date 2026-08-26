@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:air-quality": "node ./scripts/validateAirQuality.mjs",
     "validate:run-saving": "node ./scripts/validateRunSaving.mjs",
+    "validate:cold-zones": "node ./scripts/validateColdZones.mjs",
     "validate:live-presence": "node ./scripts/validateLivePresence.mjs",
     "validate:live-interactions": "node ./scripts/validateLiveInteractions.mjs"
   },

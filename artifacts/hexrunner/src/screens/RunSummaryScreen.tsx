@@ -32,6 +32,7 @@ import {
 } from '@/src/services/runSummaryState';
 import { flushPendingSafetyReports } from '@/src/services/safetyStorage';
 import { flushPendingCivicReports } from '@/src/services/civicStorage';
+import { getSummaryCreditCopy } from '@/src/services/equityZoneDisplay';
 
 function numberParam(value: string | string[] | undefined): number {
   const parsed = Number(Array.isArray(value) ? value[0] : value);
@@ -222,7 +223,54 @@ export default function RunSummaryScreen() {
         </View>
 
         {saveResult ? (
-          <View style={[styles.hexResultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <>
+            <View style={[styles.creditResultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.creditHeaderRow}>
+                <Feather name="disc" size={18} color={colors.primary} />
+                <Text style={[styles.creditHeaderText, { color: colors.foreground }]}>OPERATION CREDITS</Text>
+              </View>
+              <View style={styles.hexResultRows}>
+                <View style={styles.hexResultLine}>
+                  <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>Base operations:</Text>
+                  <Text style={[styles.hexResultValue, { color: colors.foreground }]}>{saveResult.baseCredit}</Text>
+                </View>
+                <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.hexResultLine}>
+                  <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>Cold zone bonus:</Text>
+                  <Text style={[styles.hexResultValue, { color: colors.accentForeground }]}>+{saveResult.bonusCredit}</Text>
+                </View>
+                <View style={[styles.horizontalDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.hexResultLine}>
+                  <Text style={[styles.hexResultLabel, { color: colors.mutedForeground }]}>Total credits:</Text>
+                  <Text style={[styles.creditTotalValue, { color: colors.primary }]}>{saveResult.totalCredit}</Text>
+                </View>
+              </View>
+
+              {(() => {
+                const copy = getSummaryCreditCopy(
+                  saveResult.bonusCredit,
+                  saveResult.coldZoneHexes,
+                  saveResult.dailyBonusCredit,
+                  saveResult.dailyBonusCap
+                );
+                if (copy.warning) {
+                  return (
+                    <View style={[styles.warningBox, { backgroundColor: colors.muted, borderColor: colors.border, marginTop: 12 }]}>
+                      <Feather name="shield" size={14} color={colors.primary} />
+                      <Text style={[styles.warningText, { color: colors.foreground }]}>{copy.warning}</Text>
+                    </View>
+                  );
+                }
+                if (copy.suggestion) {
+                  return (
+                    <Text style={[styles.suggestionText, { color: colors.mutedForeground }]}>{copy.suggestion}</Text>
+                  );
+                }
+                return null;
+              })()}
+            </View>
+
+            <View style={[styles.hexResultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View
               accessibilityLabel={`New hexes claimed: ${saveResult.newHexes}. Hexes stolen from others: ${saveResult.stolenHexes}. Total claimed: ${saveResult.claimedHexes}.`}
               style={styles.hexResultRows}
@@ -294,6 +342,7 @@ export default function RunSummaryScreen() {
               </View>
             ) : null}
           </View>
+          </>
         ) : null}
 
         <View style={[styles.saveCard, { backgroundColor: colors.card, borderColor: saveStatus === 'failed' ? colors.destructive : colors.border }]}>
@@ -575,6 +624,35 @@ const styles = StyleSheet.create({
   pointsText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
+  },
+  creditResultCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 3,
+    padding: 16,
+    gap: 12,
+  },
+  creditHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  creditHeaderText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    letterSpacing: 1.2,
+  },
+  creditTotalValue: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 26,
+  },
+  suggestionText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+    textAlign: 'center',
   },
   hexResultCard: {
     marginTop: 12,

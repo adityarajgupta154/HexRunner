@@ -17,4 +17,8 @@ export interface LeaderboardEntry {
   /** @minimum 0 */
   totalDistanceKm: number;
   isCurrentUser: boolean;
+  /** @minimum 0 */
+  totalCredits: number;
+  /** @minimum 0 */
+  totalBonusCredits: number;
 }

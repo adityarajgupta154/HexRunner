@@ -29,4 +29,12 @@ export interface UserStatsTotals {
   todayClaimedHexes: number;
   /** @minimum 1 */
   dailyBudget: number;
+  /** @minimum 0 */
+  totalCredits: number;
+  /** @minimum 0 */
+  totalBonusCredits: number;
+  /** @minimum 0 */
+  todayBonusCredits: number;
+  /** @minimum 1 */
+  dailyBonusCap: number;
 }

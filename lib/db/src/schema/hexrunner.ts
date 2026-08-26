@@ -333,6 +333,9 @@ export const hexrunnerRunsTable = pgTable(
       .default(0)
       .notNull(),
     dailyBudget: integer("daily_budget").default(10).notNull(),
+    bonusCredit: integer("bonus_credit").default(0).notNull(),
+    coldZoneHexCount: integer("cold_zone_hex_count").default(0).notNull(),
+    dailyBonusCap: integer("daily_bonus_cap").default(5).notNull(),
     flaggedSuspicious: boolean("flagged_suspicious").default(false).notNull(),
     suspiciousReason: text("suspicious_reason"),
     mockLocationDetected: boolean("mock_location_detected"),
@@ -343,6 +346,61 @@ export const hexrunnerRunsTable = pgTable(
       .notNull(),
   },
   (table) => [index("hexrunner_runs_user_id_idx").on(table.userId)],
+);
+
+// These rows intentionally contain neither a runner identity nor coordinates.
+// They are short-lived aggregate inputs for the equity classifier only.
+export const hexrunnerEquityContributionsTable = pgTable(
+  "hexrunner_equity_contributions",
+  {
+    runKey: text("run_key").notNull(),
+    // HMAC-derived per runner/day/area dedupe key; it is not an identity.
+    dailyAreaKey: text("daily_area_key").notNull(),
+    areaH3: text("area_h3").notNull(),
+    cityH3: text("city_h3").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.runKey, table.areaH3] }),
+    uniqueIndex("hexrunner_equity_contributions_daily_area_unique").on(table.dailyAreaKey),
+    index("hexrunner_equity_contributions_city_window_idx").on(table.cityH3, table.windowStart),
+    index("hexrunner_equity_contributions_created_idx").on(table.createdAt),
+    check("hexrunner_equity_contributions_run_key_check", sql`char_length(${table.runKey}) = 64`),
+    check("hexrunner_equity_contributions_daily_area_key_check", sql`char_length(${table.dailyAreaKey}) = 64`),
+  ],
+);
+
+// A marker is persisted even when a city is too sparse. This makes each
+// city/day snapshot immutable after its first lazy evaluation.
+export const hexrunnerEquityEvaluationsTable = pgTable(
+  "hexrunner_equity_evaluations",
+  {
+    cityH3: text("city_h3").notNull(),
+    evaluationDay: timestamp("evaluation_day", { withTimezone: true }).notNull(),
+    availability: text("availability").notNull(),
+    evaluatedAt: timestamp("evaluated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cityH3, table.evaluationDay] }),
+    check("hexrunner_equity_evaluations_availability_check", sql`${table.availability} IN ('available', 'insufficient_data')`),
+  ],
+);
+
+// Private frozen per-area tiers. Counts are deliberately not persisted here.
+export const hexrunnerEquityTiersTable = pgTable(
+  "hexrunner_equity_tiers",
+  {
+    cityH3: text("city_h3").notNull(),
+    evaluationDay: timestamp("evaluation_day", { withTimezone: true }).notNull(),
+    areaH3: text("area_h3").notNull(),
+    tier: text("tier").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cityH3, table.evaluationDay, table.areaH3] }),
+    index("hexrunner_equity_tiers_city_day_idx").on(table.cityH3, table.evaluationDay),
+    check("hexrunner_equity_tiers_tier_check", sql`${table.tier} IN ('cold', 'medium', 'hot')`),
+  ],
 );
 
 export const hexrunnerRunPointsTable = pgTable(
@@ -573,6 +631,7 @@ export const insertHexrunnerContestEventSchema = createInsertSchema(
   hexrunnerContestEventsTable,
 );
 export const insertHexrunnerRunSchema = createInsertSchema(hexrunnerRunsTable);
+export const insertHexrunnerEquityContributionSchema = createInsertSchema(hexrunnerEquityContributionsTable);
 export const insertHexrunnerRunPointSchema = createInsertSchema(
   hexrunnerRunPointsTable,
 );
@@ -646,6 +705,10 @@ export type InsertHexrunnerContestEvent = z.infer<
 >;
 export type HexrunnerRun = typeof hexrunnerRunsTable.$inferSelect;
 export type InsertHexrunnerRun = z.infer<typeof insertHexrunnerRunSchema>;
+export type HexrunnerEquityContribution = typeof hexrunnerEquityContributionsTable.$inferSelect;
+export type InsertHexrunnerEquityContribution = z.infer<typeof insertHexrunnerEquityContributionSchema>;
+export type HexrunnerEquityEvaluation = typeof hexrunnerEquityEvaluationsTable.$inferSelect;
+export type HexrunnerEquityTier = typeof hexrunnerEquityTiersTable.$inferSelect;
 export type HexrunnerRunPoint = typeof hexrunnerRunPointsTable.$inferSelect;
 export type InsertHexrunnerRunPoint = z.infer<
   typeof insertHexrunnerRunPointSchema

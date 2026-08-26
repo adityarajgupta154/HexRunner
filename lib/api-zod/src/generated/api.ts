@@ -142,6 +142,23 @@ export const saveRunResponseDailyBudgetMultipleOf = 1;
 export const saveRunResponseCurrentStreakMin = 0;
 export const saveRunResponseCurrentStreakMultipleOf = 1;
 
+export const saveRunResponseBaseCreditMin = 0;
+export const saveRunResponseBaseCreditMultipleOf = 1;
+
+export const saveRunResponseBonusCreditMin = 0;
+export const saveRunResponseBonusCreditMultipleOf = 1;
+
+export const saveRunResponseTotalCreditMin = 0;
+export const saveRunResponseTotalCreditMultipleOf = 1;
+
+export const saveRunResponseColdZoneHexesMin = 0;
+export const saveRunResponseColdZoneHexesMultipleOf = 1;
+
+export const saveRunResponseDailyBonusCreditMin = 0;
+export const saveRunResponseDailyBonusCreditMultipleOf = 1;
+
+export const saveRunResponseDailyBonusCapMultipleOf = 1;
+
 
 
 export const SaveRunResponse = zod.object({
@@ -161,8 +178,30 @@ export const SaveRunResponse = zod.object({
   "mockLocationDetected": zod.boolean().nullable(),
   "averageAccuracyMeters": zod.number().nullable(),
   "maxSpeedMetersPerSecond": zod.number().nullable()
+}),
+  "baseCredit": zod.number().min(saveRunResponseBaseCreditMin).multipleOf(saveRunResponseBaseCreditMultipleOf),
+  "bonusCredit": zod.number().min(saveRunResponseBonusCreditMin).multipleOf(saveRunResponseBonusCreditMultipleOf),
+  "totalCredit": zod.number().min(saveRunResponseTotalCreditMin).multipleOf(saveRunResponseTotalCreditMultipleOf),
+  "coldZoneHexes": zod.number().min(saveRunResponseColdZoneHexesMin).multipleOf(saveRunResponseColdZoneHexesMultipleOf),
+  "dailyBonusCredit": zod.number().min(saveRunResponseDailyBonusCreditMin).multipleOf(saveRunResponseDailyBonusCreditMultipleOf),
+  "dailyBonusCap": zod.number().min(1).multipleOf(saveRunResponseDailyBonusCapMultipleOf)
 })
-})
+
+
+/**
+ * Uses only an unexpired live-run presence. It never exposes cells, counts, or individual runner activity.
+ * @summary Get the caller's current privacy-safe equity zone status
+ */
+export const GetCurrentEquityZoneResponse = zod.object({
+  "availability": zod.enum(['available', 'insufficient_data', 'unavailable']),
+  "freshness": zod.enum(['current', 'stale', 'unavailable']),
+  "tier": zod.union([zod.literal('cold'),zod.literal('medium'),zod.literal('hot'),zod.literal(null)]).nullable(),
+  "multiplier": zod.union([zod.literal(1),zod.literal(2)]),
+  "eligible": zod.boolean(),
+  "evaluatedAt": zod.coerce.date().nullable(),
+  "nextEvaluationAt": zod.coerce.date(),
+  "message": zod.string()
+}).describe('Privacy-safe city-level result; no H3 IDs, counts, or runner identifiers are returned.')
 
 
 /**
@@ -506,6 +545,12 @@ export const getLeaderboardResponseUsersItemTotalRunsMultipleOf = 1;
 
 export const getLeaderboardResponseUsersItemTotalDistanceKmMin = 0;
 
+export const getLeaderboardResponseUsersItemTotalCreditsMin = 0;
+export const getLeaderboardResponseUsersItemTotalCreditsMultipleOf = 1;
+
+export const getLeaderboardResponseUsersItemTotalBonusCreditsMin = 0;
+export const getLeaderboardResponseUsersItemTotalBonusCreditsMultipleOf = 1;
+
 export const getLeaderboardResponseUsersMax = 20;
 
 
@@ -518,7 +563,9 @@ export const GetLeaderboardResponse = zod.object({
   "totalHexesOwned": zod.number().min(getLeaderboardResponseUsersItemTotalHexesOwnedMin).multipleOf(getLeaderboardResponseUsersItemTotalHexesOwnedMultipleOf),
   "totalRuns": zod.number().min(getLeaderboardResponseUsersItemTotalRunsMin).multipleOf(getLeaderboardResponseUsersItemTotalRunsMultipleOf),
   "totalDistanceKm": zod.number().min(getLeaderboardResponseUsersItemTotalDistanceKmMin),
-  "isCurrentUser": zod.boolean()
+  "isCurrentUser": zod.boolean(),
+  "totalCredits": zod.number().min(getLeaderboardResponseUsersItemTotalCreditsMin).multipleOf(getLeaderboardResponseUsersItemTotalCreditsMultipleOf),
+  "totalBonusCredits": zod.number().min(getLeaderboardResponseUsersItemTotalBonusCreditsMin).multipleOf(getLeaderboardResponseUsersItemTotalBonusCreditsMultipleOf)
 })).max(getLeaderboardResponseUsersMax)
 })
 
@@ -599,6 +646,17 @@ export const getUserStatsResponseTotalsTodayClaimedHexesMultipleOf = 1;
 
 export const getUserStatsResponseTotalsDailyBudgetMultipleOf = 1;
 
+export const getUserStatsResponseTotalsTotalCreditsMin = 0;
+export const getUserStatsResponseTotalsTotalCreditsMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTotalBonusCreditsMin = 0;
+export const getUserStatsResponseTotalsTotalBonusCreditsMultipleOf = 1;
+
+export const getUserStatsResponseTotalsTodayBonusCreditsMin = 0;
+export const getUserStatsResponseTotalsTodayBonusCreditsMultipleOf = 1;
+
+export const getUserStatsResponseTotalsDailyBonusCapMultipleOf = 1;
+
 export const getUserStatsResponseRecentRunsItemClaimedHexesMin = 0;
 export const getUserStatsResponseRecentRunsItemClaimedHexesMultipleOf = 1;
 
@@ -607,6 +665,12 @@ export const getUserStatsResponseRecentRunsItemNewHexesMultipleOf = 1;
 
 export const getUserStatsResponseRecentRunsItemStolenHexesMin = 0;
 export const getUserStatsResponseRecentRunsItemStolenHexesMultipleOf = 1;
+
+export const getUserStatsResponseRecentRunsItemBonusCreditMin = 0;
+export const getUserStatsResponseRecentRunsItemBonusCreditMultipleOf = 1;
+
+export const getUserStatsResponseRecentRunsItemTotalCreditMin = 0;
+export const getUserStatsResponseRecentRunsItemTotalCreditMultipleOf = 1;
 
 export const getUserStatsResponseRecentRunsMax = 5;
 
@@ -634,7 +698,11 @@ export const GetUserStatsResponse = zod.object({
   "totalStolenHexes": zod.number().min(getUserStatsResponseTotalsTotalStolenHexesMin).multipleOf(getUserStatsResponseTotalsTotalStolenHexesMultipleOf),
   "currentStreak": zod.number().min(getUserStatsResponseTotalsCurrentStreakMin).multipleOf(getUserStatsResponseTotalsCurrentStreakMultipleOf),
   "todayClaimedHexes": zod.number().min(getUserStatsResponseTotalsTodayClaimedHexesMin).multipleOf(getUserStatsResponseTotalsTodayClaimedHexesMultipleOf),
-  "dailyBudget": zod.number().min(1).multipleOf(getUserStatsResponseTotalsDailyBudgetMultipleOf)
+  "dailyBudget": zod.number().min(1).multipleOf(getUserStatsResponseTotalsDailyBudgetMultipleOf),
+  "totalCredits": zod.number().min(getUserStatsResponseTotalsTotalCreditsMin).multipleOf(getUserStatsResponseTotalsTotalCreditsMultipleOf),
+  "totalBonusCredits": zod.number().min(getUserStatsResponseTotalsTotalBonusCreditsMin).multipleOf(getUserStatsResponseTotalsTotalBonusCreditsMultipleOf),
+  "todayBonusCredits": zod.number().min(getUserStatsResponseTotalsTodayBonusCreditsMin).multipleOf(getUserStatsResponseTotalsTodayBonusCreditsMultipleOf),
+  "dailyBonusCap": zod.number().min(1).multipleOf(getUserStatsResponseTotalsDailyBonusCapMultipleOf)
 }),
   "recentRuns": zod.array(zod.object({
   "runId": zod.string(),
@@ -644,7 +712,9 @@ export const GetUserStatsResponse = zod.object({
   "endedAt": zod.coerce.date(),
   "claimedHexes": zod.number().min(getUserStatsResponseRecentRunsItemClaimedHexesMin).multipleOf(getUserStatsResponseRecentRunsItemClaimedHexesMultipleOf),
   "newHexes": zod.number().min(getUserStatsResponseRecentRunsItemNewHexesMin).multipleOf(getUserStatsResponseRecentRunsItemNewHexesMultipleOf),
-  "stolenHexes": zod.number().min(getUserStatsResponseRecentRunsItemStolenHexesMin).multipleOf(getUserStatsResponseRecentRunsItemStolenHexesMultipleOf)
+  "stolenHexes": zod.number().min(getUserStatsResponseRecentRunsItemStolenHexesMin).multipleOf(getUserStatsResponseRecentRunsItemStolenHexesMultipleOf),
+  "bonusCredit": zod.number().min(getUserStatsResponseRecentRunsItemBonusCreditMin).multipleOf(getUserStatsResponseRecentRunsItemBonusCreditMultipleOf),
+  "totalCredit": zod.number().min(getUserStatsResponseRecentRunsItemTotalCreditMin).multipleOf(getUserStatsResponseRecentRunsItemTotalCreditMultipleOf)
 })).max(getUserStatsResponseRecentRunsMax),
   "takeoverAlerts": zod.array(zod.object({
   "h3Index": zod.string(),

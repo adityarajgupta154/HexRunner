@@ -135,6 +135,18 @@ export interface SaveRunResult {
   /** @minimum 0 */
   currentStreak: number;
   antiSpoof: RunAntiSpoofResult;
+  /** @minimum 0 */
+  baseCredit: number;
+  /** @minimum 0 */
+  bonusCredit: number;
+  /** @minimum 0 */
+  totalCredit: number;
+  /** @minimum 0 */
+  coldZoneHexes: number;
+  /** @minimum 0 */
+  dailyBonusCredit: number;
+  /** @minimum 1 */
+  dailyBonusCap: number;
 }
 
 export interface HexOwnershipLookupRequest {
@@ -441,6 +453,10 @@ export interface LeaderboardEntry {
   /** @minimum 0 */
   totalDistanceKm: number;
   isCurrentUser: boolean;
+  /** @minimum 0 */
+  totalCredits: number;
+  /** @minimum 0 */
+  totalBonusCredits: number;
 }
 
 export type LeaderboardScope = typeof LeaderboardScope[keyof typeof LeaderboardScope];
@@ -471,6 +487,10 @@ export interface RecentRun {
   newHexes: number;
   /** @minimum 0 */
   stolenHexes: number;
+  /** @minimum 0 */
+  bonusCredit: number;
+  /** @minimum 0 */
+  totalCredit: number;
 }
 
 export interface UserStatsTotals {
@@ -496,6 +516,68 @@ export interface UserStatsTotals {
   todayClaimedHexes: number;
   /** @minimum 1 */
   dailyBudget: number;
+  /** @minimum 0 */
+  totalCredits: number;
+  /** @minimum 0 */
+  totalBonusCredits: number;
+  /** @minimum 0 */
+  todayBonusCredits: number;
+  /** @minimum 1 */
+  dailyBonusCap: number;
+}
+
+export type EquityZoneStatusAvailability = typeof EquityZoneStatusAvailability[keyof typeof EquityZoneStatusAvailability];
+
+
+export const EquityZoneStatusAvailability = {
+  available: 'available',
+  insufficient_data: 'insufficient_data',
+  unavailable: 'unavailable',
+} as const;
+
+export type EquityZoneStatusFreshness = typeof EquityZoneStatusFreshness[keyof typeof EquityZoneStatusFreshness];
+
+
+export const EquityZoneStatusFreshness = {
+  current: 'current',
+  stale: 'stale',
+  unavailable: 'unavailable',
+} as const;
+
+/**
+ * @nullable
+ */
+export type EquityZoneStatusTier = typeof EquityZoneStatusTier[keyof typeof EquityZoneStatusTier] | null;
+
+
+export const EquityZoneStatusTier = {
+  cold: 'cold',
+  medium: 'medium',
+  hot: 'hot',
+} as const;
+
+export type EquityZoneStatusMultiplier = typeof EquityZoneStatusMultiplier[keyof typeof EquityZoneStatusMultiplier];
+
+
+export const EquityZoneStatusMultiplier = {
+  NUMBER_1: 1,
+  NUMBER_2: 2,
+} as const;
+
+/**
+ * Privacy-safe city-level result; no H3 IDs, counts, or runner identifiers are returned.
+ */
+export interface EquityZoneStatus {
+  availability: EquityZoneStatusAvailability;
+  freshness: EquityZoneStatusFreshness;
+  /** @nullable */
+  tier: EquityZoneStatusTier;
+  multiplier: EquityZoneStatusMultiplier;
+  eligible: boolean;
+  /** @nullable */
+  evaluatedAt: string | null;
+  nextEvaluationAt: string;
+  message: string;
 }
 
 export type FitnessTier = typeof FitnessTier[keyof typeof FitnessTier];

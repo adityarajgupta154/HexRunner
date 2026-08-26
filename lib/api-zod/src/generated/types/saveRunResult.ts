@@ -26,4 +26,16 @@ export interface SaveRunResult {
   /** @minimum 0 */
   currentStreak: number;
   antiSpoof: RunAntiSpoofResult;
+  /** @minimum 0 */
+  baseCredit: number;
+  /** @minimum 0 */
+  bonusCredit: number;
+  /** @minimum 0 */
+  totalCredit: number;
+  /** @minimum 0 */
+  coldZoneHexes: number;
+  /** @minimum 0 */
+  dailyBonusCredit: number;
+  /** @minimum 1 */
+  dailyBonusCap: number;
 }

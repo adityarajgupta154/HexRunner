@@ -19,4 +19,8 @@ export interface RecentRun {
   newHexes: number;
   /** @minimum 0 */
   stolenHexes: number;
+  /** @minimum 0 */
+  bonusCredit: number;
+  /** @minimum 0 */
+  totalCredit: number;
 }
