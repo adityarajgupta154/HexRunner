@@ -2,301 +2,278 @@
 
 <div align="center">
 
-**Run. Claim your hex. Defend your ground.**
+<img src="screenshots/hexrunner-readme-hero.png" alt="A runner claiming a neon hex-grid city in HexRunner" width="100%" />
 
-A privacy-conscious, phone-first GPS fitness game where real-world movement
-captures H3 territory, powers live social play, and rewards exploration beyond
-the most popular routes.
+### Run the streets. Claim the grid. Own your city.
 
-Built for the **iQOO Hackathon 2026** with Expo, React Native, Express,
-PostgreSQL, Drizzle ORM, and Uber H3.
+**HexRunner transforms real-world runs into a live territory game.**  
+Every route crosses H3 cells, every valid run changes the map, and every
+neighbourhood becomes an arena worth exploring.
 
-[Features](#features) · [How it works](#how-hexrunner-works) ·
-[Architecture](#system-architecture) · [Setup](#local-setup) ·
+<br />
+
+[![Expo](https://img.shields.io/badge/Expo-54-111827?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React_Native-0.81-0B1220?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactnative.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-111827?style=for-the-badge&logo=typescript&logoColor=3178C6)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Server_Authoritative-111827?style=for-the-badge&logo=postgresql&logoColor=4169E1)](https://www.postgresql.org/)
+[![H3](https://img.shields.io/badge/Uber_H3-Territory_Engine-C7FF35?style=for-the-badge&logoColor=111827)](https://h3geo.org/)
+
+Built for the **iQOO Hackathon 2026**
+
+[Experience](#the-experience) · [Features](#what-makes-hexrunner-different) ·
+[Architecture](#system-architecture) · [Setup](#run-it-locally) ·
 [Validation](#validation-and-ci)
 
 </div>
 
 ---
 
-## Product overview
+## The big idea
 
-HexRunner turns a walk or run into a territory game. The mobile app records a
-runner's foreground GPS path, converts the route into uniform H3 resolution-9
-cells, and sends the completed activity to an authoritative API. The server
-validates the route, applies a fitness-aware daily claim budget, awards cold-zone
-bonuses, and atomically updates territory ownership.
+Most running apps record where you went. **HexRunner gives every kilometre a
+consequence.**
 
-The result is a fitness loop with visible progress:
+The world is divided into consistent H3 hexagons. When a runner completes a
+valid route, HexRunner converts that movement into territory claims,
+takeovers, streak progress, exploration bonuses, and leaderboard movement.
+The phone creates the experience; the server decides the truth.
 
-1. **Move** through the real world.
-2. **Claim** unowned hexes.
-3. **Take over** territory from other runners.
-4. **Explore** less active areas for equitable bonus rewards.
-5. **Return** to defend territory, improve streaks, and climb the leaderboard.
+| Move | Claim | Compete | Explore | Return |
+| :---: | :---: | :-----: | :-----: | :----: |
+| Run or walk outdoors | Cross cells to capture them | Challenge nearby ownership | Find quieter cold zones | Defend territory and build streaks |
 
-![HexRunner live territory and AQI screen](screenshots/aqi-civic-home.jpg)
+> **The core loop:** move through the real world → cross hexes → save the run →
+> receive an authoritative result → watch the city change.
 
-## Features
+## The experience
 
-### GPS running and territory
+<table>
+  <tr>
+    <td width="50%">
+      <img src="screenshots/hexrunner-redesign-home.jpg" alt="HexRunner territory map and home screen" />
+    </td>
+    <td width="50%">
+      <img src="screenshots/hexrunner-redesign-leaderboard.jpg" alt="HexRunner competitive leaderboard" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Live territory</strong><br/>See your city as a playable grid.</td>
+    <td align="center"><strong>Competitive momentum</strong><br/>Turn consistent movement into rank.</td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="screenshots/hexrunner-redesign-profile.jpg" alt="HexRunner player profile and progress" />
+    </td>
+    <td width="50%">
+      <img src="screenshots/hexrunner-cinematic-onboarding-expo-final.jpg" alt="HexRunner cinematic onboarding" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Progress that feels owned</strong><br/>Claims, pace, streaks, and identity in one place.</td>
+    <td align="center"><strong>A cinematic first run</strong><br/>Learn the game before entering the arena.</td>
+  </tr>
+</table>
 
-- Foreground GPS run tracking with elapsed time, distance, pace, and route
-  points.
-- Uniform Uber H3 resolution-9 territory instead of arbitrary route polygons.
-- Server-authoritative new claims and takeovers.
-- A seven-day ownership freshness model for territory visualization.
-- Crash-safe local pending-run storage and retry until the API confirms the
-  save.
-- Advisory anti-spoof checks for sustained vehicle speed and impossible GPS
-  jumps.
+The companion marketing experience tells the same story on the web through a
+rotating globe, pinned scroll scenes, rounded card transitions, gameplay
+videos, and responsive mobile layouts.
 
-### On-device fitness intelligence
+<p align="center">
+  <img src="screenshots/hexrunner-web-desktop-hero.jpg" alt="HexRunner marketing website hero" width="82%" />
+</p>
 
-- A compact `4 → 8 → 4` neural network predicts one of four fitness tiers:
-  Beginner, Casual, Regular, or Trained.
-- Inference runs locally with committed weights—no hosted AI API is required.
-- Input features include average pace, average distance, recent-run frequency,
-  and self-reported activity level.
-- The tier creates a fair daily territory target:
+## What makes HexRunner different
 
-| Fitness tier | Daily claim target |
-| ------------ | -----------------: |
-| Beginner     |            6 hexes |
-| Casual       |           10 hexes |
-| Regular      |           15 hexes |
-| Trained      |           20 hexes |
+### 1. A city-sized territory board
 
-This classifier is advisory fitness gamification, not a medical assessment.
+- Real routes are converted into **Uber H3 resolution-9 cells**.
+- Unowned cells become new claims.
+- Opponent-owned cells can become takeovers.
+- Repeated points inside one cell never inflate a result.
+- Territory freshness keeps the map active instead of permanently locked.
 
-### Cold-zone equity rewards
+### 2. Server-authoritative competition
 
-- Server-authoritative bonuses encourage runners to explore areas with lower
-  historical activity.
-- City/day baselines are frozen after evaluation so rewards cannot shift during
-  the day.
-- Privacy-preserving HMAC-derived contribution keys prevent the equity dataset
-  from becoming an identity trail.
-- Replay protection, server-derived path checks, and daily bonus caps prevent
-  duplicate reward claims.
+Mobile calculations are previews, not final scores. The API independently
+validates chronology, coordinate bounds, route consistency, traversed cells,
+claim limits, and takeover eligibility before changing ownership.
 
-### Live social play
+This protects the competitive loop from optimistic UI errors, duplicate
+submissions, and basic GPS manipulation.
 
-- Short-lived, privacy-conscious nearby-runner presence.
-- Connection requests, accepts, rejects, blocks, and disconnects.
-- Friendly wave interactions and live territory contests.
-- Ephemeral capability grants prevent stale clients from performing actions
-  after permissions have changed.
-- Discovery anchors are isolated from completed run history and exact location
-  is not exposed to nearby runners.
+### 3. Fitness-aware fairness
 
-### Air quality and civic awareness
+A compact on-device `4 → 8 → 4` neural network classifies a runner into a
+lightweight fitness tier using recent behaviour and self-reported activity.
+No hosted AI service is required.
 
-- Coarse-area AQI data with fresh, stale-fallback, and recovery states.
-- Durable operator-notification outbox for sustained AQI provider outages.
-- Bounded exponential retry, multi-instance leases, ordered
-  trigger-before-resolution delivery, visible exhaustion, and 30-day terminal
-  history retention.
-- Civic and safety reporting with coarse location and private object storage for
-  supporting photos.
+| Fitness tier | Daily territory target |
+| :----------- | ---------------------: |
+| Beginner | 6 hexes |
+| Casual | 10 hexes |
+| Regular | 15 hexes |
+| Trained | 20 hexes |
 
-### On-device voice companion
+The model is an advisory game mechanic—not a medical assessment.
 
-- Consent-based spoken run guidance powered by `expo-speech`.
-- Uses authoritative run confirmations rather than optimistic UI events.
-- Rejects stale asynchronous context so delayed announcements do not describe
-  an old run state.
-- Runs locally on the device without sending voice content to an external AI
-  service.
+### 4. Cold-zone exploration rewards
 
-## How HexRunner works
+Popular routes should not be the only winning strategy. HexRunner rewards
+movement through historically quieter areas using frozen city/day baselines,
+server-derived path checks, replay protection, and bounded daily bonuses.
 
-### End-to-end runner workflow
+### 5. Privacy-conscious live play
+
+- Discover nearby runners without exposing exact coordinates.
+- Send connection requests and friendly waves.
+- Start short-lived territory contests.
+- Expire presence, capabilities, and interaction grants quickly.
+- Keep discovery continuity separate from durable run history.
+
+### 6. Reliable completed-run recovery
+
+A finished run is stored locally **before** upload. If the network disappears,
+the activity remains pending and can be retried. The final summary, streak,
+territory, and voice guidance update only after the API confirms persistence.
+
+### 7. Civic awareness built into movement
+
+HexRunner combines coarse-area air-quality information with private civic and
+safety reporting. Provider outages use a durable PostgreSQL outbox with
+bounded retry, expiring leases, terminal classification, and coordinate-free
+operator notifications.
+
+### 8. An on-device voice companion
+
+Consent-based guidance uses `expo-speech` and authoritative run events. Stale
+asynchronous announcements are rejected so the voice never celebrates an old
+or unconfirmed state.
+
+## How a run becomes territory
 
 ```mermaid
-flowchart TD
-    A[Open HexRunner] --> B[Allow foreground location]
-    B --> C[Home shows live GPS, AQI, territory, and nearby activity]
-    C --> D[Start run]
-    D --> E[Collect timestamped GPS points]
-    E --> F[Compute distance, pace, and traversed H3 cells]
-    F --> G[Stop run]
-    G --> H[Cache completed run locally]
-    H --> I[Submit anonymous signed request to API]
-    I --> J{Server validation passes?}
-    J -- No --> K[Keep pending run and show retry/error state]
-    K --> I
-    J -- Yes --> L[Lock cells and persist run transaction]
-    L --> M[Apply claim budget, takeovers, streak, and cold-zone bonus]
-    M --> N[Return authoritative summary]
-    N --> O[Clear pending run]
-    O --> P[Refresh Home, Profile, and Leaderboard]
+flowchart LR
+    A[Start outdoor run] --> B[Collect timestamped GPS points]
+    B --> C[Calculate local pace and H3 preview]
+    C --> D[Stop run]
+    D --> E[Persist pending run on device]
+    E --> F[Submit signed anonymous payload]
+    F --> G{Server validation}
+    G -- Rejected --> H[Keep retryable local copy]
+    H --> F
+    G -- Valid --> I[Lock affected cells]
+    I --> J[Save run, route and ownership atomically]
+    J --> K[Apply claims, takeovers, bonus and streak]
+    K --> L[Return authoritative summary]
+    L --> M[Refresh map, profile and leaderboard]
 ```
 
-### Run-saving workflow
+### Territory rules at a glance
 
-1. The phone creates an anonymous device credential and stores it securely.
-2. During a run, the app records timestamped points and computes a local preview
-   of distance, pace, anti-spoof advisories, and traversed cells.
-3. When the runner stops, the complete payload is saved to local storage before
-   upload. Closing the app does not silently discard the activity.
-4. The API verifies the anonymous credential, chronology, coordinate bounds,
-   run window, and claim consistency.
-5. The server recomputes claim eligibility from the submitted path rather than
-   trusting client totals.
-6. Requested cells are locked in deterministic order. The run, route points,
-   ownership changes, and takeover events are committed atomically.
-7. The response becomes the source of truth for the summary, profile totals,
-   leaderboard, streak, and voice announcements.
-
-### Territory rules
-
-- **New claim:** a valid run crosses an eligible unowned H3 cell.
-- **Takeover:** a newer completed run crosses a cell owned by another runner.
-- **No duplicate inflation:** repeated points in the same cell do not create
-  repeated claims.
-- **Daily fairness:** the server enforces the daily target associated with the
-  runner's locally predicted fitness tier.
-- **Authoritative result:** mobile calculations are previews; the API decides
-  persisted ownership and rewards.
+| Rule | Outcome |
+| :--- | :--- |
+| Cross an eligible unowned cell | Claim it |
+| Cross a valid opponent-owned cell | Take it over |
+| Re-enter the same cell repeatedly | Count it once |
+| Exceed the daily fitness-aware target | Preserve the run, cap new claims |
+| Submit a duplicate or replayed result | Reject additional rewards |
+| Receive no authoritative confirmation | Keep the run pending |
 
 ## System architecture
 
 ```mermaid
-flowchart LR
-    subgraph Mobile["Expo React Native mobile app"]
-        UI[Expo Router screens]
-        GPS[Foreground GPS + native maps]
-        H3[H3 route and territory engine]
-        LocalAI[On-device fitness model]
-        Voice[On-device voice companion]
-        Recovery[AsyncStorage pending-run recovery]
-        Client[Generated OpenAPI client + TanStack Query]
+flowchart TB
+    subgraph Phone["Expo React Native app"]
+        UI[Expo Router UI]
+        GPS[Foreground GPS]
+        H3[H3 route engine]
+        AI[On-device fitness model]
+        Voice[Voice companion]
+        Recovery[Pending-run recovery]
+        Client[Generated API client]
     end
 
-    subgraph API["Express API"]
-        Auth[Anonymous credential verification]
-        Runs[Run validation and persistence]
-        Territory[Ownership and takeover engine]
-        Social[Presence, connections, waves, contests]
-        Equity[Cold-zone classifier and rewards]
-        AQI[AQI cache and durable alert worker]
-        Civic[Civic and safety reports]
+    subgraph Server["Express API"]
+        Identity[Anonymous credentials]
+        Runs[Run validation]
+        Territory[Territory engine]
+        Social[Presence and interactions]
+        Equity[Cold-zone rewards]
+        AQI[AQI cache and alert worker]
+        Civic[Civic reports]
     end
 
-    subgraph Data["Replit managed services"]
-        Postgres[(PostgreSQL)]
+    subgraph Data["Managed infrastructure"]
+        DB[(PostgreSQL)]
         Objects[(Private object storage)]
     end
 
-    UI --> GPS
-    GPS --> H3
-    H3 --> Recovery
-    LocalAI --> UI
+    GPS --> H3 --> Recovery --> Client
+    AI --> UI
     Voice --> UI
-    Recovery --> Client
-    Client -->|HTTPS /api| Auth
-    Auth --> Runs
-    Runs --> Territory
-    Runs --> Equity
-    Social --> Postgres
-    Territory --> Postgres
-    Equity --> Postgres
-    AQI --> Postgres
-    Civic --> Postgres
+    Client --> Identity --> Runs --> Territory --> DB
+    Runs --> Equity --> DB
+    Social --> DB
+    AQI --> DB
+    Civic --> DB
     Civic --> Objects
 ```
 
-### Data and trust boundaries
+### Trust boundaries
 
-```mermaid
-sequenceDiagram
-    participant Phone as Runner phone
-    participant API as HexRunner API
-    participant DB as PostgreSQL
-    participant Provider as External AQI provider
-    participant Operator as Operator webhook
-
-    Phone->>Phone: Track GPS and create local preview
-    Phone->>API: Signed anonymous completed-run payload
-    API->>API: Recompute route and validate claims
-    API->>DB: Transactionally save run and ownership
-    DB-->>API: Authoritative totals and territory result
-    API-->>Phone: Confirmed run summary
-
-    API->>Provider: Request coarse-area AQI
-    alt Provider available
-        Provider-->>API: Fresh AQI
-    else Provider outage
-        API->>DB: Persist coordinate-free alert outbox event
-        DB-->>Operator: Background retry worker delivers alert
-    end
-```
-
-### Key trust decisions
-
-- The **phone is trusted for interaction, not authority**. It presents previews,
-  but ownership and rewards are server-derived.
-- Anonymous credentials identify an enrolled installation without introducing a
-  social login dependency.
-- Exact run coordinates belong to the saved activity flow and are never copied
-  into AQI alert delivery rows.
-- Nearby presence and interaction grants are short-lived and separated from
-  durable run identity.
-- Cold-zone aggregate keys are purpose-built and unlinkable to public runner
-  identity.
+| Component | Trusted for | Not trusted for |
+| :--- | :--- | :--- |
+| Mobile app | Interaction, local previews, recovery | Final ownership or rewards |
+| API | Validation, limits, authoritative outcomes | Exposing precise presence locations |
+| PostgreSQL | Durable runs, territory, outbox state | Public client access |
+| Object storage | Private report attachments | Serving unrestricted public files |
 
 ## Technology stack
 
-| Layer             | Technology                                                |
-| ----------------- | --------------------------------------------------------- |
-| Mobile            | Expo 54, React Native 0.81, TypeScript, Expo Router       |
-| Maps and location | `react-native-maps`, `expo-location`, `h3-js`             |
-| Client data       | TanStack Query, generated OpenAPI/Zod clients             |
-| Local persistence | AsyncStorage and Expo SecureStore                         |
-| Voice             | `expo-speech`                                             |
-| API               | Express 5, TypeScript, Pino                               |
-| Database          | PostgreSQL, Drizzle ORM                                   |
-| Object storage    | Replit private object storage                             |
-| Validation        | TypeScript, Node test runner, project integration scripts |
-| Workspace         | pnpm monorepo                                             |
+| Layer | Technology |
+| :--- | :--- |
+| Mobile | Expo 54, React Native 0.81, Expo Router, TypeScript |
+| Maps and location | `react-native-maps`, `expo-location`, `h3-js` |
+| Client state | TanStack Query, generated OpenAPI and Zod clients |
+| Device storage | AsyncStorage, Expo SecureStore |
+| Voice | `expo-speech` |
+| API | Express 5, TypeScript, Pino |
+| Database | PostgreSQL, Drizzle ORM |
+| Media storage | Replit private object storage |
+| Web experience | React, Vite, Framer Motion, WebGL |
+| Workspace | pnpm monorepo |
 
-## Repository structure
+## Repository map
 
 ```text
-.
+HexRunner/
 ├── artifacts/
-│   ├── hexrunner/                 # Expo React Native app
-│   │   ├── src/screens/           # Home, Run, Leaderboard, Profile, onboarding
-│   │   ├── src/services/          # GPS, H3, recovery, social, AI, voice
-│   │   ├── src/models/            # Committed on-device model weights
-│   │   ├── scripts/               # Mobile validation and model training
-│   │   └── docs/                  # Judge and feature evidence
-│   ├── api-server/                # Express API and background workers
-│   │   ├── src/routes/            # HTTP endpoints
-│   │   ├── src/lib/               # Domain logic and durable workers
-│   │   ├── src/tests/             # Database-backed integration tests
-│   │   └── scripts/               # Bundled validation entry points
-│   └── mockup-sandbox/            # Design preview artifact
+│   ├── hexrunner/               # Expo mobile game
+│   │   ├── src/screens/         # Home, Run, Leaderboard, Profile
+│   │   ├── src/services/        # GPS, H3, social, recovery, voice
+│   │   ├── src/models/          # Committed on-device model weights
+│   │   └── docs/                # Judge and feature evidence
+│   ├── api-server/              # Express API and background workers
+│   ├── hexrunner-web/           # Cinematic marketing website
+│   └── hexrunner-sih-2026/      # SIH presentation artifact
 ├── lib/
-│   ├── api-spec/                  # OpenAPI contract and generated API types
-│   ├── api-client-react/          # React client package
-│   ├── api-zod/                   # Runtime request/response schemas
-│   └── db/                        # Drizzle schema and PostgreSQL access
-├── screenshots/                   # Repository-safe product screenshots
-├── .github/workflows/ci.yml       # GitHub validation workflow
-├── pnpm-workspace.yaml
-└── package.json
+│   ├── api-spec/                # OpenAPI source of truth
+│   ├── api-client-react/        # Generated React client
+│   ├── api-zod/                 # Runtime schemas
+│   └── db/                      # Drizzle schema and database access
+├── screenshots/                 # README and product visuals
+├── .github/workflows/ci.yml     # Validation workflow
+└── pnpm-workspace.yaml
 ```
 
-## Local setup
+## Run it locally
 
 ### Prerequisites
 
 - Node.js 24
 - pnpm 10
 - PostgreSQL
-- Expo Go on an Android/iQOO device for real GPS and native-map testing
+- Expo Go on an Android/iQOO device for native GPS and map testing
 
 ### 1. Clone and install
 
@@ -307,21 +284,18 @@ corepack enable
 pnpm install --frozen-lockfile
 ```
 
-### 2. Configure environment variables
+### 2. Configure secrets
 
-Create secrets through Replit Secrets or your local secret manager. Never commit
-their values.
+Use Replit Secrets or a local secret manager. Never commit secret values.
 
-| Variable                                 | Required         | Purpose                                      |
-| ---------------------------------------- | ---------------- | -------------------------------------------- |
-| `DATABASE_URL`                           | Yes              | PostgreSQL connection string                 |
-| `SESSION_SECRET`                         | Yes              | Anonymous credential and privacy-key signing |
-| `PRIVATE_OBJECT_DIR`                     | For civic photos | Private object-storage directory             |
-| `PORT`                                   | At runtime       | Service listening port                       |
-| `AIR_QUALITY_OPERATOR_ALERT_WEBHOOK_URL` | Optional         | HTTPS operator alert destination             |
-| `LOG_LEVEL`                              | Optional         | Pino logging level                           |
-
-Replit injects its development and artifact routing variables automatically.
+| Variable | Required | Purpose |
+| :--- | :---: | :--- |
+| `DATABASE_URL` | Yes | PostgreSQL connection |
+| `SESSION_SECRET` | Yes | Anonymous credentials and privacy-key signing |
+| `PRIVATE_OBJECT_DIR` | Civic photos | Private attachment directory |
+| `PORT` | Runtime | Service listening port |
+| `AIR_QUALITY_OPERATOR_ALERT_WEBHOOK_URL` | Optional | Operator outage notifications |
+| `LOG_LEVEL` | Optional | Server logging level |
 
 ### 3. Apply the database schema
 
@@ -329,14 +303,7 @@ Replit injects its development and artifact routing variables automatically.
 pnpm --filter @workspace/db run push
 ```
 
-### 4. Start the project
-
-On Replit, start the existing managed workflows:
-
-- `artifacts/api-server: API Server`
-- `artifacts/hexrunner: expo`
-
-Equivalent package commands:
+### 4. Start the API and mobile app
 
 ```bash
 # API
@@ -346,76 +313,31 @@ PORT=8080 pnpm --filter @workspace/api-server run dev
 PORT=19292 pnpm --filter @workspace/hexrunner run dev
 ```
 
-Scan the Expo QR code with Expo Go and grant foreground location permission.
-Browser preview is useful for navigation and save-flow checks, but native maps,
-speech, and real GPS capture must be tested on a physical phone.
-
-## API responsibilities
-
-The Express API is mounted under `/api` and provides:
-
-- anonymous enrollment and credential verification;
-- run validation and transactional save;
-- H3 ownership lookup and takeover history;
-- users, profile statistics, recent runs, and leaderboard;
-- live presence, discovery, connections, waves, and territory contests;
-- AQI lookup, stale fallback, and operator-outage delivery;
-- civic/safety reports and private photo handling;
-- cold-zone evaluation and bonus settlement;
-- health checks for deployment.
-
-The OpenAPI contract and generated clients keep mobile/API payloads aligned.
-
-## Reliability and privacy
-
-### Completed-run recovery
-
-A stopped run is written locally before upload. Failed requests keep the run in
-a retryable state, and startup recovery can resume a previously interrupted
-save. The UI does not enable the final “Done” path until the API confirms
-persistence.
-
-### AQI outage delivery
-
-Sustained provider outages and their matching recoveries are persisted in a
-coordinate-free PostgreSQL outbox. Workers use:
-
-- deterministic notification IDs;
-- `FOR UPDATE SKIP LOCKED` claims;
-- tokenized, expiring leases;
-- bounded exponential backoff;
-- strict trigger-before-resolution ordering;
-- stale-completion no-ops after lease reclaim;
-- visible exhausted/discarded terminal states;
-- 30-day terminal-history retention in bounded cleanup batches.
-
-### Location privacy
-
-- AQI caching uses coarse areas rather than exact runner coordinates.
-- AQI alert history stores no runner identity, latitude, longitude, or route.
-- Live discovery uses ephemeral presence and continuity records.
-- Cold-zone aggregation uses privacy-specific derived keys.
-- Civic photos are stored privately and referenced through controlled API
-  flows.
+On Replit, use the existing managed API and Expo workflows instead. Browser
+preview is useful for navigation and save-flow checks; native maps, speech, and
+real GPS capture should be tested on a physical phone.
 
 ## Validation and CI
 
-GitHub Actions runs typechecks and the full server/mobile validation matrix
-against an ephemeral PostgreSQL service on pushes and pull requests.
-
-Run the same checks locally:
+GitHub Actions runs TypeScript checks and the server/mobile validation matrix
+against an ephemeral PostgreSQL service.
 
 ```bash
+# Shared contracts
 pnpm run typecheck:libs
+
+# API and mobile typechecks
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/hexrunner run typecheck
 
+# Server-authoritative feature suites
 pnpm --filter @workspace/api-server run validate:air-quality
 pnpm --filter @workspace/api-server run validate:run-saving
 pnpm --filter @workspace/api-server run validate:cold-zones
 pnpm --filter @workspace/api-server run validate:live-presence
 pnpm --filter @workspace/api-server run validate:live-interactions
 
+# On-device and cross-platform suites
 pnpm --filter @workspace/hexrunner run validate:models
 pnpm --filter @workspace/hexrunner run validate:hex-engine
 pnpm --filter @workspace/hexrunner run validate:cold-zones
@@ -424,50 +346,51 @@ pnpm --filter @workspace/hexrunner run validate:live-interactions
 pnpm --filter @workspace/hexrunner run validate:voice-companion
 ```
 
-The database-backed validators create isolated fixtures and remove their own
-rows.
+Database-backed validators create isolated fixtures and remove their own rows.
 
-## On-device model provenance
+## Demo route
 
-`artifacts/hexrunner/scripts/train_fitness_model.py` creates a deterministic,
-balanced 500-row synthetic dataset and trains the small fitness classifier.
-Weights are exported to:
+1. Launch HexRunner on a physical Android/iQOO phone.
+2. Complete the cinematic onboarding and choose a territory colour.
+3. Allow foreground location and confirm the live H3 grid.
+4. Start a run and cross multiple cells.
+5. Stop and wait for the authoritative saved confirmation.
+6. Review distance, duration, pace, claims, takeovers, bonus, and streak.
+7. Return Home to see the updated city.
+8. Open Leaderboard and Profile to verify persisted progress.
+9. Optionally connect a second device for waves and a territory contest.
 
-```text
-artifacts/hexrunner/src/models/fitnessWeights.json
-```
+Detailed judge evidence is available in
+[`artifacts/hexrunner/docs/JUDGE_EVIDENCE.md`](artifacts/hexrunner/docs/JUDGE_EVIDENCE.md).
 
-Inference in `fitnessModel.ts` performs normalization, dense matrix
-multiplication, ReLU, and softmax using plain TypeScript. The Colab-ready
-notebook is:
+## Design principles
 
-```text
-artifacts/hexrunner/scripts/hexrunner_fitness_colab.ipynb
-```
-
-## Demo checklist
-
-1. Open HexRunner on a physical Android/iQOO phone.
-2. Allow foreground location and confirm the live map, AQI, and H3 grid.
-3. Start a run and move through multiple cells.
-4. Stop and wait for the authoritative saved confirmation.
-5. Review distance, duration, pace, new claims, takeovers, bonus, and streak.
-6. Open Home to see updated territory.
-7. Open Leaderboard and Profile to confirm shared persisted totals.
-8. Optionally demonstrate a nearby connection, wave, or territory contest with
-   a second device.
-
-The detailed judge-evidence guide is available at
-`artifacts/hexrunner/docs/JUDGE_EVIDENCE.md`.
+- **Movement first:** the player should understand the next physical action.
+- **High contrast:** dark urban surfaces, bright territory colour, clear status.
+- **Authority is visible:** pending, rejected, and confirmed outcomes are never
+  silently merged.
+- **Privacy by structure:** precise movement data does not leak into discovery,
+  AQI alerts, or public identity.
+- **Failure is recoverable:** network loss should pause progress, not erase it.
 
 ## Contributing
 
-1. Create a focused branch from `main`.
+1. Branch from `main`.
 2. Keep mobile previews separate from server-authoritative decisions.
-3. Add integration coverage for database or concurrency behavior.
-4. Run the validation matrix above.
-5. Open a pull request with behavior, privacy, and migration notes.
+3. Add integration coverage for database or concurrency changes.
+4. Run the relevant validation suites.
+5. Open a pull request with behaviour, privacy, and migration notes.
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+
+### The city is already divided. Start running.
+
+**HexRunner — claim your city, one hex at a time.**
+
+</div>
