@@ -1,6 +1,7 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useRef } from 'react';
 import { StoreButtons } from './StoreButtons';
+import { RotatingGlobe } from './RotatingGlobe';
 
 export function Hero({ onStoreClick }: { onStoreClick: () => void }) {
   const ref = useRef(null);
@@ -20,11 +21,9 @@ export function Hero({ onStoreClick }: { onStoreClick: () => void }) {
         className="absolute inset-0 w-full h-full"
       >
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#030712]/60 to-[#030712] z-10" />
-        <img 
-          src={`${import.meta.env.BASE_URL}images/earth-night.png`}
-          alt="Night City Grid"
-          className="w-full h-full object-cover object-center opacity-60 mix-blend-screen"
-        />
+        <div className="hero-globe absolute left-1/2 top-1/2 aspect-square w-[min(112vw,112vh)] -translate-x-1/2 -translate-y-1/2 opacity-80">
+          <RotatingGlobe />
+        </div>
         <div className="noise-overlay absolute inset-0 opacity-20 z-20 pointer-events-none" />
       </motion.div>
 
