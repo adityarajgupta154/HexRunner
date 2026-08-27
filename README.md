@@ -18,8 +18,19 @@ neighbourhood becomes an arena worth exploring.
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Server_Authoritative-111827?style=for-the-badge&logo=postgresql&logoColor=4169E1)](https://www.postgresql.org/)
 [![H3](https://img.shields.io/badge/Uber_H3-Territory_Engine-C7FF35?style=for-the-badge&logoColor=111827)](https://h3geo.org/)
 
+<br />
+<br />
+
+### [Explore the live HexRunner experience →](https://hex-runner.replit.app/hexrunner-web/)
+
+**See the rotating world, territory gameplay, cinematic walkthrough, and full
+product story in your browser.**
+
+[![Open Live Website](https://img.shields.io/badge/OPEN_LIVE_WEBSITE-C7FF35?style=for-the-badge&logo=googlechrome&logoColor=111827)](https://hex-runner.replit.app/hexrunner-web/)
+
 Built for the **iQOO Hackathon 2026**
 
+[Live website](https://hex-runner.replit.app/hexrunner-web/) ·
 [Experience](#the-experience) · [Features](#what-makes-hexrunner-different) ·
 [Architecture](#system-architecture) · [Setup](#run-it-locally) ·
 [Validation](#validation-and-ci)
